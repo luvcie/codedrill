@@ -1,0 +1,17 @@
+# Binaries
+codedrill
+a.out
+*.o
+*.a
+*.so
+
+# Editor & OS artifacts
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Build artifacts
+dist/
+bin/
