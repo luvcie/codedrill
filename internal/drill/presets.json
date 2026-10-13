@@ -1,0 +1,229 @@
+[
+  {
+    "id": "ft_strlen",
+    "title": "ft_strlen",
+    "category": "42",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# ft_strlen\n\nWrite a function that returns the length of a string passed as parameter.\n\n### Prototype\n```c\nint ft_strlen(char *str);\n```\n\n### Constraints\n- Reproduce standard `strlen` behavior.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
+    "entry_file": "ft_strlen.c",
+    "starter_code": "int\tft_strlen(char *str)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_strlen.c ft_strlen.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_strlen.c": "#include <assert.h>\n#include <string.h>\n#include <stdio.h>\n\nint ft_strlen(char *str);\n\nint main(void)\n{\n\tassert(ft_strlen(\"\") == 0);\n\tassert(ft_strlen(\"a\") == 1);\n\tassert(ft_strlen(\"42\") == 2);\n\tassert(ft_strlen(\"Hello, world!\") == 13);\n\tprintf(\"ALL TESTS PASSED: ft_strlen\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "ft_swap",
+    "title": "ft_swap",
+    "category": "42",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# ft_swap\n\nWrite a function that swaps the contents of two integers whose addresses are entered as parameters.\n\n### Prototype\n```c\nvoid ft_swap(int *a, int *b);\n```",
+    "entry_file": "ft_swap.c",
+    "starter_code": "void\tft_swap(int *a, int *b)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_swap.c ft_swap.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_swap.c": "#include <assert.h>\n#include <stdio.h>\n\nvoid ft_swap(int *a, int *b);\n\nint main(void)\n{\n\tint x = 42, y = 24;\n\tft_swap(&x, &y);\n\tassert(x == 24 && y == 42);\n\tx = -5; y = 100;\n\tft_swap(&x, &y);\n\tassert(x == 100 && y == -5);\n\tprintf(\"ALL TESTS PASSED: ft_swap\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "ft_split",
+    "title": "ft_split",
+    "category": "42",
+    "language": "c",
+    "difficulty": "medium",
+    "description": "# ft_split\n\nWrite a function that takes a string and splits it into an array of words separated by spaces, tabs, or newlines.\n\n### Prototype\n```c\nchar **ft_split(char *str);\n```\n\n### Requirements\n- The returned array must be NULL-terminated.\n- Handles consecutive delimiters and edge cases gracefully.",
+    "entry_file": "ft_split.c",
+    "starter_code": "#include <stdlib.h>\n\nchar\t**ft_split(char *str)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_split.c ft_split.c -o test && ./test",
+    "auto_submit": false,
+    "extra_files": {
+      "test_split.c": "#include <stdlib.h>\n#include <string.h>\n#include <assert.h>\n#include <stdio.h>\n\nchar **ft_split(char *str);\n\nint main(void)\n{\n\tchar **res = ft_split(\"  hello   world  42  \");\n\tassert(res != NULL);\n\tassert(strcmp(res[0], \"hello\") == 0);\n\tassert(strcmp(res[1], \"world\") == 0);\n\tassert(strcmp(res[2], \"42\") == 0);\n\tassert(res[3] == NULL);\n\n\tchar **empty = ft_split(\"   \");\n\tassert(empty != NULL && empty[0] == NULL);\n\n\tprintf(\"ALL TESTS PASSED: ft_split\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "reverse_bits",
+    "title": "reverse_bits",
+    "category": "Algorithms",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# reverse_bits\n\nWrite a function that takes a byte, reverses its bits (bit 7 becomes bit 0, etc.) and returns the result.\n\n### Prototype\n```c\nunsigned char reverse_bits(unsigned char octet);\n```\n\n### Example\n`1 byte = 00100110` -> `01100100`",
+    "entry_file": "reverse_bits.c",
+    "starter_code": "unsigned char\treverse_bits(unsigned char octet)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_bits.c reverse_bits.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_bits.c": "#include <assert.h>\n#include <stdio.h>\n\nunsigned char reverse_bits(unsigned char octet);\n\nint main(void)\n{\n\tassert(reverse_bits(0x00) == 0x00);\n\tassert(reverse_bits(0xFF) == 0xFF);\n\tassert(reverse_bits(0x01) == 0x80);\n\tassert(reverse_bits(0x26) == 0x64);\n\tprintf(\"ALL TESTS PASSED: reverse_bits\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "two_sum",
+    "title": "Two Sum",
+    "category": "LeetCode",
+    "language": "go",
+    "difficulty": "easy",
+    "description": "# Two Sum\n\nGiven an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\n\n### Function Signature\n```go\nfunc TwoSum(nums []int, target int) []int\n```\n\n### Constraints\n- Exactly one solution exists.\n- You may not use the same element twice.",
+    "entry_file": "solution.go",
+    "starter_code": "package main\n\nfunc TwoSum(nums []int, target int) []int {\n\t// your code here\n\treturn nil\n}\n",
+    "test_command": "go test -v",
+    "auto_submit": true,
+    "extra_files": {
+      "solution_test.go": "package main\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestTwoSum(t *testing.T) {\n\ttests := []struct {\n\t\tnums   []int\n\t\ttarget int\n\t\twant   []int\n\t}{\n\t\t{[]int{2, 7, 11, 15}, 9, []int{0, 1}},\n\t\t{[]int{3, 2, 4}, 6, []int{1, 2}},\n\t\t{[]int{3, 3}, 6, []int{0, 1}},\n\t}\n\tfor _, tc := range tests {\n\t\tgot := TwoSum(tc.nums, tc.target)\n\t\tif !reflect.DeepEqual(got, tc.want) && !reflect.DeepEqual(got, []int{tc.want[1], tc.want[0]}) {\n\t\t\tt.Fatalf(\"TwoSum(%v, %d) = %v; want %v\", tc.nums, tc.target, got, tc.want)\n\t\t}\n\t}\n}\n",
+      "go.mod": "module solution\n\ngo 1.22\n"
+    }
+  },
+  {
+    "id": "palindrome",
+    "title": "Valid Palindrome",
+    "category": "LeetCode",
+    "language": "python",
+    "difficulty": "easy",
+    "description": "# Valid Palindrome\n\nA phrase is a palindrome if, after converting all uppercase letters into lowercase letters and removing all non-alphanumeric characters, it reads the same forward and backward.\n\n### Prototype\n```python\ndef is_palindrome(s: str) -> bool:\n    pass\n```",
+    "entry_file": "solution.py",
+    "starter_code": "def is_palindrome(s: str) -> bool:\n    # your code here\n    pass\n",
+    "test_command": "python3 -m unittest test_solution.py",
+    "auto_submit": true,
+    "extra_files": {
+      "test_solution.py": "import unittest\nfrom solution import is_palindrome\n\nclass TestPalindrome(unittest.TestCase):\n    def test_cases(self):\n        self.assertTrue(is_palindrome(\"A man, a plan, a canal: Panama\"))\n        self.assertFalse(is_palindrome(\"race a car\"))\n        self.assertTrue(is_palindrome(\" \"))\n        self.assertTrue(is_palindrome(\"0P0\"))\n        self.assertFalse(is_palindrome(\"0P\"))\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    }
+  },
+  {
+    "id": "ft_atoi",
+    "title": "ft_atoi",
+    "category": "42",
+    "language": "c",
+    "difficulty": "medium",
+    "description": "# ft_atoi\n\nWrite a function that converts the initial portion of the string pointed to by `str` to `int` representation.\n\n### Prototype\n```c\nint ft_atoi(const char *str);\n```\n\n### Requirements\n- Skips leading whitespaces (spaces, \\t, \\n, \\v, \\f, \\r).\n- Handles an optional `+` or `-` sign.\n- Parses consecutive numerical digits until non-digit character.",
+    "entry_file": "ft_atoi.c",
+    "starter_code": "int\tft_atoi(const char *str)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_atoi.c ft_atoi.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_atoi.c": "#include <assert.h>\n#include <stdlib.h>\n#include <stdio.h>\n\nint ft_atoi(const char *str);\n\nint main(void)\n{\n\tassert(ft_atoi(\"0\") == 0);\n\tassert(ft_atoi(\"42\") == 42);\n\tassert(ft_atoi(\"   -123\") == -123);\n\tassert(ft_atoi(\"\\t\\n +567abc\") == 567);\n\tassert(ft_atoi(\"--42\") == 0);\n\tprintf(\"ALL TESTS PASSED: ft_atoi\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "binary_search",
+    "title": "Binary Search",
+    "category": "Algorithms",
+    "language": "python",
+    "difficulty": "easy",
+    "description": "# Binary Search\n\nGiven an array of integers `nums` which is sorted in ascending order, and an integer `target`, write a function to search `target` in `nums`.\n\nIf `target` exists, then return its index. Otherwise, return `-1`.\n\nYou must write an algorithm with `O(log n)` runtime complexity.\n\n### Prototype\n```python\ndef search(nums: list[int], target: int) -> int:\n    pass\n```",
+    "entry_file": "solution.py",
+    "starter_code": "def search(nums: list[int], target: int) -> int:\n    # your code here\n    pass\n",
+    "test_command": "python3 -m unittest test_solution.py",
+    "auto_submit": true,
+    "extra_files": {
+      "test_solution.py": "import unittest\nfrom solution import search\n\nclass TestBinarySearch(unittest.TestCase):\n    def test_search(self):\n        self.assertEqual(search([-1, 0, 3, 5, 9, 12], 9), 4)\n        self.assertEqual(search([-1, 0, 3, 5, 9, 12], 2), -1)\n        self.assertEqual(search([5], 5), 0)\n        self.assertEqual(search([5], -5), -1)\n        self.assertEqual(search([], 1), -1)\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    }
+  },
+  {
+    "id": "ft_itoa",
+    "title": "ft_itoa",
+    "category": "42",
+    "language": "c",
+    "difficulty": "hard",
+    "description": "# ft_itoa\n\nWrite a function that allocates (with `malloc`) and returns a string representing the integer received as an argument.\n\n### Prototype\n```c\nchar *ft_itoa(int nbr);\n```\n\n### Requirements\n- Negative numbers must be handled (including `INT_MIN = -2147483648`).\n- Must return a valid NULL-terminated string.\n- Return `NULL` if memory allocation fails.\n- Must compile with `-Wall -Wextra -Werror`.",
+    "entry_file": "ft_itoa.c",
+    "starter_code": "#include <stdlib.h>\n\nchar\t*ft_itoa(int nbr)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_itoa.c ft_itoa.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_itoa.c": "#include <assert.h>\n#include <string.h>\n#include <stdlib.h>\n#include <stdio.h>\n\nchar *ft_itoa(int nbr);\n\nint main(void)\n{\n\tchar *s;\n\ts = ft_itoa(0);\n\tassert(s != NULL && strcmp(s, \"0\") == 0);\n\tfree(s);\n\ts = ft_itoa(42);\n\tassert(s != NULL && strcmp(s, \"42\") == 0);\n\tfree(s);\n\ts = ft_itoa(-42);\n\tassert(s != NULL && strcmp(s, \"-42\") == 0);\n\tfree(s);\n\ts = ft_itoa(2147483647);\n\tassert(s != NULL && strcmp(s, \"2147483647\") == 0);\n\tfree(s);\n\ts = ft_itoa(-2147483648);\n\tassert(s != NULL && strcmp(s, \"-2147483648\") == 0);\n\tfree(s);\n\tprintf(\"ALL TESTS PASSED: ft_itoa\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "valid_parentheses",
+    "title": "Valid Parentheses",
+    "category": "LeetCode",
+    "language": "python",
+    "difficulty": "easy",
+    "description": "# Valid Parentheses\n\nGiven a string `s` containing just the characters `'('`, `')'`, `'{'`, `'}'`, `'['` and `']'`, determine if the input string is valid.\n\n### Prototype\n```python\ndef is_valid(s: str) -> bool:\n    pass\n```",
+    "entry_file": "solution.py",
+    "starter_code": "def is_valid(s: str) -> bool:\n    # your code here\n    pass\n",
+    "test_command": "python3 -m unittest test_solution.py",
+    "auto_submit": true,
+    "extra_files": {
+      "test_solution.py": "import unittest\nfrom solution import is_valid\n\nclass TestValidParentheses(unittest.TestCase):\n    def test_cases(self):\n        self.assertTrue(is_valid(\"()\"))\n        self.assertTrue(is_valid(\"()[]{}\"))\n        self.assertFalse(is_valid(\"(]\"))\n        self.assertTrue(is_valid(\"([{}])\"))\n        self.assertFalse(is_valid(\"[\"))\n        self.assertFalse(is_valid(\"]\"))\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    }
+  },
+  {
+    "id": "ft_strrev",
+    "title": "ft_strrev",
+    "category": "42",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# ft_strrev\n\nWrite a function that reverses a string in-place and returns a pointer to the string.\n\n### Prototype\n```c\nchar *ft_strrev(char *str);\n```\n\n### Constraints\n- The string must be modified in-place (no dynamic memory allocation).\n- Returns `str`.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
+    "entry_file": "ft_strrev.c",
+    "starter_code": "char\t*ft_strrev(char *str)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_strrev.c ft_strrev.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_strrev.c": "#include <assert.h>\n#include <string.h>\n#include <stdio.h>\n\nchar *ft_strrev(char *str);\n\nint main(void)\n{\n\tchar s1[] = \"\";\n\tassert(strcmp(ft_strrev(s1), \"\") == 0);\n\n\tchar s2[] = \"a\";\n\tassert(strcmp(ft_strrev(s2), \"a\") == 0);\n\n\tchar s3[] = \"42\";\n\tassert(strcmp(ft_strrev(s3), \"24\") == 0);\n\n\tchar s4[] = \"hello\";\n\tassert(strcmp(ft_strrev(s4), \"olleh\") == 0);\n\n\tchar s5[] = \"racecar\";\n\tassert(strcmp(ft_strrev(s5), \"racecar\") == 0);\n\n\tprintf(\"ALL TESTS PASSED: ft_strrev\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "ft_list_size",
+    "title": "ft_list_size",
+    "category": "42",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# ft_list_size\n\nWrite a function that returns the number of elements in the linked list passed as parameter.\n\n### Prototype & Structures\nThe `t_list` structure is defined in `ft_list.h`:\n```c\ntypedef struct s_list {\n    struct s_list *next;\n    void          *data;\n} t_list;\n\nint ft_list_size(t_list *begin_list);\n```\n\n### Constraints\n- Returns 0 if `begin_list` is NULL.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
+    "entry_file": "ft_list_size.c",
+    "starter_code": "#include \"ft_list.h\"\n\nint\tft_list_size(t_list *begin_list)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_list_size.c ft_list_size.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "ft_list.h": "#ifndef FT_LIST_H\n# define FT_LIST_H\n\ntypedef struct s_list {\n\tstruct s_list *next;\n\tvoid          *data;\n} t_list;\n\nint ft_list_size(t_list *begin_list);\n\n#endif\n",
+      "test_list_size.c": "#include <assert.h>\n#include <stdlib.h>\n#include <stdio.h>\n#include \"ft_list.h\"\n\nint main(void)\n{\n\tassert(ft_list_size(NULL) == 0);\n\n\tt_list c = { .next = NULL, .data = NULL };\n\tt_list b = { .next = &c,   .data = NULL };\n\tt_list a = { .next = &b,   .data = NULL };\n\n\tassert(ft_list_size(&c) == 1);\n\tassert(ft_list_size(&b) == 2);\n\tassert(ft_list_size(&a) == 3);\n\n\tprintf(\"ALL TESTS PASSED: ft_list_size\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "max_subarray",
+    "title": "Maximum Subarray",
+    "category": "LeetCode",
+    "language": "python",
+    "difficulty": "medium",
+    "description": "# Maximum Subarray\n\nGiven an integer array `nums`, find the subarray with the largest sum, and return its sum.\n\nA subarray is a contiguous non-empty sequence of elements within an array.\n\n### Prototype\n```python\ndef max_sub_array(nums: list[int]) -> int:\n    pass\n```\n\n### Constraints\n- `1 <= len(nums) <= 10^5`\n- `-10^4 <= nums[i] <= 10^4`",
+    "entry_file": "solution.py",
+    "starter_code": "def max_sub_array(nums: list[int]) -> int:\n    # your code here\n    pass\n",
+    "test_command": "python3 -m unittest test_solution.py",
+    "auto_submit": true,
+    "extra_files": {
+      "test_solution.py": "import unittest\nfrom solution import max_sub_array\n\nclass TestMaxSubArray(unittest.TestCase):\n    def test_cases(self):\n        self.assertEqual(max_sub_array([-2, 1, -3, 4, -1, 2, 1, -5, 4]), 6)\n        self.assertEqual(max_sub_array([1]), 1)\n        self.assertEqual(max_sub_array([5, 4, -1, 7, 8]), 23)\n        self.assertEqual(max_sub_array([-1]), -1)\n        self.assertEqual(max_sub_array([-3, -2, -5]), -2)\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    }
+  },
+  {
+    "id": "ft_strdup",
+    "title": "ft_strdup",
+    "category": "42",
+    "language": "c",
+    "difficulty": "easy",
+    "description": "# ft_strdup\n\nReproduce the behavior of the function `strdup` (man strdup).\n\n### Prototype\n```c\nchar *ft_strdup(char *src);\n```\n\n### Constraints\n- Allocates sufficient memory for a copy of the string `src`, does the copy, and returns a pointer to it.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
+    "entry_file": "ft_strdup.c",
+    "starter_code": "#include <stdlib.h>\n\nchar\t*ft_strdup(char *src)\n{\n\t// your code here\n}\n",
+    "test_command": "gcc -Wall -Wextra -Werror test_strdup.c ft_strdup.c -o test && ./test",
+    "auto_submit": true,
+    "extra_files": {
+      "test_strdup.c": "#include <assert.h>\n#include <string.h>\n#include <stdlib.h>\n#include <stdio.h>\n\nchar *ft_strdup(char *src);\n\nint main(void)\n{\n\tchar *s1 = ft_strdup(\"\");\n\tassert(s1 != NULL && strcmp(s1, \"\") == 0);\n\tfree(s1);\n\n\tchar *s2 = ft_strdup(\"42 Network\");\n\tassert(s2 != NULL && strcmp(s2, \"42 Network\") == 0);\n\tfree(s2);\n\n\tchar *s3 = ft_strdup(\"Speedrun!\");\n\tassert(s3 != NULL && strcmp(s3, \"Speedrun!\") == 0);\n\tfree(s3);\n\n\tprintf(\"ALL TESTS PASSED: ft_strdup\\n\");\n\treturn 0;\n}\n"
+    }
+  },
+  {
+    "id": "climb_stairs",
+    "title": "Climbing Stairs",
+    "category": "LeetCode",
+    "language": "python",
+    "difficulty": "easy",
+    "description": "# Climbing Stairs\n\nYou are climbing a staircase. It takes `n` steps to reach the top.\n\nEach time you can either climb `1` or `2` steps. In how many distinct ways can you climb to the top?\n\n### Prototype\n```python\ndef climb_stairs(n: int) -> int:\n    pass\n```\n\n### Constraints\n- `1 <= n <= 45`",
+    "entry_file": "solution.py",
+    "starter_code": "def climb_stairs(n: int) -> int:\n    # your code here\n    pass\n",
+    "test_command": "python3 -m unittest test_solution.py",
+    "auto_submit": true,
+    "extra_files": {
+      "test_solution.py": "import unittest\nfrom solution import climb_stairs\n\nclass TestClimbingStairs(unittest.TestCase):\n    def test_cases(self):\n        self.assertEqual(climb_stairs(1), 1)\n        self.assertEqual(climb_stairs(2), 2)\n        self.assertEqual(climb_stairs(3), 3)\n        self.assertEqual(climb_stairs(4), 5)\n        self.assertEqual(climb_stairs(5), 8)\n        self.assertEqual(climb_stairs(6), 13)\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    }
+  }
+]

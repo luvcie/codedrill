@@ -1,5 +1,5 @@
 # Binaries
-codedrill
+/codedrill
 a.out
 *.o
 *.a
@@ -15,3 +15,5 @@ a.out
 # Build artifacts
 dist/
 bin/
+.scratch/
+__pycache__/

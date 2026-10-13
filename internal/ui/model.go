@@ -2,13 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/storage"
@@ -20,90 +20,98 @@ const (
 	StateMenu AppState = iota
 	StateAddDrill
 	StateBriefing
+	StateLeaderboard
+	StateStats
 	StateCountdown
 	StateSprinting
 	StateEvaluating
 	StateResults
+	StateSetupError
 )
 
-type drillItem struct {
-	drill drill.Drill
-	isAdd bool
-}
-
-func (i drillItem) Title() string {
-	if i.isAdd {
-		return "+ [Add New Drill / Exercise]"
-	}
-	langBadge := strings.ToUpper(i.drill.Language)
-	if langBadge == "" {
-		langBadge = "CODE"
-	}
-	return fmt.Sprintf("[%s] %s", langBadge, i.drill.Title)
-}
-
-func (i drillItem) Description() string {
-	if i.isAdd {
-		return "Create a custom coding challenge or paste a drill template"
-	}
-	desc := i.drill.Description
-	if len(desc) > 60 {
-		desc = desc[:57] + "..."
-	}
-	if i.drill.AutoSubmit {
-		desc += " [Auto-Submit]"
-	}
-	return desc
-}
-
-func (i drillItem) FilterValue() string {
-	if i.isAdd {
-		return "add new drill exercise create"
-	}
-	return i.drill.Title + " " + i.drill.Language + " " + i.drill.Category
-}
-
-type countdownTickMsg struct{}
-
-func countdownTick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return countdownTickMsg{}
-	})
-}
+type countdownTickMsg struct{ id uint64 }
 
 type sprintFinishedMsg struct {
 	err error
 }
 
 type evalFinishedMsg struct {
-	passed bool
-	output string
-	err    error
+	id      uint64
+	session *runner.Session
+	passed  bool
+	output  string
 }
 
 type MainModel struct {
-	state       AppState
-	list        list.Model
-	history     *storage.HistoryStore
-	drills      []drill.Drill
-	activeDrill *drill.Drill
-	session     *runner.Session
+	state AppState
+	// previousState is where Esc returns to from the briefing and the
+	// leaderboard: the menu, or the results of the last sprint.
+	previousState AppState
+
+	list           list.Model
+	history        *storage.HistoryStore
+	drills         []drill.Drill
+	activeDrill    *drill.Drill
+	session        *runner.Session
+	categoryFilter string
+	categories     []string
+	categoryIndex  int
 
 	sprintStartTime time.Time
 	accumulatedTime time.Duration
+	countdownCount  int
+	countdownID     uint64
 
-	countdownCount int
+	form         *huh.Form
+	formCategory string
 
-	form *huh.Form
+	// pendingDelete is the drill waiting for y/n confirmation in the menu.
+	pendingDelete *drill.Drill
+	menuNotice    string
 
-	lastDuration time.Duration
-	isPB         bool
-	pbDelta      time.Duration
-	evalOutput   string
-	evalPassed   bool
+	evalOutput    string
+	evalPassed    bool
+	evalPending   bool
+	evalID        uint64
+	evalReadyTime time.Time
+	// launchFailed means the editor session never started, so there is no
+	// run to grade or record.
+	launchFailed bool
+	saveErr      error
+	setupErr     error
 
-	width  int
-	height int
+	// Results of the last recorded sprint. resultDrill is a copy so browsing
+	// other drills from the results screen cannot change what it shows.
+	resultDrill       drill.Drill
+	lastDuration      time.Duration
+	lastSubmits       int
+	isPB              bool
+	pbDelta           time.Duration
+	earnedXP          int
+	leveledUp         bool
+	levelInfo         storage.LevelInfo
+	isDailyBonus      bool
+	newBestStreak     bool
+	briefingCache     string
+	briefingKey       string
+	leaderboardRecent bool
+
+	width        int
+	height       int
+	scrollOffset int
+}
+
+func getAvailableCategories(drills []drill.Drill) []string {
+	cats := []string{"ALL"}
+	seen := make(map[string]bool)
+	for _, d := range drills {
+		cat := drill.CategoryOf(d)
+		if key := strings.ToUpper(cat); !seen[key] {
+			seen[key] = true
+			cats = append(cats, cat)
+		}
+	}
+	return cats
 }
 
 func NewMainModel() (*MainModel, error) {
@@ -111,375 +119,260 @@ func NewMainModel() (*MainModel, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	drills, _ := drill.LoadDrills()
-
-	m := &MainModel{
-		state:   StateMenu,
-		history: hist,
-		drills:  drills,
+	drills, loadErr := drill.LoadDrills()
+	if drills == nil {
+		return nil, loadErr
 	}
-
+	m := &MainModel{
+		state:          StateMenu,
+		history:        hist,
+		drills:         drills,
+		categories:     getAvailableCategories(drills),
+		categoryFilter: "ALL",
+	}
+	if loadErr != nil {
+		m.menuNotice = "Some drills could not be loaded: " + loadErr.Error()
+	}
 	m.refreshList()
 	return m, nil
 }
 
-func (m *MainModel) refreshList() {
-	var items []list.Item
-	for _, d := range m.drills {
-		items = append(items, drillItem{drill: d, isAdd: false})
+func NewMainModelWithTarget(idOrTitle string) (*MainModel, error) {
+	m, err := NewMainModel()
+	if err != nil {
+		return nil, err
 	}
-	items = append(items, drillItem{isAdd: true})
-
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(ColorSecondary).
-		BorderLeftForeground(ColorSecondary)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("#EEEEEE"))
-
-	l := list.New(items, delegate, 70, 16)
-	l.Title = "CODEDRILL — SPEEDRUN SELECTION"
-	l.Styles.Title = TitleStyle
-	m.list = l
-}
-
-func (m *MainModel) initForm() {
-	m.form = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Key("title").
-				Title("Exercise Title").
-				Placeholder("e.g. ft_putchar, ft_split, Two Sum"),
-			huh.NewInput().
-				Key("language").
-				Title("Language").
-				Placeholder("e.g. c, go, rust, python, cpp..."),
-			huh.NewInput().
-				Key("entry_file").
-				Title("Entry Filename").
-				Placeholder("e.g. ft_putchar.c or solution.go"),
-			huh.NewInput().
-				Key("test_cmd").
-				Title("Test Command (optional)").
-				Placeholder("e.g. gcc -Wall -Wextra -Werror -c ft_putchar.c"),
-			huh.NewInput().
-				Key("description").
-				Title("Problem Description").
-				Placeholder("Write function prototype or instructions..."),
-			huh.NewConfirm().
-				Key("auto_submit").
-				Title("Submit automatically when closing editor? (No = keep shell open)").
-				Affirmative("Yes (auto-submit)").
-				Negative("No (default)"),
-			huh.NewConfirm().
-				Key("confirm").
-				Title("Save and create this drill?").
-				Affirmative("Yes").
-				Negative("Cancel"),
-		),
-	).WithShowHelp(true)
-}
-
-func (m *MainModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m *MainModel) startOrResumeSprint() tea.Cmd {
-	m.state = StateSprinting
-	m.sprintStartTime = time.Now()
-	sprintCmd := m.session.GetSprintCmd()
-	return tea.ExecProcess(sprintCmd, func(err error) tea.Msg {
-		return sprintFinishedMsg{err: err}
-	})
-}
-
-func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.list.SetSize(msg.Width-4, msg.Height-6)
-		return m, nil
-
-	case countdownTickMsg:
-		if m.state == StateCountdown {
-			m.countdownCount--
-			if m.countdownCount <= 0 {
-				sess, err := runner.NewSession(
-					m.activeDrill.ID,
-					m.activeDrill.EntryFile,
-					m.activeDrill.StarterCode,
-					m.activeDrill.TestCommand,
-					m.activeDrill.Dir,
-					m.activeDrill.AutoSubmit,
-				)
-				if err != nil {
-					return m, nil
-				}
-				m.session = sess
-				m.accumulatedTime = 0
-				return m, m.startOrResumeSprint()
-			}
-			return m, countdownTick()
-		}
-
-	case sprintFinishedMsg:
-		if m.state == StateSprinting {
-			runTime := time.Since(m.sprintStartTime)
-			m.accumulatedTime += runTime
-			m.lastDuration = m.accumulatedTime
-
-			m.state = StateEvaluating
-			return m, func() tea.Msg {
-				passed, output, err := m.session.RunTests()
-				return evalFinishedMsg{passed: passed, output: output, err: err}
-			}
-		}
-
-	case evalFinishedMsg:
-		if m.state == StateEvaluating {
-			m.evalPassed = msg.passed
-			m.evalOutput = msg.output
-			return m, nil
-		}
+	found := drill.Find(m.drills, idOrTitle)
+	if found == nil {
+		return nil, fmt.Errorf("drill %q not found; run 'codedrill list' to see available drills", idOrTitle)
 	}
-
-	switch m.state {
-	case StateMenu:
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "enter":
-				selected, ok := m.list.SelectedItem().(drillItem)
-				if ok {
-					if selected.isAdd {
-						m.state = StateAddDrill
-						m.initForm()
-						return m, m.form.Init()
-					}
-					m.activeDrill = &selected.drill
-					m.state = StateBriefing
-					return m, nil
-				}
-			}
-		}
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
-
-	case StateAddDrill:
-		form, cmd := m.form.Update(msg)
-		if f, ok := form.(*huh.Form); ok {
-			m.form = f
-		}
-		if m.form.State == huh.StateCompleted {
-			confirmed := m.form.GetBool("confirm")
-			if !confirmed {
-				m.state = StateMenu
-				return m, nil
-			}
-
-			title := strings.TrimSpace(m.form.GetString("title"))
-			if title == "" {
-				title = "Untitled Drill"
-			}
-			newID := strings.ToLower(strings.ReplaceAll(title, " ", "-"))
-
-			entry := strings.TrimSpace(m.form.GetString("entry_file"))
-			if entry == "" {
-				entry = "solution.txt"
-			}
-
-			autoSubmit := m.form.GetBool("auto_submit")
-
-			newDrill := drill.Drill{
-				ID:          newID,
-				Title:       title,
-				Language:    strings.ToLower(strings.TrimSpace(m.form.GetString("language"))),
-				EntryFile:   entry,
-				TestCommand: strings.TrimSpace(m.form.GetString("test_cmd")),
-				Description: strings.TrimSpace(m.form.GetString("description")),
-				AutoSubmit:  autoSubmit,
-			}
-			_ = drill.SaveDrill(newDrill)
-			m.drills, _ = drill.LoadDrills()
-			m.refreshList()
-			m.state = StateMenu
-			return m, nil
-		}
-		if m.form.State == huh.StateAborted {
-			m.state = StateMenu
-			return m, nil
-		}
-		return m, cmd
-
-	case StateBriefing:
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "enter", " ":
-				m.state = StateCountdown
-				m.countdownCount = 3
-				return m, countdownTick()
-			case "esc", "q":
-				m.state = StateMenu
-				return m, nil
-			}
-		}
-
-	case StateEvaluating:
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "enter", "s":
-				if m.evalPassed {
-					m.state = StateResults
-					isPB, delta, _ := m.history.RecordAttempt(
-						m.activeDrill.ID,
-						m.lastDuration,
-						true,
-						m.session.Submits,
-					)
-					m.isPB = isPB
-					m.pbDelta = delta
-					if m.session != nil {
-						m.session.Cleanup()
-					}
-					return m, nil
-				}
-				return m, m.startOrResumeSprint()
-
-			case "e":
-				return m, m.startOrResumeSprint()
-
-			case "q", "esc":
-				if m.session != nil {
-					m.session.Cleanup()
-				}
-				m.state = StateMenu
-				return m, nil
-			}
-		}
-
-	case StateResults:
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "r":
-				m.state = StateCountdown
-				m.countdownCount = 3
-				return m, countdownTick()
-			case "q", "esc", "enter":
-				m.state = StateMenu
-				return m, nil
-			}
-		}
-	}
-
+	m.openBriefing(found)
 	return m, nil
 }
 
-func (m *MainModel) View() string {
-	switch m.state {
-	case StateMenu:
-		return "\n" + m.list.View()
-
-	case StateAddDrill:
-		return TitleStyle.Render("CREATE NEW DRILL") + "\n\n" + m.form.View()
-
-	case StateBriefing:
-		pb := m.history.GetPB(m.activeDrill.ID)
-		pbStr := "None yet"
-		if pb > 0 {
-			pbStr = formatDuration(pb)
-		}
-
-		autoSubmitBadge := ""
-		if m.activeDrill.AutoSubmit {
-			autoSubmitBadge = BadgeStyle.Render("AUTO-SUBMIT ON EXIT") + " Yes\n"
-		}
-
-		content := fmt.Sprintf(
-			"%s\n\n%s: %s\n%s: %s\n%s\n%s\n\n%s\n%s",
-			TitleStyle.Render("DRILL: "+m.activeDrill.Title),
-			BadgeStyle.Render("LANGUAGE"), strings.ToUpper(m.activeDrill.Language),
-			BadgeStyle.Render("PERSONAL BEST"), pbStr,
-			autoSubmitBadge,
-			BoxStyle.Render(m.activeDrill.Description),
-			TimerStyle.Render("Press [ENTER] or [SPACE] to START SPRINT"),
-			SubtextStyle.Render("Press [Esc] or [Q] to back"),
-		)
-		return "\n" + content
-
-	case StateCountdown:
-		return renderCountdown(m.countdownCount, m.width, m.height)
-
-	case StateSprinting:
-		return "\n\n\t" + TitleStyle.Render("SPRINT IN PROGRESS") + "\n\tZellij environment active..."
-
-	case StateEvaluating:
-		currentTimeStr := formatDuration(m.accumulatedTime)
-		if m.evalPassed {
-			status := DeltaMinusStyle.Render("[TESTS PASSED]")
-			return fmt.Sprintf(
-				"\n%s\n\n%s  Current Time: %s\n\n%s\n\n%s\n%s\n%s",
-				TitleStyle.Render("SPRINT EVALUATION"),
-				status,
-				TimerStyle.Render(currentTimeStr),
-				BoxStyle.Render(m.evalOutput),
-				TimerStyle.Render("Press [ENTER] to Finish Sprint & Lock Time"),
-				SubtextStyle.Render("Press [E] to return to Editor and keep coding"),
-				SubtextStyle.Render("Press [Q] to forfeit sprint"),
-			)
-		}
-
-		status := DeltaPlusStyle.Render("[TESTS / COMPILATION FAILED]")
-		return fmt.Sprintf(
-			"\n%s\n\n%s  Current Time: %s\n\n%s\n\n%s\n%s",
-			TitleStyle.Render("SPRINT EVALUATION"),
-			status,
-			TimerStyle.Render(currentTimeStr),
-			BoxStyle.Render(m.evalOutput),
-			TimerStyle.Render("Press [E] or [ENTER] to return to Editor and fix errors"),
-			SubtextStyle.Render("Press [Q] to forfeit this sprint"),
-		)
-
-	case StateResults:
-		pbNotice := ""
-		if m.isPB {
-			pbNotice = PBStyle.Render("[NEW PERSONAL BEST]") + "\n"
-		}
-		deltaNotice := ""
-		if m.pbDelta > 0 {
-			deltaNotice = DeltaMinusStyle.Render(fmt.Sprintf("-%s faster than previous PB", formatDuration(m.pbDelta)))
-		}
-
-		timeStr := formatDuration(m.lastDuration)
-
-		content := fmt.Sprintf(
-			"%s\n\n%s%s: %s\n%s\n\n%s\n%s",
-			TitleStyle.Render("SPRINT FINISHED"),
-			pbNotice,
-			BadgeStyle.Render("FINAL TIME"), PBStyle.Render(timeStr),
-			deltaNotice,
-			TimerStyle.Render("Press [R] to Retry Sprint immediately"),
-			SubtextStyle.Render("Press [ENTER] or [Q] to Return to Menu"),
-		)
-		return "\n" + BoxStyle.Render(content)
+func NewMainModelWithRandomFiltered(filter string) (*MainModel, error) {
+	m, err := NewMainModel()
+	if err != nil {
+		return nil, err
 	}
-
-	return ""
+	filter = strings.TrimSpace(filter)
+	pool := drill.Filter(m.drills, filter)
+	if len(pool) == 0 {
+		if filter == "" {
+			return nil, fmt.Errorf("no drills available")
+		}
+		return nil, fmt.Errorf("no drills match %q", filter)
+	}
+	if filter != "" {
+		m.categoryFilter = filter
+		for i, c := range m.categories {
+			if strings.EqualFold(c, filter) {
+				m.categoryIndex, m.categoryFilter = i, c
+			}
+		}
+		m.refreshList()
+	}
+	chosen := pool[rand.Intn(len(pool))]
+	m.openBriefing(&chosen)
+	return m, nil
 }
 
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Millisecond)
-	mins := int(d.Minutes())
-	secs := int(d.Seconds()) % 60
-	ms := int(d.Milliseconds()) % 1000
-
-	if mins > 0 {
-		return fmt.Sprintf("%02dm %02d.%03ds", mins, secs, ms)
+func NewMainModelWithAddDrill() (*MainModel, error) {
+	m, err := NewMainModel()
+	if err != nil {
+		return nil, err
 	}
-	return fmt.Sprintf("%d.%03ds", secs, ms)
+	m.state = StateAddDrill
+	m.initForm()
+	return m, nil
+}
+
+func NewMainModelWithDaily() (*MainModel, error) {
+	m, err := NewMainModel()
+	if err != nil {
+		return nil, err
+	}
+	daily := drill.GetDailyDrill(m.drills, time.Now())
+	if daily == nil {
+		return nil, fmt.Errorf("no drills available for the daily challenge")
+	}
+	m.openBriefing(daily)
+	return m, nil
+}
+
+func (m *MainModel) Init() tea.Cmd {
+	if m.state == StateAddDrill && m.form != nil {
+		return m.form.Init()
+	}
+	return nil
+}
+
+func (m *MainModel) Cleanup() {
+	if m.session != nil {
+		m.session.Cleanup()
+		m.session = nil
+	}
+}
+
+// openBriefing shows a drill's briefing; Esc from there goes to the menu.
+func (m *MainModel) openBriefing(d *drill.Drill) {
+	m.activeDrill = d
+	m.previousState = StateMenu
+	m.state = StateBriefing
+}
+
+func (m *MainModel) openLeaderboard(from AppState) {
+	m.previousState = from
+	m.leaderboardRecent = false
+	m.state = StateLeaderboard
+}
+
+func (m *MainModel) isDaily(d drill.Drill) bool {
+	daily := drill.GetDailyDrill(m.drills, time.Now())
+	return daily != nil && daily.ID == d.ID
+}
+
+// filteredDrills is the pool n/p/r pick from: drills in the current category,
+// or every drill if the category is empty.
+func (m *MainModel) filteredDrills() []drill.Drill {
+	if pool := drill.Filter(m.drills, m.categoryFilter); len(pool) > 0 {
+		return pool
+	}
+	return m.drills
+}
+
+// stepDrill moves to the next (delta 1) or previous (delta -1) drill in the
+// pool, starting from from.
+func (m *MainModel) stepDrill(from drill.Drill, delta int) *drill.Drill {
+	pool := m.filteredDrills()
+	if len(pool) == 0 {
+		return nil
+	}
+	next := 0
+	if delta < 0 {
+		next = len(pool) - 1
+	}
+	for i, d := range pool {
+		if d.ID == from.ID {
+			next = (i + delta + len(pool)) % len(pool)
+		}
+	}
+	return &pool[next]
+}
+
+// randomDrill picks from the pool, avoiding excludeID when there is a choice.
+func (m *MainModel) randomDrill(excludeID string) *drill.Drill {
+	pool := m.filteredDrills()
+	if len(pool) == 0 {
+		return nil
+	}
+	i := rand.Intn(len(pool))
+	for len(pool) > 1 && pool[i].ID == excludeID {
+		i = rand.Intn(len(pool))
+	}
+	return &pool[i]
+}
+
+func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case list.FilterMatchesMsg:
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.sizeList()
+		return m, nil
+	case countdownTickMsg:
+		return m, m.onCountdownTick(msg)
+	case sprintFinishedMsg:
+		return m, m.onSprintFinished(msg)
+	case evalFinishedMsg:
+		m.onEvalFinished(msg)
+		return m, nil
+	}
+
+	switch m.state {
+	case StateMenu:
+		return m, m.updateMenu(msg)
+	case StateAddDrill:
+		return m, m.updateAddDrill(msg)
+	}
+
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch m.state {
+	case StateSetupError:
+		return m, m.updateSetupError(key)
+	case StateStats:
+		switch key.String() {
+		case "esc", "q", "enter", "s":
+			m.state = StateMenu
+		}
+	case StateBriefing:
+		return m, m.updateBriefing(key)
+	case StateCountdown:
+		return m, m.updateCountdown(key)
+	case StateLeaderboard:
+		return m, m.updateLeaderboard(key)
+	case StateEvaluating:
+		return m, m.updateEvaluating(key)
+	case StateResults:
+		return m, m.updateResults(key)
+	}
+	return m, nil
+}
+
+func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
+	switch key.String() {
+	case "enter", " ":
+		return m.triggerSprintStart()
+	case "n", "p":
+		delta := 1
+		if key.String() == "p" {
+			delta = -1
+		}
+		if d := m.stepDrill(*m.activeDrill, delta); d != nil {
+			m.activeDrill = d
+		}
+	case "r":
+		if d := m.randomDrill(m.activeDrill.ID); d != nil {
+			m.activeDrill = d
+		}
+	case "l":
+		m.openLeaderboard(StateBriefing)
+	case "esc", "q":
+		m.state = m.previousState
+		m.previousState = StateMenu
+	}
+	return nil
+}
+
+func (m *MainModel) updateLeaderboard(key tea.KeyMsg) tea.Cmd {
+	switch key.String() {
+	case "enter", " ", "s":
+		return m.triggerSprintStart()
+	case "n", "p":
+		delta := 1
+		if key.String() == "p" {
+			delta = -1
+		}
+		if d := m.stepDrill(*m.activeDrill, delta); d != nil {
+			m.activeDrill = d
+			m.leaderboardRecent = false
+		}
+	case "tab", "t":
+		m.leaderboardRecent = !m.leaderboardRecent
+	case "esc", "q", "b":
+		m.leaderboardRecent = false
+		if m.previousState == StateBriefing {
+			// The briefing's own Esc should still go back to the menu.
+			m.state, m.previousState = StateBriefing, StateMenu
+		} else {
+			m.state = m.previousState
+		}
+	}
+	return nil
 }
