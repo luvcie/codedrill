@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -126,8 +127,13 @@ func (m *MainModel) updateScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *MainModel) menuHeader() string {
 	level := storage.GetLevelInfo(m.history.GetTotalXP())
-	logo := LogoStyle.PaddingLeft(2).Render("CODEDRILL <vVvVvo~~")
-	return logo + "  " + SubtextStyle.Render(fmt.Sprintf("LVL %d · %d XP · streak %d", level.Level, level.TotalXP, m.history.CurrentStreak))
+	croc := LogoStyle.Bold(false).PaddingLeft(2).Render(runner.CrocArt)
+	text := lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		LogoStyle.Render("CODEDRILL"),
+		SubtextStyle.Render(fmt.Sprintf("LVL %d · %d XP · streak %d", level.Level, level.TotalXP, m.history.CurrentStreak)),
+	)
+	return lipgloss.JoinHorizontal(lipgloss.Top, croc, "  ", text)
 }
 
 func (m *MainModel) menuHelp() string {

@@ -28,6 +28,11 @@ type Session struct {
 	pb    time.Duration
 }
 
+// CrocArt is the codedrill logo, shared with the TUI menu header.
+const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
+	"`\"\"-=,)===,)=\"''''''\n" +
+	"   '''  '''"
+
 // Files the workspace helpers own. A drill shipping one of these would have it
 // overwritten, so setup refuses instead.
 var helperFiles = []string{
@@ -323,7 +328,7 @@ const terminalBody = `export PATH=".:$PATH"
 clear
 columns=$(tput cols 2>/dev/null || echo 40)
 if [ "${#TITLE}" -gt "$columns" ]; then TITLE="${TITLE:0:$((columns-1))}…"; fi
-echo -e "\033[1;38;2;127;160;90mCODEDRILL <vVvVvo~~\033[0m"
+printf '\033[38;2;127;160;90m%s\n\033[1mCODEDRILL\033[0m\n' "$CROC"
 echo "$TITLE"
 echo -e "\033[0;37mS rank <$S_TARGET\nPB: $PB\033[0m"
 echo
@@ -375,7 +380,7 @@ func (s *Session) writeHelpers(starter []byte) error {
 		{"info", script(infoBody, "TITLE", title), 0755},
 		{"diff", script(diffBody, "ENTRY", s.EntryFile), 0755},
 		{"start-editor.sh", script(editorBody, "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit), 0755},
-		{"start-terminal.sh", script(terminalBody, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint), 0755},
+		{"start-terminal.sh", script(terminalBody, "CROC", CrocArt, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
         pane command="bash" {
