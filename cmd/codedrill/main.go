@@ -38,7 +38,8 @@ Usage:
   codedrill list [filter]    List all drills, or filter by category, language or difficulty
   codedrill search <query>   Search drills by id, title, language, category, difficulty or description
   codedrill stats            View aggregate sprint statistics & profile
-  codedrill config [opt]     View or set config (e.g. config editor nvim, config sound off, config countdown 0)
+  codedrill config [opt]     View or set config (e.g. config editor nvim, config sound off, config mouse off, config countdown 0)
+  codedrill config theme [id] List colour themes, or set one (e.g. config theme gruvbox)
   codedrill reset <id>       Reset stats and Personal Best for a specific drill
   codedrill reset all        Reset all personal bests, attempts, and streaks
   codedrill version          Show version information
@@ -46,7 +47,6 @@ Usage:
 
 const rule = "--------------------------------------------------------------------------------"
 
-// errUsage marks errors caused by how the command was called.
 var errUsage = errors.New("usage")
 
 func usage(format string, args ...any) error {
@@ -57,8 +57,9 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// run executes one CLI command and returns the process exit status.
 func run(args []string, stdout, stderr io.Writer) int {
+	cfg, _ := storage.PeekConfig()
+	ui.ApplyTheme(ui.ThemeOrDefault(cfg.Theme))
 	c := &cli{out: stdout, errOut: stderr}
 	if err := c.dispatch(args); err != nil {
 		msg := err.Error()
@@ -464,8 +465,6 @@ func (c *cli) reset(idOrTitle string) error {
 	if err != nil {
 		return err
 	}
-	// Stats are keyed by exact ID, so resolve names first. Drills that were
-	// deleted can still have runs on record; allow those by ID.
 	id := idOrTitle
 	if d, err := c.findDrill(idOrTitle); err == nil {
 		id = d.ID
@@ -572,6 +571,31 @@ func (c *cli) config(args []string) error {
 			return usage("sound must be on or off, not %q", args[1])
 		}
 		cfg.Sound = &on
+	case "mouse":
+		if len(args) < 2 {
+			return usage("missing value, e.g. codedrill config mouse off")
+		}
+		var on bool
+		switch strings.ToLower(args[1]) {
+		case "on", "true", "yes", "1", "enable":
+			on, msg = true, "Mouse on."
+		case "off", "false", "no", "0", "disable":
+			on, msg = false, "Mouse off."
+		default:
+			return usage("mouse must be on or off, not %q", args[1])
+		}
+		cfg.Mouse = &on
+	case "theme":
+		if len(args) < 2 {
+			c.printThemes(cfg)
+			return nil
+		}
+		t, ok := ui.ThemeByID(args[1])
+		if !ok {
+			return usage("unknown theme %q; valid themes are %s", args[1], themeIDs())
+		}
+		cfg.Theme = t.ID
+		msg = fmt.Sprintf("Theme set to %s.", t.Name)
 	case "countdown":
 		if len(args) < 2 {
 			return usage("missing value, e.g. codedrill config countdown 3")
@@ -590,7 +614,7 @@ func (c *cli) config(args []string) error {
 			msg = "Countdown off; sprints start immediately."
 		}
 	default:
-		return usage("unknown config option %q; use editor, sound or countdown", args[0])
+		return usage("unknown config option %q; use editor, sound, mouse, countdown or theme", args[0])
 	}
 	if err := storage.SaveConfig(cfg); err != nil {
 		return err
@@ -616,9 +640,18 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	if !cfg.IsSoundEnabled() {
 		sound = "off"
 	}
+	mouse := "on"
+	if !cfg.MouseOn() {
+		mouse = "off"
+	}
 	countdown := fmt.Sprintf("%ds", cfg.GetCountdown())
 	if cfg.GetCountdown() == 0 {
 		countdown = "off"
+	}
+	theme := ui.ThemeOrDefault(cfg.Theme)
+	themeText := fmt.Sprintf("%s (%s)", theme.ID, theme.Name)
+	if _, ok := ui.ThemeByID(cfg.Theme); !ok && cfg.Theme != "" {
+		themeText = fmt.Sprintf("%s (unknown, using %s)", cfg.Theme, ui.Themes[0].ID)
 	}
 	const short = "--------------------------------------------------"
 	c.println("Configuration:")
@@ -628,7 +661,33 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	c.printf("  Editor:         %s\n", editor)
 	c.printf("  Sound:          %s\n", sound)
 	c.printf("  Countdown:      %s\n", countdown)
+	c.printf("  Mouse:          %s\n", mouse)
+	c.printf("  Theme:          %s\n", themeText)
 	c.println(short)
-	c.println("Change with: codedrill config editor <name> | sound <on|off> | countdown <0-10|off>")
+	c.println("Change with: codedrill config editor <name> | sound <on|off> | mouse <on|off> | countdown <0-10|off> | theme <id>")
 	return nil
+}
+
+func themeIDs() string {
+	ids := make([]string, len(ui.Themes))
+	for i, t := range ui.Themes {
+		ids[i] = t.ID
+	}
+	return strings.Join(ids, ", ")
+}
+
+func (c *cli) printThemes(cfg storage.Config) {
+	current := ui.ThemeOrDefault(cfg.Theme).ID
+	width := 0
+	for _, t := range ui.Themes {
+		width = max(width, len(t.ID))
+	}
+	for _, t := range ui.Themes {
+		mark := " "
+		if t.ID == current {
+			mark = "*"
+		}
+		c.printf("%s %-*s  %s\n", mark, width, t.ID, t.Name)
+	}
+	c.println("Set with: codedrill config theme <id>")
 }
