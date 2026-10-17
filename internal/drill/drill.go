@@ -34,7 +34,6 @@ type Drill struct {
 	Dir      string `json:"-"`
 }
 
-// CategoryOf returns the drill's category, or "Custom" when it has none.
 func CategoryOf(d Drill) string {
 	if c := strings.TrimSpace(d.Category); c != "" {
 		return c
@@ -42,8 +41,34 @@ func CategoryOf(d Drill) string {
 	return "Custom"
 }
 
-// Matches reports whether a drill belongs to a category, language or
-// difficulty filter. Longer filters also match part of a category name.
+func SortCategories(cats []string) {
+	slices.SortStableFunc(cats, func(a, b string) int {
+		if ra, rb := categoryRank(a), categoryRank(b); ra != rb {
+			return ra - rb
+		}
+		return strings.Compare(strings.ToUpper(a), strings.ToUpper(b))
+	})
+}
+
+func categoryRank(c string) int {
+	switch {
+	case isCustomCategory(c):
+		return 2
+	case isLastCategory(c):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func isLastCategory(c string) bool {
+	return strings.EqualFold(strings.TrimSpace(c), "42")
+}
+
+func isCustomCategory(c string) bool {
+	return strings.EqualFold(strings.TrimSpace(c), "Custom")
+}
+
 func Matches(d Drill, filter string) bool {
 	filter = strings.TrimSpace(filter)
 	if filter == "" || strings.EqualFold(filter, "ALL") {
@@ -56,7 +81,6 @@ func Matches(d Drill, filter string) bool {
 		(len(filter) >= 3 && strings.Contains(strings.ToLower(cat), strings.ToLower(filter)))
 }
 
-// Filter returns the drills matching filter (see Matches).
 func Filter(drills []Drill, filter string) []Drill {
 	var out []Drill
 	for _, d := range drills {
@@ -67,7 +91,6 @@ func Filter(drills []Drill, filter string) []Drill {
 	return out
 }
 
-// Find looks a drill up by ID or title, ignoring case.
 func Find(drills []Drill, idOrTitle string) *Drill {
 	for i, d := range drills {
 		if strings.EqualFold(d.ID, idOrTitle) || strings.EqualFold(d.Title, idOrTitle) {
@@ -89,10 +112,6 @@ func GetUserDrillsDir() (string, error) {
 	return dir, nil
 }
 
-// LoadDrills returns the built-in drills followed by the user's own; a user
-// drill with a built-in's ID replaces it. Hidden built-ins are left out.
-// Manifests that cannot be read are skipped and reported in the error, which
-// is returned alongside every drill that did load.
 func LoadDrills() ([]Drill, error) {
 	var drills []Drill
 	if err := json.Unmarshal(presetsJSON, &drills); err != nil {
@@ -152,7 +171,6 @@ func loadManifest(dir string) (Drill, error) {
 		return d, fmt.Errorf("%s/drill.json: %w", dir, err)
 	}
 	d.Dir = dir
-	// Drills saved before the rename still say "42 Exam".
 	if strings.EqualFold(strings.TrimSpace(d.Category), "42 Exam") {
 		d.Category = "42"
 	}
@@ -260,7 +278,6 @@ func RemoveDrill(idOrTitle string) (removed Drill, hidden bool, err error) {
 		return *d, true, saveHidden(set)
 	}
 
-	// Only ever delete a directory directly inside the drills directory.
 	base, err := GetUserDrillsDir()
 	if err != nil {
 		return *d, false, err
@@ -297,7 +314,6 @@ func SanitizeDrillID(titleOrID string) string {
 	return safeID
 }
 
-// UniqueID turns a title into an ID that no existing drill uses.
 func UniqueID(drills []Drill, title string) string {
 	base := SanitizeDrillID(title)
 	id := base
@@ -307,7 +323,6 @@ func UniqueID(drills []Drill, title string) string {
 	return id
 }
 
-// SaveDrill writes a user drill's manifest, replacing any drill with that ID.
 func SaveDrill(d Drill) error {
 	baseDir, err := GetUserDrillsDir()
 	if err != nil {
@@ -332,7 +347,6 @@ func SaveDrill(d Drill) error {
 	return storage.AtomicWriteFile(filepath.Join(drillDir, "drill.json"), data, 0644)
 }
 
-// GetDailyDrill selects the same drill for a given date and pool.
 func GetDailyDrill(drills []Drill, t time.Time) *Drill {
 	if len(drills) == 0 {
 		return nil

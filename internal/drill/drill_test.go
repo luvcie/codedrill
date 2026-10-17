@@ -3,6 +3,7 @@ package drill
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -286,5 +287,46 @@ func TestExportAndImportDrill(t *testing.T) {
 	_, err = ImportDrill([]byte(`{"entry_file": "test.c"}`))
 	if err == nil {
 		t.Errorf("expected error importing drill without title")
+	}
+}
+
+func TestSortCategoriesPutsFortyTwoLast(t *testing.T) {
+	cats := []string{"LeetCode", "42", "Algorithms", "Custom", "Rust"}
+	SortCategories(cats)
+	want := []string{"Algorithms", "LeetCode", "Rust", "42", "Custom"}
+	if !slices.Equal(cats, want) {
+		t.Fatalf("SortCategories = %q, want %q", cats, want)
+	}
+
+	// Names compare ignoring case, and 42 stays last even when it is first.
+	cats = []string{"42", "rust", "Algorithms", "LeetCode"}
+	SortCategories(cats)
+	if want := []string{"Algorithms", "LeetCode", "rust", "42"}; !slices.Equal(cats, want) {
+		t.Fatalf("SortCategories = %q, want %q", cats, want)
+	}
+}
+
+func TestSortCategoriesPutsCustomLast(t *testing.T) {
+	// Custom is last whatever its case, and after 42. "Customs" is an ordinary
+	// category name and sorts alphabetically.
+	cats := []string{"custom", "42", "Zig", "Customs", "Algorithms"}
+	SortCategories(cats)
+	want := []string{"Algorithms", "Customs", "Zig", "42", "custom"}
+	if !slices.Equal(cats, want) {
+		t.Fatalf("SortCategories = %q, want %q", cats, want)
+	}
+
+	// Without 42, Custom still goes after the other categories.
+	cats = []string{"Custom", "Rust", "Algorithms"}
+	SortCategories(cats)
+	if want := []string{"Algorithms", "Rust", "Custom"}; !slices.Equal(cats, want) {
+		t.Fatalf("SortCategories = %q, want %q", cats, want)
+	}
+
+	// Without Custom, 42 is still last.
+	cats = []string{"42", "Rust", "Algorithms"}
+	SortCategories(cats)
+	if want := []string{"Algorithms", "Rust", "42"}; !slices.Equal(cats, want) {
+		t.Fatalf("SortCategories = %q, want %q", cats, want)
 	}
 }
