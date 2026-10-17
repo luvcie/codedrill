@@ -13,6 +13,8 @@ type Config struct {
 	Editor    string `json:"editor"`
 	Sound     *bool  `json:"sound,omitempty"`
 	Countdown *int   `json:"countdown,omitempty"`
+	Theme     string `json:"theme,omitempty"`
+	Mouse     *bool  `json:"mouse,omitempty"`
 }
 
 func (c Config) IsSoundEnabled() bool {
@@ -22,6 +24,13 @@ func (c Config) IsSoundEnabled() bool {
 	return *c.Sound
 }
 
+func (c Config) MouseOn() bool {
+	if c.Mouse == nil {
+		return true
+	}
+	return *c.Mouse
+}
+
 func (c Config) GetCountdown() int {
 	if c.Countdown == nil {
 		return 3
@@ -29,7 +38,6 @@ func (c Config) GetCountdown() int {
 	return min(max(*c.Countdown, 0), MaxCountdown)
 }
 
-// MaxCountdown is the longest countdown the config accepts, in seconds.
 const MaxCountdown = 10
 
 func RingBell()  { ring("bell") }
@@ -101,8 +109,7 @@ func playSystemAudio(kind string) {
 	}
 }
 
-// ConfigDir returns codedrill's config directory, creating it if needed.
-func ConfigDir() (string, error) {
+func configDirPath() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		home, err := os.UserHomeDir()
@@ -111,7 +118,14 @@ func ConfigDir() (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	dir := filepath.Join(base, "codedrill")
+	return filepath.Join(base, "codedrill"), nil
+}
+
+func ConfigDir() (string, error) {
+	dir, err := configDirPath()
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -126,15 +140,24 @@ func GetConfigPath() (string, error) {
 	return filepath.Join(dir, "config.json"), nil
 }
 
-// LoadConfig reads config.json. A missing file gives the defaults. On any
-// other error it still returns the defaults, so callers that only read
-// settings can ignore the error, but nothing should save over the file.
 func LoadConfig() (Config, error) {
-	var cfg Config
-	path, err := GetConfigPath()
+	dir, err := ConfigDir()
 	if err != nil {
-		return cfg, err
+		return Config{}, err
 	}
+	return readConfig(filepath.Join(dir, "config.json"))
+}
+
+func PeekConfig() (Config, error) {
+	dir, err := configDirPath()
+	if err != nil {
+		return Config{}, err
+	}
+	return readConfig(filepath.Join(dir, "config.json"))
+}
+
+func readConfig(path string) (Config, error) {
+	var cfg Config
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return cfg, nil
