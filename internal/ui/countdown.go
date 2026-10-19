@@ -98,26 +98,48 @@ func renderBlockNumber(n int) string {
 const goArt = "  ████   ████ \n ██     ██  ██\n ██ ███ ██  ██\n ██  ██ ██  ██\n  ████   ████ "
 
 func renderCountdown(count int, width, height int) string {
-	color, header, art := ColorSecondary, "GET READY", renderBlockNumber(count)
+	return renderCountdownPressed(count, width, height, "")
+}
+
+func renderCountdownPressed(count int, width, height int, pressed string) string {
+	color, art := ColorSecondary, renderBlockNumber(count)
 	if count <= 0 {
-		color, header, art = ColorSuccess, "GO", goArt
+		color, art = ColorSuccess, goArt
 	}
-
-	content := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(color).
-		Padding(1, 6).
-		Align(lipgloss.Center).
-		Render(TitleStyle.Foreground(color).Render(header) + "\n\n" + lipgloss.NewStyle().Foreground(color).Bold(true).Render(art))
-	if count > 0 {
-		content += "\n\n" + SubtextStyle.Render("[Space/Enter] skip  [Esc] cancel")
-	}
-
 	if width <= 0 {
 		width = 80
 	}
 	if height <= 0 {
 		height = 24
 	}
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
+	padX := min(6, max(0, (width-lipgloss.Width(art)-2)/2))
+
+	box := func(padY int) string {
+		return lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(color).
+			Padding(padY, padX).
+			Align(lipgloss.Center).
+			Render(lipgloss.NewStyle().Foreground(color).Bold(true).Render(art))
+	}
+
+	rows := height
+	var hint string
+	if count > 0 {
+		hint = renderHelp(countdownHelp, width, pressed)
+		rows -= lipgloss.Height(hint) + 1
+		if rows < 1 {
+			hint, rows = "", height
+		}
+	}
+	content := box(1)
+	if lipgloss.Height(content) > rows {
+		content = box(0)
+	}
+	content = lipgloss.NewStyle().MaxWidth(width).MaxHeight(rows).Render(content)
+	body := lipgloss.Place(width, rows, lipgloss.Center, lipgloss.Center, content)
+	if hint != "" {
+		body += "\n\n" + hint
+	}
+	return body
 }
