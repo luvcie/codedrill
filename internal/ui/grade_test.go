@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestCalculateGrade(t *testing.T) {
@@ -51,23 +53,6 @@ func TestCalculateGrade(t *testing.T) {
 	}
 }
 
-func TestRenderGradeBadge(t *testing.T) {
-	s := RenderGradeBadge(GradeS)
-	if !strings.Contains(s, "S-RANK") {
-		t.Errorf("expected badge to contain S-RANK, got %q", s)
-	}
-
-	a := RenderGradeBadge(GradeA)
-	if !strings.Contains(a, "A-RANK") {
-		t.Errorf("expected badge to contain A-RANK, got %q", a)
-	}
-
-	empty := RenderGradeBadge("")
-	if empty != "" {
-		t.Errorf("expected empty string for empty grade, got %q", empty)
-	}
-}
-
 func TestRenderGradeBanner(t *testing.T) {
 	banner := RenderGradeBanner(GradeS, "GODSPEED")
 	if !strings.Contains(banner, "S-RANK") || !strings.Contains(banner, "GODSPEED") {
@@ -111,15 +96,22 @@ func TestNextPaceGoal(t *testing.T) {
 
 func TestRenderPaceHints(t *testing.T) {
 	for difficulty, want := range map[string][]string{
-		"easy":   {"S-RANK", "≤ 4s", "≤ 8s", "≤ 15s"},
-		"medium": {"≤ 12s", "≤ 25s", "≤ 50s"},
-		"hard":   {"≤ 25s", "≤ 50s", "≤ 90s"},
+		"easy":   {"S ≤ 4s", "A ≤ 8s", "B ≤ 15s"},
+		"medium": {"S ≤ 12s", "A ≤ 25s", "B ≤ 50s"},
+		"hard":   {"S ≤ 25s", "A ≤ 50s", "B ≤ 90s"},
 	} {
 		hints := RenderPaceHints(difficulty)
+		plain := ansi.Strip(hints)
+		if !strings.HasPrefix(plain, "  paces  ") {
+			t.Errorf("%s pace hints %q do not start with the label at column 2", difficulty, plain)
+		}
 		for _, w := range want {
-			if !strings.Contains(hints, w) {
-				t.Errorf("%s pace hints %q lack %q", difficulty, hints, w)
+			if !strings.Contains(plain, w) {
+				t.Errorf("%s pace hints %q lack %q", difficulty, plain, w)
 			}
+		}
+		if strings.Contains(hints, "\x1b[4") {
+			t.Errorf("%s pace hints fill a background: %q", difficulty, hints)
 		}
 	}
 }

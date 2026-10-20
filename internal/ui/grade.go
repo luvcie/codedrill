@@ -25,8 +25,6 @@ var gradeTitles = map[Grade]string{
 	GradeC: "CLEARED",
 }
 
-// CalculateGrade ranks a time against the drill's pace targets. A zero
-// duration has no grade.
 func CalculateGrade(d time.Duration, difficulty string) (Grade, string) {
 	if d <= 0 {
 		return "", ""
@@ -51,13 +49,11 @@ func gradeColor(g Grade) lipgloss.Color {
 	case GradeA:
 		return ColorSecondary
 	case GradeB:
-		return ColorPrimary
+		return ColorText
 	}
 	return ColorMuted
 }
 
-// NextPaceGoal describes the next rank to chase. top is true once the time
-// already earns S.
 func NextPaceGoal(d time.Duration, difficulty string) (goal string, top bool) {
 	if d <= 0 {
 		return "", false
@@ -75,18 +71,7 @@ func NextPaceGoal(d time.Duration, difficulty string) (goal string, top bool) {
 	default:
 		target, rank = b, GradeB
 	}
-	return fmt.Sprintf("Next: %s-RANK at %s (%s to cut)", rank, storage.FormatDuration(target), storage.FormatDuration(d-target)), false
-}
-
-func RenderGradeBadge(g Grade) string {
-	if g == "" {
-		return ""
-	}
-	fg := ColorBg
-	if g == GradeB || g == GradeC {
-		fg = ColorText
-	}
-	return lipgloss.NewStyle().Bold(true).Foreground(fg).Background(gradeColor(g)).Padding(0, 1).Render(string(g) + "-RANK")
+	return fmt.Sprintf("next %s-RANK at %s (%s to cut)", rank, storage.FormatDuration(target), storage.FormatDuration(d-target)), false
 }
 
 func RenderGradeBanner(g Grade, title string) string {
@@ -102,9 +87,10 @@ func RenderGradeBanner(g Grade, title string) string {
 
 func RenderPaceHints(difficulty string) string {
 	s, a, b := drill.PaceTargets(difficulty)
-	return fmt.Sprintf("Target paces: %s ≤ %ds   %s ≤ %ds   %s ≤ %ds",
-		RenderGradeBadge(GradeS), int(s.Seconds()),
-		RenderGradeBadge(GradeA), int(a.Seconds()),
-		RenderGradeBadge(GradeB), int(b.Seconds()),
-	)
+	pace := func(g Grade, d time.Duration) string {
+		letter := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(g)).Render(string(g))
+		return letter + SubtextStyle.Render(fmt.Sprintf(" ≤ %ds", int(d.Seconds())))
+	}
+	return "  " + SubtextStyle.Render("paces") + "  " +
+		pace(GradeS, s) + "   " + pace(GradeA, a) + "   " + pace(GradeB, b)
 }
