@@ -2,15 +2,24 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
+var hallValueStyle = lipgloss.NewStyle().Bold(true)
+
+const hallGap = 3
+
 func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent bool, width int) string {
+	if width <= 0 {
+		width = 80
+	}
 	var attempts []storage.Attempt
 	if showRecent {
 		attempts = hist.GetRecentAttempts(d.ID, 8)
@@ -18,106 +27,121 @@ func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent
 		attempts = hist.GetTopAttempts(d.ID, 8)
 	}
 
-	showDate := width >= 72 || width <= 0
-	padX := 3
-	if !showDate {
-		padX = 1
+	mode := "fastest runs   [Tab] recent"
+	if showRecent {
+		mode = "recent runs   [Tab] fastest"
 	}
-	cols := []lipgloss.Style{
-		lipgloss.NewStyle().Width(8).Bold(true).Foreground(ColorSecondary),
-		lipgloss.NewStyle().Width(16).Bold(true).Foreground(ColorSuccess),
-		lipgloss.NewStyle().Width(9).Bold(true),
-		lipgloss.NewStyle().Width(10).Foreground(ColorMuted),
-		lipgloss.NewStyle().Width(16).Foreground(ColorMuted),
-	}
-	dividerWidth := 63
-	if !showDate {
-		cols, dividerWidth = cols[:4], 46
-	}
-	row := func(styles []lipgloss.Style, cells ...string) string {
-		var out []string
-		for i, col := range cols {
-			out = append(out, styles[i].Inherit(col).Render(cells[i]))
-		}
-		return strings.Join(out, " ")
-	}
-	header := make([]lipgloss.Style, 5)
-	for i := range header {
-		header[i] = lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary)
+	lines := []string{"", "  " + styleHelpRow(mode, ""), ""}
+
+	if stat := hallStats(hist, d, width); len(stat) > 0 {
+		lines = append(lines, stat...)
+		lines = append(lines, "")
 	}
 
-	first := "RANK"
-	if showRecent {
-		first = "STATUS"
-	}
-	lines := []string{
-		row(header, first, "TIME", "GRADE", "SUBMITS", "DATE"),
-		lipgloss.NewStyle().Foreground(ColorPrimary).Render(strings.Repeat("─", dividerWidth)),
+	table := hallTable(d, attempts, showRecent, width)
+	for _, line := range table {
+		lines = append(lines, "  "+line)
 	}
 	if len(attempts) == 0 {
-		lines = append(lines, SubtextStyle.Italic(true).Render("No runs yet."))
+		lines = append(lines, "  "+SubtextStyle.Render("No runs yet."))
 	}
+	return strings.Join(lines, "\n")
+}
+
+func hallStats(hist *storage.HistoryStore, d drill.Drill, width int) []string {
+	stats := hist.GetStats(d.ID)
+	if stats == nil || stats.TotalRuns == 0 {
+		return nil
+	}
+	items := []string{
+		labelValue("runs", strconv.Itoa(stats.TotalRuns), hallValueStyle),
+		labelValue("passed", fmt.Sprintf("%d (%d%%)", stats.Successful, stats.Successful*100/stats.TotalRuns), hallValueStyle),
+	}
+	best := labelValue("best", storage.FormatDuration(stats.PersonalBest), hallValueStyle)
+	if grade, _ := CalculateGrade(stats.PersonalBest, d.Difficulty); grade != "" {
+		best += " " + lipgloss.NewStyle().Bold(true).Foreground(gradeColor(grade)).Render("["+string(grade)+"]")
+	}
+	items = append(items, best)
+	if stats.CurrentStreak > 0 {
+		items = append(items, labelValue("streak", strconv.Itoa(stats.CurrentStreak), hallValueStyle))
+	}
+
+	const sep = "   "
+	one := strings.Join(items, sep)
+	if ansi.StringWidth(one)+2 <= width {
+		return []string{"  " + one}
+	}
+	return []string{
+		"  " + strings.Join(items[:2], sep),
+		"  " + strings.Join(items[2:], sep),
+	}
+}
+
+func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width int) []string {
+	head := []string{"rank", "time", "grade", "submits", "date"}
+	if showRecent {
+		head[0] = "status"
+	}
+	rows := [][]string{}
 	for i, att := range attempts {
-		styles := make([]lipgloss.Style, 5)
-		label := fmt.Sprintf("#%d", i+1)
-		if i == 0 {
-			label = "★ #1"
-		}
 		grade, _ := CalculateGrade(att.Duration, d.Difficulty)
 		gradeText := string(grade)
-		styles[2] = lipgloss.NewStyle().Foreground(gradeColor(grade))
+		rank := fmt.Sprintf("#%d", i+1)
+		if i == 0 {
+			rank = AccentStyle.Render("★ #1")
+		}
+		timeCell := storage.FormatDuration(att.Duration)
+		gradeStyle := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(grade))
 		if showRecent {
-			label = SuccessStyle.Render("PASS")
+			rank = SuccessStyle.Render("PASS")
 			if !att.Passed {
-				label = DangerStyle.Render("FAIL")
-				styles[1] = DangerStyle
+				rank = DangerStyle.Render("FAIL")
+				timeCell = DangerStyle.Render(timeCell)
 				gradeText = ""
-				styles[2] = SubtextStyle
+				gradeStyle = SubtextStyle
 			}
 		}
 		if gradeText == "" {
 			gradeText = "-"
 		}
-		lines = append(lines, row(styles, label, storage.FormatDuration(att.Duration), "["+gradeText+"]",
-			strconv.Itoa(att.Attempts), att.Timestamp.Format("2006-01-02 15:04")))
-	}
-	tableBox := BoxStyle.Padding(1, padX).Render(strings.Join(lines, "\n"))
-
-	statBox := ""
-	if stats := hist.GetStats(d.ID); stats != nil && stats.TotalRuns > 0 {
-		best := storage.FormatDuration(stats.PersonalBest)
-		if grade, _ := CalculateGrade(stats.PersonalBest, d.Difficulty); grade != "" {
-			best += fmt.Sprintf(" (%s)", grade)
-		}
-		badges := []string{
-			BadgeStyle.Render(fmt.Sprintf("RUNS: %d", stats.TotalRuns)),
-			BadgeStyle.Render(fmt.Sprintf("PASSED: %d (%d%%)", stats.Successful, stats.Successful*100/stats.TotalRuns)),
-			BadgeStyle.Render("BEST: " + best),
-		}
-		if stats.CurrentStreak > 0 {
-			badges = append(badges, BadgeStyle.Render(fmt.Sprintf("STREAK: %d", stats.CurrentStreak)))
-		}
-		statBox = strings.Join(badges, "   ")
-		// Split into two rows when one row would wrap in the middle of a badge.
-		if width > 0 && lipgloss.Width(statBox) > width {
-			statBox = lipgloss.JoinVertical(lipgloss.Center, strings.Join(badges[:2], "   "), strings.Join(badges[2:], "   "))
-		}
+		rows = append(rows, []string{
+			rank,
+			timeCell,
+			gradeStyle.Render("[" + gradeText + "]"),
+			strconv.Itoa(att.Attempts),
+			SubtextStyle.Render(att.Timestamp.Format("2006-01-02 15:04")),
+		})
 	}
 
-	mode := "TOP FASTEST  [Tab] recent"
-	if showRecent {
-		mode = "RECENT RUNS  [Tab] fastest"
+	content := make([]int, len(head))
+	for i, h := range head {
+		content[i] = lipgloss.Width(SubtextStyle.Render(h))
 	}
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		TitleStyle.Render("HALL OF FAME: "+d.Title),
-		SubtextStyle.Render(mode),
-		"",
-		statBox,
-		"",
-		tableBox,
-	)
-	if width <= 0 {
-		width = 80
+	for _, row := range rows {
+		for i, cell := range row {
+			content[i] = max(content[i], lipgloss.Width(cell))
+		}
 	}
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
+	if width < 72 {
+		content[4] = 0
+	}
+
+	avail := math.MaxInt
+	if width > 0 {
+		avail = width - len("  ")
+	}
+	widths := fitTable(content, 0, content[0], hallGap, avail, []int{3, 2})
+
+	dim := make([]string, len(head))
+	for i, h := range head {
+		dim[i] = SubtextStyle.Render(h)
+	}
+	lines := []string{
+		tableRow(dim, widths, hallGap),
+		lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", tableRowWidth(widths, hallGap))),
+	}
+	for _, row := range rows {
+		lines = append(lines, tableRow(row, widths, hallGap))
+	}
+	return lines
 }
