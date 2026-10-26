@@ -44,6 +44,8 @@ func (m *MainModel) screenHelp() string {
 		return "[Enter] sprint  [n/p] next/prev  [Tab] toggle\n[Esc/q] back"
 	case StateStats:
 		return "[Esc/q/Enter] menu"
+	case StateSettings:
+		return "[↑/↓ j/k] move  [Enter] select  [Esc/q] back"
 	}
 	return ""
 }
@@ -60,7 +62,7 @@ func (m *MainModel) screenLines() ([]string, string, int) {
 	w, h := m.screenSize()
 	content := strings.Trim(m.contentView(), "\n")
 	lines := strings.Split(ansi.Wrap(content, w, ""), "\n")
-	help := ansi.Wrap(m.screenHelp(), w, "")
+	help := m.renderHelpNow(m.screenHelp(), w)
 	available := h
 	if help != "" {
 		available -= lipgloss.Height(help) + 1
@@ -69,7 +71,7 @@ func (m *MainModel) screenLines() ([]string, string, int) {
 		if help != "" {
 			help += "\n"
 		}
-		help += "[↑/↓ PgUp/PgDn] scroll"
+		help += m.renderHelpNow("[↑/↓ PgUp/PgDn] scroll", w)
 		available = h - lipgloss.Height(help) - 1
 	}
 	return lines, help, max(1, available)
@@ -84,7 +86,7 @@ func (m *MainModel) View() string {
 	end := min(len(lines), offset+available)
 	body := strings.Join(lines[offset:end], "\n")
 	if help != "" {
-		body += strings.Repeat("\n", available-(end-offset)+1) + "\n" + TimerStyle.Padding(0).Render(help)
+		body += strings.Repeat("\n", available-(end-offset)+1) + "\n" + help
 	}
 	return body
 }
@@ -92,28 +94,31 @@ func (m *MainModel) View() string {
 func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok && m.scrollable() {
 		lines, _, available := m.screenLines()
-		limit := max(0, len(lines)-available)
-		offset := min(m.scrollOffset, limit)
 		switch key.String() {
 		case "up", "k":
-			offset--
+			m.scrollBy(-1)
 		case "down", "j":
-			offset++
+			m.scrollBy(1)
 		case "pgup":
-			offset -= available
+			m.scrollBy(-available)
 		case "pgdown":
-			offset += available
+			m.scrollBy(available)
 		case "home":
-			offset = 0
+			m.scrollOffset = 0
 		case "end":
-			offset = limit
+			m.scrollOffset = max(0, len(lines)-available)
 		default:
 			return m.updateScreen(msg)
 		}
-		m.scrollOffset = min(limit, max(0, offset))
 		return m, nil
 	}
 	return m.updateScreen(msg)
+}
+
+func (m *MainModel) scrollBy(delta int) {
+	lines, _, available := m.screenLines()
+	limit := max(0, len(lines)-available)
+	m.scrollOffset = min(limit, max(0, min(m.scrollOffset, limit)+delta))
 }
 
 func (m *MainModel) updateScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -121,35 +126,143 @@ func (m *MainModel) updateScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	model, cmd := m.update(msg)
 	if m.state != state || m.activeDrill != active || m.evalPending != pending {
 		m.scrollOffset = 0
+		m.helpPress = nil
 	}
 	return model, cmd
 }
 
-func (m *MainModel) menuHeader() string {
-	level := storage.GetLevelInfo(m.history.GetTotalXP())
+func (m *MainModel) screenHeader(context string) string {
+	w, _ := m.screenSize()
+	const wordmark = "codedrill"
 	croc := LogoStyle.Bold(false).PaddingLeft(2).Render(runner.CrocArt)
+	if w < lipgloss.Width(croc)+2+ansi.StringWidth(wordmark) {
+		room := max(1, w-2)
+		return lipgloss.JoinVertical(lipgloss.Left,
+			"",
+			LogoStyle.PaddingLeft(2).Render(ansi.Truncate(wordmark, room, "…")),
+			SubtextStyle.PaddingLeft(2).Render(ansi.Truncate(context, room, "…")),
+		)
+	}
+	room := max(1, w-lipgloss.Width(croc)-2)
 	text := lipgloss.JoinVertical(lipgloss.Left,
 		"",
-		LogoStyle.Render("CODEDRILL"),
-		SubtextStyle.Render(fmt.Sprintf("LVL %d · %d XP · streak %d", level.Level, level.TotalXP, m.history.CurrentStreak)),
+		LogoStyle.Render(wordmark),
+		SubtextStyle.Render(ansi.Truncate(context, room, "…")),
 	)
 	return lipgloss.JoinHorizontal(lipgloss.Top, croc, "  ", text)
 }
 
+func (m *MainModel) menuHeader() string {
+	level := storage.GetLevelInfo(m.history.GetTotalXP())
+	return m.screenHeader(fmt.Sprintf("level %d · %d XP · streak %d", level.Level, level.TotalXP, m.history.CurrentStreak))
+}
+
+func renderHelp(s string, width int, pressed string) string {
+	if s == "" {
+		return ""
+	}
+	var rows []string
+	for _, line := range strings.Split(s, "\n") {
+		for _, row := range wrapHelpLine(line, max(1, width-2)) {
+			rows = append(rows, "  "+styleHelpRow(row, pressed))
+		}
+	}
+	return strings.Join(rows, "\n")
+}
+
+func wrapHelpLine(line string, width int) []string {
+	var rows []string
+	row := ""
+	for _, item := range strings.Split(line, "  ") {
+		switch {
+		case row == "":
+			row = item
+		case ansi.StringWidth(row)+2+ansi.StringWidth(item) <= width:
+			row += "  " + item
+		default:
+			rows = append(rows, row)
+			row = item
+		}
+	}
+	rows = append(rows, row)
+
+	var out []string
+	for _, r := range rows {
+		out = append(out, strings.Split(ansi.Wrap(r, width, ""), "\n")...)
+	}
+	return out
+}
+
+func styleHelpRow(row, pressed string) string {
+	var b strings.Builder
+	lo, hi := -1, -1
+	if pressed != "" {
+		if i := strings.Index(row, pressed); i >= 0 {
+			lo, hi = i, i+len(pressed)
+		}
+	}
+	pos := 0
+	write := func(text, styled string) {
+		if lo >= 0 && pos < hi && lo < pos+len(text) {
+			styled = pressStyle.Render(styled)
+		}
+		b.WriteString(styled)
+		pos += len(text)
+	}
+	dim := func(text string) {
+		if text != "" {
+			write(text, SubtextStyle.Render(text))
+		}
+	}
+	for {
+		open := strings.IndexByte(row[pos:], '[')
+		if open < 0 {
+			break
+		}
+		open += pos
+		end := strings.IndexByte(row[open:], ']')
+		if end < 0 {
+			break
+		}
+		end += open
+		dim(row[pos:open])
+		write(row[open:end+1], helpKeyStyle.Render(row[open:end+1]))
+		pos = end + 1
+	}
+	dim(row[pos:])
+	return b.String()
+}
+
 func (m *MainModel) menuHelp() string {
 	w, _ := m.screenSize()
+	iw := max(1, w-2)
 	if d := m.pendingDelete; d != nil {
 		prompt := fmt.Sprintf("Delete %q? Its runs are removed too.", d.Title)
 		if d.IsPreset {
 			prompt = fmt.Sprintf("Hide built-in %q? Restore later with codedrill restore.", d.Title)
 		}
-		return DangerStyle.Render(ansi.Wrap(prompt, w, "")) + "\n" + TimerStyle.Padding(0).Render("[y] yes  [any other key] cancel")
+		return DangerStyle.PaddingLeft(2).Render(ansi.Wrap(prompt, iw, "")) + "\n" + m.renderHelpNow(deleteHelp, w)
 	}
-	keys := "[Enter] select  [h/l Tab] category  [d] daily  [r] random\n[s] profile  [v] history  [x] delete  [q] quit"
+	if m.search.open {
+		return noticeStyle.Render(ansi.Wrap("/"+m.search.text+"_", iw, ""))
+	}
+	keys := m.menuKeys()
 	if m.menuNotice != "" {
-		return TimerStyle.Padding(0).Render(ansi.Wrap(m.menuNotice, w, "")) + "\n" + SubtextStyle.Render(ansi.Wrap(keys, w, ""))
+		return noticeStyle.Render(ansi.Wrap(m.menuNotice, iw, "")) + "\n" + m.renderHelpNow(keys, w)
 	}
-	return SubtextStyle.Render(ansi.Wrap(keys, w, ""))
+	return m.renderHelpNow(keys, w)
+}
+
+func (m *MainModel) menuKeys() string {
+	keys := "[Enter] select  [h/l ←/→ Tab] category  [d] daily  [r] random\n[/] search  [s] profile  [v] history  [o] settings  [x] delete  [q] quit"
+	if m.search.pattern != "" {
+		hint := "[n/N] next/prev"
+		if m.search.hl {
+			hint += "  [Esc] clear highlight"
+		}
+		keys += "\n" + hint
+	}
+	return keys
 }
 
 func (m *MainModel) sizeList() {
