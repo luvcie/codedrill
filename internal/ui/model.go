@@ -27,6 +27,7 @@ const (
 	StateEvaluating
 	StateResults
 	StateSetupError
+	StateSettings
 )
 
 type countdownTickMsg struct{ id uint64 }
@@ -44,8 +45,6 @@ type evalFinishedMsg struct {
 
 type MainModel struct {
 	state AppState
-	// previousState is where Esc returns to from the briefing and the
-	// leaderboard: the menu, or the results of the last sprint.
 	previousState AppState
 
 	list           list.Model
@@ -56,6 +55,7 @@ type MainModel struct {
 	categoryFilter string
 	categories     []string
 	categoryIndex  int
+	search         menuSearch
 
 	sprintStartTime time.Time
 	accumulatedTime time.Duration
@@ -65,7 +65,6 @@ type MainModel struct {
 	form         *huh.Form
 	formCategory string
 
-	// pendingDelete is the drill waiting for y/n confirmation in the menu.
 	pendingDelete *drill.Drill
 	menuNotice    string
 
@@ -74,14 +73,10 @@ type MainModel struct {
 	evalPending   bool
 	evalID        uint64
 	evalReadyTime time.Time
-	// launchFailed means the editor session never started, so there is no
-	// run to grade or record.
 	launchFailed bool
 	saveErr      error
 	setupErr     error
 
-	// Results of the last recorded sprint. resultDrill is a copy so browsing
-	// other drills from the results screen cannot change what it shows.
 	resultDrill       drill.Drill
 	lastDuration      time.Duration
 	lastSubmits       int
@@ -95,6 +90,15 @@ type MainModel struct {
 	briefingCache     string
 	briefingKey       string
 	leaderboardRecent bool
+
+	settingsCursor int
+	settingsOrigin Theme
+	settingsSaved  string
+	settingsErr    error
+
+	mouseOff bool
+
+	helpPress *helpPressState
 
 	width        int
 	height       int
@@ -111,6 +115,7 @@ func getAvailableCategories(drills []drill.Drill) []string {
 			cats = append(cats, cat)
 		}
 	}
+	drill.SortCategories(cats[1:])
 	return cats
 }
 
@@ -123,12 +128,14 @@ func NewMainModel() (*MainModel, error) {
 	if drills == nil {
 		return nil, loadErr
 	}
+	cfg, _ := storage.PeekConfig()
 	m := &MainModel{
 		state:          StateMenu,
 		history:        hist,
 		drills:         drills,
 		categories:     getAvailableCategories(drills),
 		categoryFilter: "ALL",
+		mouseOff:       !cfg.MouseOn(),
 	}
 	if loadErr != nil {
 		m.menuNotice = "Some drills could not be loaded: " + loadErr.Error()
@@ -201,10 +208,11 @@ func NewMainModelWithDaily() (*MainModel, error) {
 }
 
 func (m *MainModel) Init() tea.Cmd {
+	var form tea.Cmd
 	if m.state == StateAddDrill && m.form != nil {
-		return m.form.Init()
+		form = m.form.Init()
 	}
-	return nil
+	return tea.Batch(form, m.mouseCmd())
 }
 
 func (m *MainModel) Cleanup() {
@@ -274,22 +282,33 @@ func (m *MainModel) randomDrill(excludeID string) *drill.Drill {
 }
 
 func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, isKey := msg.(tea.KeyMsg); isKey {
+		m.helpPress = nil
+	}
 	switch msg := msg.(type) {
-	case list.FilterMatchesMsg:
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.sizeList()
 		return m, nil
 	case countdownTickMsg:
 		return m, m.onCountdownTick(msg)
+	case footerPressMsg:
+		if m.helpPress == nil {
+			return m, nil
+		}
+		key := m.helpPress.key
+		m.helpPress = nil
+		return m.Update(key)
 	case sprintFinishedMsg:
-		return m, m.onSprintFinished(msg)
+		if cmd := m.onSprintFinished(msg); cmd != nil {
+			return m, cmd
+		}
+		return m, m.mouseCmd()
 	case evalFinishedMsg:
 		m.onEvalFinished(msg)
-		return m, nil
+		return m, m.mouseCmd()
+	case tea.MouseMsg:
+		return m, m.updateMouse(msg)
 	}
 
 	switch m.state {
@@ -321,6 +340,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateEvaluating(key)
 	case StateResults:
 		return m, m.updateResults(key)
+	case StateSettings:
+		return m, m.updateSettings(key)
 	}
 	return m, nil
 }
@@ -368,7 +389,6 @@ func (m *MainModel) updateLeaderboard(key tea.KeyMsg) tea.Cmd {
 	case "esc", "q", "b":
 		m.leaderboardRecent = false
 		if m.previousState == StateBriefing {
-			// The briefing's own Esc should still go back to the menu.
 			m.state, m.previousState = StateBriefing, StateMenu
 		} else {
 			m.state = m.previousState

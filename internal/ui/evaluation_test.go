@@ -129,8 +129,32 @@ func TestEvaluationLaunchFailureClearsPreviousPass(t *testing.T) {
 	m.evalPassed = true
 	m.evalOutput = "previous passing result"
 	m.sprintStartTime = time.Now()
-	_, evaluate := m.Update(sprintFinishedMsg{err: errors.New("workspace unavailable")})
-	if evaluate != nil || m.evalPending || m.evalPassed || !strings.Contains(m.evalOutput, "workspace unavailable") {
+	_, cmd := m.Update(sprintFinishedMsg{err: errors.New("workspace unavailable")})
+	if m.evalPending || m.evalPassed || !strings.Contains(m.evalOutput, "workspace unavailable") {
+		t.Fatal("launch failure retained a previous result or queued an evaluator")
+	}
+	// The only command is the one that turns mouse back on. It must not start
+	// an evaluation.
+	if n := mouseEnableCount(cmd); n != 1 {
+		t.Fatalf("launch failure enables mouse %d times, want 1", n)
+	}
+	for _, msg := range cmdMsgs(cmd) {
+		if _, ok := msg.(evalFinishedMsg); ok {
+			t.Fatal("launch failure queued an evaluator")
+		}
+	}
+}
+
+func TestEvaluationLaunchFailureWithMouseOffQueuesNothing(t *testing.T) {
+	m := newEvaluationTestModel(t)
+	m.mouseOff = true
+	m.evalPassed = true
+	m.sprintStartTime = time.Now()
+	_, cmd := m.Update(sprintFinishedMsg{err: errors.New("workspace unavailable")})
+	if cmd != nil {
+		t.Fatalf("launch failure with mouse off returned a command: %v", cmd())
+	}
+	if m.evalPending || m.evalPassed {
 		t.Fatal("launch failure retained a previous result or queued an evaluator")
 	}
 }

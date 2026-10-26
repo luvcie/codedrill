@@ -26,7 +26,7 @@ func TestWorkspaceSetupErrorRecovery(t *testing.T) {
 	}
 	for _, size := range []tea.WindowSizeMsg{{Width: 120, Height: 40}, {Width: 80, Height: 24}, {Width: 60, Height: 20}} {
 		m.Update(size)
-		if view := m.View(); !strings.Contains(view, "WORKSPACE SETUP FAILED") || !strings.Contains(view, "retry setup") {
+		if view := m.View(); !strings.Contains(view, "workspace setup failed") || !strings.Contains(view, "retry setup") {
 			t.Fatal("missing setup feedback")
 		}
 	}

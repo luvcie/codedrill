@@ -5,26 +5,37 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
 func TestFinishRefreshesMenuPB(t *testing.T) {
-	for _, filtered := range []bool{false, true} {
+	for _, searched := range []bool{false, true} {
 		name := "selected"
-		if filtered {
+		if searched {
 			name = "search"
 		}
 		t.Run(name, func(t *testing.T) {
 			m := newEvaluationTestModel(t)
+			m.categoryIndex = categoryNamed(t, m, "42")
 			m.categoryFilter = "42"
 			m.refreshList()
 			m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-			if filtered {
-				m.list.SetFilterText("ft_s")
+			wantCategory := "42"
+			if searched {
+				// Search from tab 42 to palindrome, which is on LeetCode and
+				// is not the first row, then finish a run on that row.
+				m.state = StateMenu
+				m.Update(runeKey("/"))
+				typeSearch(m, "palindrome")
+				m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				wantCategory = "LeetCode"
+				if m.categoryFilter != wantCategory || selectedID(m) != "palindrome" || m.list.Index() == 0 {
+					t.Fatalf("search landed on %q in %q at row %d, want palindrome on LeetCode", selectedID(m), m.categoryFilter, m.list.Index())
+				}
+			} else {
+				m.list.Select(1)
 			}
-			m.list.Select(1)
 			selected := m.list.SelectedItem().(drillItem)
 			m.activeDrill = &selected.drill
 			width, height := m.list.Width(), m.list.Height()
@@ -45,10 +56,10 @@ func TestFinishRefreshesMenuPB(t *testing.T) {
 				if item.drill.ID != selected.drill.ID || item.pb != want || !strings.Contains(item.Description(), storage.FormatDuration(want)) {
 					t.Fatalf("selected menu item disagrees with history: %+v; PB %v", item, want)
 				}
-				if m.list.Width() != width || m.list.Height() != height || m.categoryFilter != "42" {
+				if m.list.Width() != width || m.list.Height() != height || m.categoryFilter != wantCategory {
 					t.Fatal("finish reset menu dimensions or category")
 				}
-				if filtered && (m.list.FilterValue() != "ft_s" || m.list.FilterState() != list.FilterApplied) {
+				if searched && (m.search.pattern != "palindrome" || !m.search.hl) {
 					t.Fatal("finish reset search")
 				}
 				reloaded, err := storage.LoadHistory()

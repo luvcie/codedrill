@@ -41,7 +41,7 @@ func TestSaveFailureRecovery(t *testing.T) {
 				if _, err := os.Stat(session.Workspace); err != nil {
 					t.Fatal("failed save removed workspace")
 				}
-				if !strings.Contains(m.View(), "SPRINT NOT SAVED") || !strings.Contains(m.View(), "retry") || m.evalOutput != "original test output" {
+				if !strings.Contains(m.View(), "not saved") || !strings.Contains(m.View(), "retry") || m.evalOutput != "original test output" {
 					t.Fatal("missing retry feedback or lost evaluation output")
 				}
 				if err := os.Remove(path); err != nil {

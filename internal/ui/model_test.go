@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -133,14 +134,14 @@ func TestModelTransitions(t *testing.T) {
 
 	m.width = 80
 	menu80 := m.View()
-	if !strings.Contains(menu80, "CODEDRILL") || !strings.Contains(menu80, "LVL") {
-		t.Errorf("expected CODEDRILL and LVL in 80-col menu view, got: %s", menu80)
+	if !strings.Contains(menu80, "codedrill") || !strings.Contains(menu80, "level") {
+		t.Errorf("expected codedrill and level in 80-col menu view, got: %s", menu80)
 	}
 
 	m.width = 120
 	menu120 := m.View()
-	if !strings.Contains(menu120, "CODEDRILL") || !strings.Contains(menu120, "LVL") {
-		t.Errorf("expected CODEDRILL and LVL in 120-col menu view, got: %s", menu120)
+	if !strings.Contains(menu120, "codedrill") || !strings.Contains(menu120, "level") {
+		t.Errorf("expected codedrill and level in 120-col menu view, got: %s", menu120)
 	}
 	m.width = 100
 
@@ -177,8 +178,8 @@ func TestModelTransitions(t *testing.T) {
 	if !strings.Contains(view, "ft_strlen") {
 		t.Errorf("expected drill title in briefing view, got: %s", view)
 	}
-	if !strings.Contains(view, "LVL") {
-		t.Errorf("expected LVL badge in briefing view, got: %s", view)
+	if strings.Contains(view, "level ") {
+		t.Errorf("briefing should not show the level (the menu does), got: %s", view)
 	}
 
 	briefingM.width = 60
@@ -210,8 +211,8 @@ func TestResultsScreenNavigation(t *testing.T) {
 	m.isPB = true
 
 	view := m.View()
-	if !strings.Contains(view, "SPRINT FINISHED") {
-		t.Errorf("expected SPRINT FINISHED in results view, got: %s", view)
+	if !strings.Contains(view, "finished") {
+		t.Errorf("expected finished in results header, got: %s", view)
 	}
 	if !strings.Contains(view, "(first try)") {
 		t.Errorf("expected the first-try note in results view, got: %s", view)
@@ -414,7 +415,7 @@ func TestRenderScreensVisual(t *testing.T) {
 	m = updated.(*MainModel)
 
 	briefingView := m.View()
-	if !strings.Contains(briefingView, "DRILL: ft_strlen") || !strings.Contains(briefingView, "S-RANK") {
+	if !strings.Contains(ansi.Strip(briefingView), "ft_strlen · C · easy") || !strings.Contains(briefingView, "S ≤ 4s") {
 		t.Errorf("briefing view missing expected markers: %s", briefingView)
 	}
 
@@ -427,13 +428,13 @@ func TestRenderScreensVisual(t *testing.T) {
 	m.earnedXP = 125
 	m.levelInfo = storage.GetLevelInfo(125)
 	resultsView := m.View()
-	if !strings.Contains(resultsView, "SPRINT FINISHED") || !strings.Contains(resultsView, "+125 XP") {
+	if !strings.Contains(resultsView, "finished") || !strings.Contains(resultsView, "+125 XP") {
 		t.Errorf("results view missing expected markers: %s", resultsView)
 	}
 
 	m.state = StateMenu
 	menuView := m.View()
-	if !strings.Contains(menuView, "CODEDRILL") || !strings.Contains(menuView, "LVL") {
+	if !strings.Contains(menuView, "codedrill") || !strings.Contains(menuView, "level") {
 		t.Errorf("menu view missing expected markers: %s", menuView)
 	}
 }
