@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -20,15 +21,19 @@ type drillItem struct {
 	isAdd bool
 }
 
+func langTag(d drill.Drill) string {
+	lang := strings.ToUpper(d.Language)
+	if lang == "" {
+		lang = "CODE"
+	}
+	return fmt.Sprintf("[%s] ", lang)
+}
+
 func (i drillItem) Title() string {
 	if i.isAdd {
 		return "+ Add a drill"
 	}
-	lang := strings.ToUpper(i.drill.Language)
-	if lang == "" {
-		lang = "CODE"
-	}
-	title := fmt.Sprintf("[%s] %s", lang, i.drill.Title)
+	title := langTag(i.drill) + i.drill.Title
 	if grade, _ := CalculateGrade(i.pb, i.drill.Difficulty); grade != "" {
 		title += fmt.Sprintf("  [%s-RANK]", grade)
 	}
@@ -43,14 +48,11 @@ func (i drillItem) Description() string {
 	if difficulty == "" {
 		difficulty = "EASY"
 	}
-	pb := "PB: --"
+	pb := "PB --"
 	if grade, _ := CalculateGrade(i.pb, i.drill.Difficulty); grade != "" {
-		pb = fmt.Sprintf("PB: %s (%s)", storage.FormatDuration(i.pb), grade)
+		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(i.pb), grade)
 	}
 	desc := fmt.Sprintf("[%s • %s] • %s • %s", drill.CategoryOf(i.drill), difficulty, pb, CleanSummary(i.drill.Description))
-	if i.drill.AutoSubmit {
-		desc += " [Auto-Submit]"
-	}
 	return desc
 }
 
@@ -62,16 +64,8 @@ func (i drillItem) FilterValue() string {
 	return strings.Join([]string{d.ID, d.Title, d.Language, d.Category, d.Difficulty}, " ")
 }
 
-var (
-	activeTabStyle   = lipgloss.NewStyle().Bold(true).Foreground(ColorBg).Background(ColorSecondary).Padding(0, 1)
-	inactiveTabStyle = SubtextStyle.Padding(0, 1)
-)
-
-// renderCategoryHeader draws the categories as tabs. Only the active one is
-// filled, so the highlight moves when h/l or Tab switch category.
-func (m *MainModel) renderCategoryHeader() string {
+func (m *MainModel) categoryTabs() []string {
 	tabs := m.categories
-	// A filter from "codedrill random <filter>" may not be a category name.
 	if !slices.ContainsFunc(tabs, func(c string) bool { return strings.EqualFold(c, m.categoryFilter) }) && m.categoryFilter != "" {
 		tabs = append(tabs[:len(tabs):len(tabs)], m.categoryFilter)
 	}
@@ -83,7 +77,11 @@ func (m *MainModel) renderCategoryHeader() string {
 		}
 		parts[i] = style.Render(strings.ToUpper(c))
 	}
-	return strings.Join(parts, " ")
+	return parts
+}
+
+func (m *MainModel) renderCategoryHeader() string {
+	return strings.Join(m.categoryTabs(), " ")
 }
 
 func (m *MainModel) refreshList() {
@@ -93,21 +91,24 @@ func (m *MainModel) refreshList() {
 	}
 	items = append(items, drillItem{isAdd: true})
 
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(ColorSecondary).BorderLeftForeground(ColorSecondary)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(lipgloss.Color("#EEEEEE")).BorderLeftForeground(ColorSecondary)
-
-	l := list.New(items, delegate, 0, 0)
-	// h/l switch categories and d starts the daily, so keep them out of paging.
-	l.KeyMap.PrevPage.SetKeys("left", "pgup", "b", "u")
-	l.KeyMap.NextPage.SetKeys("right", "pgdown", "f")
+	l := list.New(items, newDrillDelegate(m.search.highlight()), 0, 0)
+	l.SetFilteringEnabled(false)
+	l.SetShowHelp(false)
+	l.KeyMap.PrevPage = key.NewBinding(
+		key.WithKeys("pgup", "b", "u"),
+		key.WithHelp("pgup/b/u", "prev page"),
+	)
+	l.KeyMap.NextPage = key.NewBinding(
+		key.WithKeys("pgdown", "f"),
+		key.WithHelp("pgdn/f", "next page"),
+	)
 	l.Title = m.renderCategoryHeader()
 	l.Styles.Title = lipgloss.NewStyle()
+	themeList(&l)
 	m.list = l
 	m.sizeList()
 }
 
-// refreshPB updates one drill's PB in the list without rebuilding it.
 func (m *MainModel) refreshPB(d drill.Drill) tea.Cmd {
 	for i, item := range m.list.Items() {
 		if it, ok := item.(drillItem); ok && !it.isAdd && it.drill.ID == d.ID {
@@ -118,8 +119,6 @@ func (m *MainModel) refreshPB(d drill.Drill) tea.Cmd {
 	return nil
 }
 
-// reloadDrills rereads drills from disk and keeps the current category if it
-// still exists. The list cursor stays at the same position where possible.
 func (m *MainModel) reloadDrills() {
 	cursor := m.list.Index()
 	drills, err := drill.LoadDrills()
@@ -146,8 +145,12 @@ func (m *MainModel) reloadDrills() {
 
 func (m *MainModel) switchCategory(step int) {
 	n := len(m.categories)
-	m.categoryIndex = ((m.categoryIndex+step)%n + n) % n
-	m.categoryFilter = m.categories[m.categoryIndex]
+	m.setCategory(((m.categoryIndex+step)%n + n) % n)
+}
+
+func (m *MainModel) setCategory(i int) {
+	m.categoryIndex = i
+	m.categoryFilter = m.categories[i]
 	m.refreshList()
 }
 
@@ -174,12 +177,24 @@ func (m *MainModel) selectedDrill() (drill.Drill, bool) {
 	return it.drill, ok && !it.isAdd
 }
 
+func (m *MainModel) activateSelected() tea.Cmd {
+	if it, ok := m.list.SelectedItem().(drillItem); ok && it.isAdd {
+		m.state = StateAddDrill
+		m.initForm()
+		return m.form.Init()
+	}
+	if d, ok := m.selectedDrill(); ok {
+		m.openBriefing(&d)
+	}
+	return nil
+}
+
 func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if k, ok := msg.(tea.KeyMsg); ok {
 		hadNotice := m.menuNotice != ""
 		m.menuNotice = ""
 		if m.pendingDelete != nil {
-			if key.String() == "y" || key.String() == "Y" {
+			if k.String() == "y" || k.String() == "Y" {
 				m.confirmDelete()
 			} else {
 				m.pendingDelete = nil
@@ -192,14 +207,30 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 		}
 	}
 
-	key, ok := msg.(tea.KeyMsg)
-	if !ok || m.list.FilterState() == list.Filtering {
+	k, ok := msg.(tea.KeyMsg)
+	if !ok {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		return cmd
 	}
+	if m.search.open {
+		return m.updateSearchPrompt(k)
+	}
 
-	switch key.String() {
+	switch k.String() {
+	case "/":
+		m.openSearch()
+		return nil
+	case "n", "N":
+		m.stepSearch(k.String() == "n")
+		return nil
+	case "esc":
+		if m.search.hl {
+			m.search.hl = false
+			m.syncSearch()
+			m.sizeList()
+			return nil
+		}
 	case "x":
 		if d, ok := m.selectedDrill(); ok {
 			m.pendingDelete = &d
@@ -207,15 +238,7 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 		}
 		return nil
 	case "enter", " ":
-		if it, ok := m.list.SelectedItem().(drillItem); ok && it.isAdd {
-			m.state = StateAddDrill
-			m.initForm()
-			return m.form.Init()
-		}
-		if d, ok := m.selectedDrill(); ok {
-			m.openBriefing(&d)
-		}
-		return nil
+		return m.activateSelected()
 	case "d":
 		if daily := drill.GetDailyDrill(m.drills, time.Now()); daily != nil {
 			m.openBriefing(daily)
@@ -226,10 +249,10 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 			m.openBriefing(d)
 		}
 		return nil
-	case "tab", "l":
+	case "tab", "l", "right":
 		m.switchCategory(1)
 		return nil
-	case "shift+tab", "h":
+	case "shift+tab", "h", "left":
 		m.switchCategory(-1)
 		return nil
 	case "s":
@@ -241,6 +264,9 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 			m.openLeaderboard(StateMenu)
 		}
 		return nil
+	case "o":
+		m.openSettings()
+		return nil
 	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
@@ -249,7 +275,6 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 
 const newCategoryOption = "\x00new"
 
-// categoryOptions lists the built-in categories first, then any the user made.
 func (m *MainModel) categoryOptions() []huh.Option[string] {
 	names := []string{"Custom", "42", "Algorithms", "LeetCode"}
 	for _, c := range m.categories {
@@ -264,6 +289,7 @@ func (m *MainModel) categoryOptions() []huh.Option[string] {
 			names = append(names, c)
 		}
 	}
+	drill.SortCategories(names)
 	opts := make([]huh.Option[string], 0, len(names)+1)
 	for _, n := range names {
 		opts = append(opts, huh.NewOption(n, n))
@@ -280,6 +306,65 @@ func validateCategoryName(s string) error {
 		return fmt.Errorf(`"ALL" is reserved`)
 	}
 	return nil
+}
+
+func formTheme() *huh.Theme {
+	t := huh.ThemeBase()
+	cyan := ColorSecondary
+	dim := ColorMuted
+
+	t.Form.Base = lipgloss.NewStyle().MarginLeft(2)
+	t.Group.Title = lipgloss.NewStyle().Foreground(cyan).Bold(true)
+	t.Group.Description = lipgloss.NewStyle().Foreground(dim)
+
+	t.Focused.Base = t.Focused.Base.BorderForeground(cyan)
+	t.Focused.Card = t.Focused.Base
+	t.Focused.Title = lipgloss.NewStyle().Foreground(cyan).Bold(true)
+	t.Focused.Description = lipgloss.NewStyle().Foreground(dim)
+	t.Focused.ErrorIndicator = t.Focused.ErrorIndicator.Foreground(ColorDanger)
+	t.Focused.ErrorMessage = t.Focused.ErrorMessage.Foreground(ColorDanger)
+	t.Focused.SelectSelector = t.Focused.SelectSelector.Foreground(cyan)
+	t.Focused.NextIndicator = t.Focused.NextIndicator.Foreground(cyan)
+	t.Focused.PrevIndicator = t.Focused.PrevIndicator.Foreground(cyan)
+	t.Focused.Option = t.Focused.Option.Foreground(ColorText)
+	t.Focused.UnselectedOption = t.Focused.UnselectedOption.Foreground(ColorText)
+	t.Focused.SelectedOption = t.Focused.SelectedOption.Foreground(cyan)
+	t.Focused.MultiSelectSelector = t.Focused.MultiSelectSelector.Foreground(cyan)
+	t.Focused.SelectedPrefix = t.Focused.SelectedPrefix.Foreground(cyan)
+	t.Focused.UnselectedPrefix = t.Focused.UnselectedPrefix.Foreground(dim)
+	t.Focused.FocusedButton = t.Focused.FocusedButton.Foreground(ColorBg).Background(cyan)
+	t.Focused.Next = t.Focused.FocusedButton
+	t.Focused.BlurredButton = t.Focused.BlurredButton.Foreground(dim).UnsetBackground()
+	t.Focused.TextInput.Cursor = t.Focused.TextInput.Cursor.Foreground(cyan)
+	t.Focused.TextInput.CursorText = t.Focused.TextInput.CursorText.Foreground(ColorText)
+	t.Focused.TextInput.Placeholder = t.Focused.TextInput.Placeholder.Foreground(dim)
+	t.Focused.TextInput.Prompt = t.Focused.TextInput.Prompt.Foreground(cyan)
+	t.Focused.TextInput.Text = t.Focused.TextInput.Text.Foreground(ColorText)
+
+	t.Blurred = t.Focused
+	t.Blurred.Base = t.Focused.Base.BorderStyle(lipgloss.HiddenBorder())
+	t.Blurred.Card = t.Blurred.Base
+	t.Blurred.Title = lipgloss.NewStyle().Foreground(dim)
+	t.Blurred.SelectSelector = lipgloss.NewStyle().SetString("  ")
+	t.Blurred.NextIndicator = lipgloss.NewStyle()
+	t.Blurred.PrevIndicator = lipgloss.NewStyle()
+	t.Blurred.TextInput.Prompt = t.Blurred.TextInput.Prompt.Foreground(dim)
+	t.Blurred.FocusedButton = t.Blurred.BlurredButton.Underline(true)
+
+	t.Help.ShortKey = lipgloss.NewStyle().Foreground(ColorText)
+	t.Help.FullKey = t.Help.ShortKey
+	t.Help.ShortDesc = lipgloss.NewStyle().Foreground(dim)
+	t.Help.FullDesc = t.Help.ShortDesc
+	t.Help.ShortSeparator = lipgloss.NewStyle().Foreground(ColorBorder)
+	t.Help.FullSeparator = t.Help.ShortSeparator
+	t.Help.Ellipsis = t.Help.ShortSeparator
+	return t
+}
+
+func formKeyMap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.Quit = key.NewBinding(key.WithKeys("esc", "ctrl+c"), key.WithHelp("esc", "cancel"))
+	return km
 }
 
 func (m *MainModel) initForm() {
@@ -345,7 +430,11 @@ func (m *MainModel) initForm() {
 				Affirmative("Yes").
 				Negative("Cancel"),
 		),
-	).WithShowHelp(true)
+	).
+		WithShowHelp(false).
+		WithTheme(formTheme()).
+		WithKeyMap(formKeyMap()).
+		WithWidth(max(m.width-2, 0))
 }
 
 func (m *MainModel) updateAddDrill(msg tea.Msg) tea.Cmd {
@@ -355,12 +444,19 @@ func (m *MainModel) updateAddDrill(msg tea.Msg) tea.Cmd {
 	}
 	switch m.form.State {
 	case huh.StateAborted:
+		m.form = nil
 		m.state = StateMenu
+		m.menuNotice = "Cancelled."
+		m.sizeList()
 		return nil
 	case huh.StateCompleted:
 		if m.form.GetBool("confirm") {
 			m.saveFormDrill()
+		} else {
+			m.menuNotice = "Cancelled."
+			m.sizeList()
 		}
+		m.form = nil
 		m.state = StateMenu
 		return nil
 	}
@@ -379,7 +475,6 @@ func (m *MainModel) saveFormDrill() {
 	category := m.formCategory
 	if category == newCategoryOption {
 		category = strings.TrimSpace(m.form.GetString("new_category"))
-		// Reuse the existing spelling if the name only differs in case.
 		for _, c := range m.categories {
 			if strings.EqualFold(c, category) {
 				category = c
