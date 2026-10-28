@@ -55,7 +55,7 @@ func (m *MainModel) updateCountdown(key tea.KeyMsg) tea.Cmd {
 }
 
 func (m *MainModel) launchSprintSession() tea.Cmd {
-	sess, err := runner.NewSession(*m.activeDrill, m.history.GetPB(m.activeDrill.ID))
+	sess, err := runner.NewSessionWithLogo(*m.activeDrill, m.history.GetPB(m.activeDrill.ID), logoRGB(ColorCroc))
 	if err != nil {
 		m.setupErr = err
 		m.state = StateSetupError
