@@ -139,5 +139,3 @@ With mouse support on (the default), click a drill to select it and click it aga
 Search matches a substring of the drill ID or title and jumps to the first match as you type, across all category tabs. Matching is case-insensitive unless the pattern contains an uppercase letter.
 
 Other screens show their keys at the bottom.
-
-MIT licensed, see LICENSE.
