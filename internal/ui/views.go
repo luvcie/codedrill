@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -13,28 +14,29 @@ func (m *MainModel) contentView() string {
 	case StateMenu:
 		return m.menuHeader() + "\n\n" + m.list.View() + "\n" + m.menuHelp()
 	case StateAddDrill:
-		return TitleStyle.Render("CREATE NEW DRILL") + "\n\n" + m.form.View()
+		w, _ := m.screenSize()
+		help := m.renderHelpNow(formHelp, w)
+		return m.screenHeader("new drill") + "\n\n" + m.form.View() + "\n\n" + help
 	case StateStats:
-		return RenderStatsDashboard(m.history, m.drills, m.width)
+		header := m.screenHeader("profile · " + storage.GetLevelInfo(m.history.GetTotalXP()).Title)
+		return header + "\n" + RenderStatsDashboard(m.history, m.drills, m.width)
 	case StateLeaderboard:
-		return RenderLeaderboardView(*m.activeDrill, m.history, m.leaderboardRecent, m.width)
+		header := m.screenHeader(joinContext(m.activeTitle(), "hall of fame"))
+		return header + "\n" + RenderLeaderboardView(*m.activeDrill, m.history, m.leaderboardRecent, m.width)
 	case StateBriefing:
 		return m.viewBriefing()
 	case StateCountdown:
-		return renderCountdown(m.countdownCount, m.width, m.height)
+		return m.viewCountdown()
 	case StateSprinting:
-		return "\n\n\t" + TitleStyle.Render("SPRINT IN PROGRESS") + "\n\tEditor session running..."
+		return m.screenHeader(joinContext(m.activeTitle(), "sprint in progress")) + "\n\n" + indentLines("Editor session running...")
 	case StateSetupError:
-		return m.wrap(fmt.Sprintf("\n%s\n\nThe sprint has not started.\n\n%s\n\n%s\n%s",
-			TitleStyle.Render("WORKSPACE SETUP FAILED"),
-			DangerStyle.Render(m.setupErr.Error()),
-			TimerStyle.Render("[Enter] retry setup"),
-			SubtextStyle.Render("[Esc/q] back to the briefing"),
-		))
+		return m.viewSetupError()
 	case StateEvaluating:
 		return m.viewEvaluating()
 	case StateResults:
 		return m.viewResults()
+	case StateSettings:
+		return m.viewSettings()
 	}
 	return ""
 }
@@ -43,64 +45,108 @@ func (m *MainModel) wrap(s string) string {
 	return lipgloss.NewStyle().Width(max(20, m.width-2)).Render(s)
 }
 
+func (m *MainModel) activeTitle() string {
+	if m.activeDrill == nil {
+		return ""
+	}
+	return m.activeDrill.Title
+}
+
+func joinContext(parts ...string) string {
+	var keep []string
+	for _, p := range parts {
+		if p != "" {
+			keep = append(keep, p)
+		}
+	}
+	return strings.Join(keep, " · ")
+}
+
+func indentLines(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = "  " + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *MainModel) viewCountdown() string {
+	w, h := m.screenSize()
+	context := "get ready"
+	if m.countdownCount <= 0 {
+		context = "go"
+	}
+	header := m.screenHeader(joinContext(m.activeTitle(), context))
+	return header + "\n" + renderCountdownPressed(m.countdownCount, w, max(1, h-lipgloss.Height(header)), m.pressedItem())
+}
+
+func (m *MainModel) viewSetupError() string {
+	w, _ := m.screenSize()
+	header := m.screenHeader(joinContext(m.activeTitle(), "workspace setup failed"))
+	body := m.wrap(indentLines("The sprint has not started.\n\n" + DangerStyle.Render(m.setupErr.Error())))
+	return header + "\n\n" + body + "\n\n" + m.renderHelpNow(setupHelp, w)
+}
+
 func (m *MainModel) viewBriefing() string {
 	d := m.activeDrill
-	top := strings.ToUpper(d.Language) + " · PB: None yet"
-	if pb := m.history.GetPB(d.ID); pb > 0 {
-		grade, _ := CalculateGrade(pb, d.Difficulty)
-		top = fmt.Sprintf("%s · PB: %s (%s-RANK)", strings.ToUpper(d.Language), storage.FormatDuration(pb), grade)
+	pb := "PB --"
+	if best := m.history.GetPB(d.ID); best > 0 {
+		grade, _ := CalculateGrade(best, d.Difficulty)
+		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(best), grade)
 	}
-	top += fmt.Sprintf(" · LVL %d", storage.GetLevelInfo(m.history.GetTotalXP()).Level)
+	context := []string{d.Title, strings.ToUpper(d.Language), strings.ToLower(d.Difficulty), pb}
 	if d.AutoSubmit {
-		top += " · auto-submit on"
+		context = append(context, "auto-submit on")
 	}
 
-	// Rendering markdown is slow, and the view is redrawn on every key.
 	width := boxWidth(m.width, 40)
-	if key := fmt.Sprintf("%s\x00%d\x00%s", d.ID, width, d.Description); key != m.briefingKey {
-		m.briefingKey, m.briefingCache = key, RenderMarkdown(d.Description, width)
+	desc := dropTitleHeading(d.Description)
+	if key := fmt.Sprintf("%s\x00%d\x00%s", d.ID, width, desc); key != m.briefingKey {
+		m.briefingKey, m.briefingCache = key, RenderMarkdown(desc, width)
 	}
 
-	return fmt.Sprintf("\n%s\n%s\n\n%s\n\n%s",
-		TitleStyle.Render("DRILL: "+d.Title),
-		SubtextStyle.Render(top),
-		m.briefingCache,
-		RenderPaceHints(d.Difficulty),
-	)
+	return m.screenHeader(joinContext(context...)) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(d.Difficulty)
 }
 
 func (m *MainModel) viewEvaluating() string {
-	elapsed := TimerStyle.Render(storage.FormatDuration(m.accumulatedTime))
+	title := m.activeTitle()
+	elapsed := labelValue("time", storage.FormatDuration(m.accumulatedTime), timeStyle)
 	if m.saveErr != nil {
-		status := "Tests failed"
-		if m.evalPassed {
-			status = "Tests passed"
-		}
-		return m.wrap(fmt.Sprintf("\n%s\n\n%s | Time: %s\nYour workspace is still available.\n\n%s",
-			TitleStyle.Render("SPRINT NOT SAVED"), status, storage.FormatDuration(m.accumulatedTime),
-			DangerStyle.Render(m.saveErr.Error()),
-		))
+		body := DangerStyle.Render("Not saved") + "\n" + testStatus(m.evalPassed) + "  " + elapsed +
+			"\nYour workspace is still available.\n\n" + DangerStyle.Render(m.saveErr.Error())
+		return m.screenHeader(joinContext(title, "not saved")) + "\n\n" + m.wrap(indentLines(body))
 	}
 	if m.launchFailed {
-		return m.wrap(fmt.Sprintf("\n%s\n\n%s", TitleStyle.Render("SPRINT DID NOT START"), formatEvalOutput(m.evalOutput, m.width)))
+		return m.screenHeader(joinContext(title, "did not start")) + "\n\n" + formatEvalOutput(m.evalOutput, m.width)
 	}
-	header := TitleStyle.Render("SPRINT EVALUATION")
+	header := m.screenHeader(joinContext(title, "evaluation"))
 	if m.evalPending {
-		return fmt.Sprintf("\n%s\n\n%s  Time: %s\n\n%s", header, TimerStyle.Render("Running tests..."), elapsed,
-			SubtextStyle.Render("Sprint actions return when the tests finish."))
+		return header + "\n\n" + indentLines(AccentStyle.Render("Running tests...")+"  "+elapsed+
+			"\n\n"+SubtextStyle.Render("Sprint actions return when the tests finish."))
 	}
 
-	status := DangerStyle.Render("TESTS FAILED")
-	notice := ""
+	body := testStatus(m.evalPassed) + "  " + elapsed
 	if m.evalPassed {
-		status = SuccessStyle.Render("TESTS PASSED")
 		if m.history.CurrentStreak > 0 {
-			notice = AccentStyle.Render(fmt.Sprintf("Streak: %d", m.history.CurrentStreak)) + "\n\n"
+			body += "\n\n" + labelValue("streak", strconv.Itoa(m.history.CurrentStreak), lipgloss.NewStyle())
 		}
 	} else if m.history.CurrentStreak > 0 {
-		notice = DangerStyle.Render(fmt.Sprintf("Forfeiting ends your %d-win streak.", m.history.CurrentStreak)) + "\n\n"
+		body += "\n\n" + DangerStyle.Render(fmt.Sprintf("Forfeiting ends your %d-win streak.", m.history.CurrentStreak))
 	}
-	return fmt.Sprintf("\n%s\n\n%s  Time: %s\n\n%s%s", header, status, elapsed, notice, formatEvalOutput(m.evalOutput, m.width))
+	return header + "\n\n" + indentLines(body) + "\n\n" + formatEvalOutput(m.evalOutput, m.width)
+}
+
+func testStatus(passed bool) string {
+	if passed {
+		return SuccessStyle.Render("Tests passed")
+	}
+	return DangerStyle.Render("Tests failed")
+}
+
+func labelValue(label, value string, valueStyle lipgloss.Style) string {
+	return SubtextStyle.Render(label) + " " + valueStyle.Render(value)
 }
 
 func (m *MainModel) viewResults() string {
@@ -112,21 +158,20 @@ func (m *MainModel) viewResults() string {
 		}
 	}
 
-	add(TitleStyle.Render("SPRINT FINISHED"))
 	if m.isDailyBonus {
-		add(AccentStyle.Render(fmt.Sprintf("Daily cleared (+%d XP)", storage.DailyBonusXP)))
+		add(AccentStyle.Render(fmt.Sprintf("daily cleared (+%d XP)", storage.DailyBonusXP)))
 	}
 	if m.isPB {
-		add(SuccessStyle.Render("NEW PERSONAL BEST"))
+		add(SuccessStyle.Render("new personal best"))
 	}
 	if streak := m.history.CurrentStreak; streak > 1 {
 		if m.newBestStreak {
-			add(AccentStyle.Render(fmt.Sprintf("New best streak: %d", streak)))
+			add(AccentStyle.Render(fmt.Sprintf("new best streak %d", streak)))
 		} else {
-			add(AccentStyle.Render(fmt.Sprintf("Streak: %d (best %d)", streak, m.history.BestStreak)))
+			add(labelValue("streak", fmt.Sprintf("%d (best %d)", streak, m.history.BestStreak), lipgloss.NewStyle()))
 		}
 	}
-	add(BadgeStyle.Render("FINAL TIME") + ": " + SuccessStyle.Render(storage.FormatDuration(m.lastDuration)))
+	add(labelValue("final time", storage.FormatDuration(m.lastDuration), timeStyle))
 
 	grade, title := CalculateGrade(m.lastDuration, d.Difficulty)
 	if banner := RenderGradeBanner(grade, title); banner != "" {
@@ -147,26 +192,24 @@ func (m *MainModel) viewResults() string {
 	}
 	switch {
 	case m.lastSubmits == 1:
-		add(AccentStyle.Render("Submits: 1 (first try)"))
+		add(labelValue("submits", "1 (first try)", lipgloss.NewStyle()))
 	case m.lastSubmits > 1:
-		add(SubtextStyle.Render(fmt.Sprintf("Submits: %d", m.lastSubmits)))
+		add(labelValue("submits", strconv.Itoa(m.lastSubmits), lipgloss.NewStyle()))
 	}
 	if m.earnedXP > 0 {
 		lvl := m.levelInfo
 		if m.leveledUp {
-			add(AccentStyle.Render(fmt.Sprintf("Level up: %d [%s]", lvl.Level, lvl.Title)))
+			add(AccentStyle.Render(fmt.Sprintf("level up %d [%s]", lvl.Level, lvl.Title)))
 		}
-		add(BadgeStyle.Render(fmt.Sprintf("+%d XP", m.earnedXP)) + "  " + SubtextStyle.Render(fmt.Sprintf(
-			"Lv %d [%s]  %s  %d/%d XP (%d to Lv %d)",
-			lvl.Level, lvl.Title, renderProgressBar(lvl.Progress, 12), lvl.TotalXP, lvl.NextLevelXP, lvl.NextLevelXP-lvl.TotalXP, lvl.Level+1)))
+		add(AccentStyle.Render(fmt.Sprintf("+%d XP", m.earnedXP)))
+		add(SubtextStyle.Render(fmt.Sprintf("level %d [%s]  ", lvl.Level, lvl.Title)) + renderProgressBar(lvl.Progress, 10) +
+			SubtextStyle.Render(fmt.Sprintf("  %d/%d XP (%d to level %d)", lvl.TotalXP, lvl.NextLevelXP, lvl.NextLevelXP-lvl.TotalXP, lvl.Level+1)))
 	}
 
-	return "\n" + BoxStyle.Padding(0, 1).Width(boxWidth(m.width, 50)).Render(strings.Join(lines, "\n"))
+	return m.screenHeader(joinContext(d.Title, "finished")) + "\n\n" + indentLines(strings.Join(lines, "\n"))
 }
 
-// formatEvalOutput boxes test output. Tabs become spaces because a raw tab
-// moves the box's right border after lipgloss has measured the line.
 func formatEvalOutput(output string, width int) string {
 	output = strings.ReplaceAll(output, "\t", "    ")
-	return BoxStyle.Padding(0, 1).Width(boxWidth(width, 40)).Render(strings.TrimRight(output, "\n"))
+	return BoxStyle.Padding(0, 1).MarginLeft(2).Width(boxWidth(width, 40)).Render(strings.TrimRight(output, "\n"))
 }
