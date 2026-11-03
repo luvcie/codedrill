@@ -64,6 +64,8 @@ func (m *MainModel) helpText() string {
 		return m.menuKeys()
 	case StateAddDrill:
 		return formHelp
+	case StateEditDrill:
+		return formHelp
 	case StateSetupError:
 		return setupHelp
 	case StateCountdown:

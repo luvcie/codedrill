@@ -132,6 +132,7 @@ Menu keys:
 | v, s | Hall of Fame for the selected drill; stats |
 | o | Settings (theme, mouse) |
 | x | Delete a custom drill or hide a built-in (y to confirm) |
+| e | Edit a custom drill |
 | q, Esc | Quit |
 
 With mouse support on (the default), click a drill to select it and click it again to open it, and click a category tab to switch. Footer actions are clickable too; the item flashes like a pressed button before the action runs. The wheel moves the selection and scrolls other screens. Shift+drag still selects text in most terminals; turn mouse support off with `o` or `codedrill config mouse off` to get normal selection back.

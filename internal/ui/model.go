@@ -19,6 +19,7 @@ type AppState int
 const (
 	StateMenu AppState = iota
 	StateAddDrill
+	StateEditDrill
 	StateBriefing
 	StateLeaderboard
 	StateStats
@@ -65,6 +66,7 @@ type MainModel struct {
 	form         *huh.Form
 	formCategory string
 
+	editDrill    *drill.Drill
 	pendingDelete *drill.Drill
 	menuNotice    string
 
@@ -316,6 +318,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateMenu(msg)
 	case StateAddDrill:
 		return m, m.updateAddDrill(msg)
+	case StateEditDrill:
+		return m, m.updateEditDrill(msg)
 	}
 
 	key, ok := msg.(tea.KeyMsg)

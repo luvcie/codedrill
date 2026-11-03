@@ -267,6 +267,18 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 	case "o":
 		m.openSettings()
 		return nil
+	case "e":
+		if d, ok := m.selectedDrill(); ok {
+			if d.IsPreset {
+				m.menuNotice = "Built-in drills cannot be edited."
+			} else {
+				m.editDrill = &d
+				m.state = StateEditDrill
+				m.initEditForm()
+				return m.form.Init()
+			}
+		}
+		return nil
 	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
@@ -497,6 +509,156 @@ func (m *MainModel) saveFormDrill() {
 		m.menuNotice = "Could not save drill: " + err.Error()
 	} else {
 		m.menuNotice = fmt.Sprintf("Created %q in %s.", title, category)
+	}
+	m.reloadDrills()
+}
+
+func (m *MainModel) initEditForm() {
+	d := m.editDrill
+	m.formCategory = d.Category
+	title := d.Title
+	difficulty := d.Difficulty
+	language := d.Language
+	entryFile := d.EntryFile
+	testCmd := d.TestCommand
+	description := d.Description
+	autoSubmit := d.AutoSubmit
+	s, a, b := drill.PaceTargets("easy")
+	ms, ma, mb := drill.PaceTargets("medium")
+	hs, ha, hb := drill.PaceTargets("hard")
+	paceLabel := func(name string, s, a, b time.Duration) string {
+		return fmt.Sprintf("%s (S ≤ %v, A ≤ %v, B ≤ %v)", name, s, a, b)
+	}
+	m.form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Key("title").
+				Value(&title).
+				Title("Exercise Title").
+				Placeholder("e.g. ft_putchar, ft_split, Two Sum"),
+			huh.NewSelect[string]().
+				Key("category").
+				Title("Category").
+				Options(m.categoryOptions()...).
+				Value(&m.formCategory),
+		),
+		huh.NewGroup(
+			huh.NewInput().
+				Key("new_category").
+				Title("New Category Name").
+				Placeholder("e.g. Interview Prep, Rust, Piscine").
+				Validate(validateCategoryName),
+		).WithHideFunc(func() bool { return m.formCategory != newCategoryOption }),
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Key("difficulty").
+				Title("Difficulty & Target Pace").
+				Options(
+					huh.NewOption(paceLabel("Easy", s, a, b), "easy"),
+					huh.NewOption(paceLabel("Medium", ms, ma, mb), "medium"),
+					huh.NewOption(paceLabel("Hard", hs, ha, hb), "hard"),
+				).
+				Value(&difficulty),
+			huh.NewInput().
+				Key("language").
+				Title("Language").
+				Value(&language).
+				Placeholder("e.g. c, go, rust, python, cpp..."),
+			huh.NewInput().
+				Key("entry_file").
+				Title("Entry Filename").
+				Value(&entryFile).
+				Placeholder("e.g. ft_putchar.c or solution.go"),
+			huh.NewInput().
+				Key("test_cmd").
+				Title("Test Command (optional)").
+				Value(&testCmd).
+				Placeholder("e.g. gcc -Wall -Wextra -Werror -c ft_putchar.c"),
+			huh.NewText().
+				Key("description").
+				Title("Problem Description").
+				Value(&description).
+				Placeholder("Prototype and instructions. Markdown works."),
+			huh.NewConfirm().
+				Key("auto_submit").
+				Title("Submit automatically when closing editor? (No = keep shell open)").
+				Affirmative("Yes (auto-submit)").
+				Negative("No (default)").
+				Value(&autoSubmit),
+			huh.NewConfirm().
+				Key("confirm").
+				Title("Save changes to this drill?").
+				Affirmative("Yes").
+				Negative("Cancel"),
+		),
+	).
+		WithShowHelp(false).
+		WithTheme(formTheme()).
+		WithKeyMap(formKeyMap()).
+		WithWidth(max(m.width-2, 0))
+}
+
+func (m *MainModel) updateEditDrill(msg tea.Msg) tea.Cmd {
+	form, cmd := m.form.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.form = f
+	}
+	switch m.form.State {
+	case huh.StateAborted:
+		m.form = nil
+		m.editDrill = nil
+		m.state = StateMenu
+		m.menuNotice = "Cancelled."
+		m.sizeList()
+		return nil
+	case huh.StateCompleted:
+		if m.form.GetBool("confirm") {
+			m.saveEditDrill()
+		} else {
+			m.menuNotice = "Cancelled."
+		}
+		m.form = nil
+		m.editDrill = nil
+		m.state = StateMenu
+		return nil
+	}
+	return cmd
+}
+
+func (m *MainModel) saveEditDrill() {
+	title := strings.TrimSpace(m.form.GetString("title"))
+	if title == "" {
+		title = "Untitled Drill"
+	}
+	entry := strings.TrimSpace(m.form.GetString("entry_file"))
+	if entry == "" {
+		entry = "solution.txt"
+	}
+	category := m.formCategory
+	if category == newCategoryOption {
+		category = strings.TrimSpace(m.form.GetString("new_category"))
+		for _, c := range m.categories {
+			if strings.EqualFold(c, category) {
+				category = c
+			}
+		}
+	}
+
+	d := drill.Drill{
+		ID:          m.editDrill.ID,
+		Title:       title,
+		Category:    category,
+		Difficulty:  m.form.GetString("difficulty"),
+		Language:    strings.ToLower(strings.TrimSpace(m.form.GetString("language"))),
+		EntryFile:   entry,
+		TestCommand: strings.TrimSpace(m.form.GetString("test_cmd")),
+		Description: strings.TrimSpace(m.form.GetString("description")),
+		AutoSubmit:  m.form.GetBool("auto_submit"),
+	}
+	if err := drill.SaveDrill(d); err != nil {
+		m.menuNotice = "Could not save drill: " + err.Error()
+	} else {
+		m.menuNotice = fmt.Sprintf("Updated %q in %s.", title, category)
 	}
 	m.reloadDrills()
 }

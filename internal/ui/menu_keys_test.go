@@ -141,6 +141,50 @@ func TestMenuDeleteCustomDrill(t *testing.T) {
 	}
 }
 
+func TestMenuEditCustomDrill(t *testing.T) {
+	m := newMenuTestModel(t)
+	if err := drill.SaveDrill(drill.Drill{ID: "mine", Title: "Mine", Category: "Rust", EntryFile: "a.rs"}); err != nil {
+		t.Fatal(err)
+	}
+	m.reloadDrills()
+	selectDrill(t, m, "mine")
+
+	m.Update(runeKey("e"))
+	if m.state != StateEditDrill {
+		t.Fatalf("e: got state %v, want StateEditDrill", m.state)
+	}
+	if m.editDrill == nil || m.editDrill.ID != "mine" || m.editDrill.Title != "Mine" {
+		t.Fatalf("editDrill not set correctly: %+v", m.editDrill)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != StateMenu {
+		t.Fatalf("Esc: got state %v, want StateMenu", m.state)
+	}
+	if m.editDrill != nil {
+		t.Fatal("editDrill should be nil after cancel")
+	}
+	if !strings.Contains(m.View(), "Cancelled.") {
+		t.Fatalf("missing cancel notice:\\n%s", m.View())
+	}
+}
+
+func TestMenuEditPresetDrillNotAllowed(t *testing.T) {
+	m := newMenuTestModel(t)
+	selectDrill(t, m, "ft_strlen")
+
+	m.Update(runeKey("e"))
+	if m.state != StateMenu {
+		t.Fatalf("e: got state %v, want StateMenu", m.state)
+	}
+	if m.editDrill != nil {
+		t.Fatal("editDrill should be nil for preset drill")
+	}
+	if !strings.Contains(m.View(), "cannot be edited") {
+		t.Fatalf("missing cannot-be-edited notice:\\n%s", m.View())
+	}
+}
+
 func TestMenuHidePresetDrill(t *testing.T) {
 	m := newMenuTestModel(t)
 	selectDrill(t, m, "ft_strlen")

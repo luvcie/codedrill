@@ -17,6 +17,10 @@ func (m *MainModel) contentView() string {
 		w, _ := m.screenSize()
 		help := m.renderHelpNow(formHelp, w)
 		return m.screenHeader("new drill") + "\n\n" + m.form.View() + "\n\n" + help
+	case StateEditDrill:
+		w, _ := m.screenSize()
+		help := m.renderHelpNow(formHelp, w)
+		return m.screenHeader("edit drill") + "\n\n" + m.form.View() + "\n\n" + help
 	case StateStats:
 		header := m.screenHeader("profile · " + storage.GetLevelInfo(m.history.GetTotalXP()).Title)
 		return header + "\n" + RenderStatsDashboard(m.history, m.drills, m.width)

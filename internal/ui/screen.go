@@ -254,7 +254,7 @@ func (m *MainModel) menuHelp() string {
 }
 
 func (m *MainModel) menuKeys() string {
-	keys := "[Enter] select  [h/l ←/→ Tab] category  [d] daily  [r] random\n[/] search  [s] profile  [v] history  [o] settings  [x] delete  [q] quit"
+	keys := "[Enter] select  [h/l ←/→ Tab] category  [d] daily  [r] random\n[/] search  [s] profile  [v] history  [o] settings  [x] delete  [e] edit  [q] quit"
 	if m.search.pattern != "" {
 		hint := "[n/N] next/prev"
 		if m.search.hl {
