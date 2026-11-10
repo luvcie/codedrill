@@ -6,7 +6,20 @@ codedrill is a terminal app for timed coding practice. Pick a drill, solve it in
 
 ## Install
 
-You need Go 1.26.5 or newer, bash, and an editor. [Zellij](https://zellij.dev/) is optional. With Zellij, codedrill opens the editor beside a terminal with sprint commands.
+You need bash, an editor, and the tools required by your drills, such as a C compiler or Python. [Zellij](https://zellij.dev/) is optional. With Zellij, codedrill opens the editor beside a terminal with sprint commands.
+
+With Nix and flakes enabled:
+
+```bash
+nix profile add github:luvcie/codedrill
+codedrill
+```
+
+For a local checkout, run `nix profile add .` from the repository directory.
+
+To uninstall, run `nix profile remove codedrill`. If you installed from a local directory with a different name, use `nix profile list` to find the profile name.
+
+To build from source, you need Go 1.26.5 or newer:
 
 ```bash
 git clone https://github.com/luvcie/codedrill.git
