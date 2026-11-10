@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/luvcie/codedrill/internal/compare"
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/storage"
 )
@@ -34,29 +36,38 @@ const (
 type countdownTickMsg struct{ id uint64 }
 
 type sprintFinishedMsg struct {
-	err error
+	err    error
+	zellij bool
 }
 
 type evalFinishedMsg struct {
-	id      uint64
-	session *runner.Session
-	passed  bool
-	output  string
+	id           uint64
+	session      *runner.Session
+	passed       bool
+	output       string
+	reference    *compare.Result
+	referenceErr error
+	options      mode.Options
+	drill        drill.Drill
+	reviewable   bool
 }
 
 type MainModel struct {
-	state AppState
+	state         AppState
 	previousState AppState
 
-	list           list.Model
-	history        *storage.HistoryStore
-	drills         []drill.Drill
-	activeDrill    *drill.Drill
-	session        *runner.Session
-	categoryFilter string
-	categories     []string
-	categoryIndex  int
-	search         menuSearch
+	list            list.Model
+	history         *storage.HistoryStore
+	drills          []drill.Drill
+	activeDrill     *drill.Drill
+	session         *runner.Session
+	categoryFilter  string
+	categories      []string
+	categoryIndex   int
+	collapsedGroups map[string]bool
+	layout          storage.MenuLayout
+	press           *menuPress
+	search          menuSearch
 
 	sprintStartTime time.Time
 	accumulatedTime time.Duration
@@ -66,18 +77,31 @@ type MainModel struct {
 	form         *huh.Form
 	formCategory string
 
-	editDrill    *drill.Drill
+	editDrill     *drill.Drill
 	pendingDelete *drill.Drill
 	menuNotice    string
 
-	evalOutput    string
-	evalPassed    bool
-	evalPending   bool
-	evalID        uint64
-	evalReadyTime time.Time
-	launchFailed bool
-	saveErr      error
-	setupErr     error
+	briefingMode    mode.Options
+	briefingModeID  string
+	modeFocus       int
+	briefingRefOK   bool
+	briefingRefErr  error
+	briefingSaveErr error
+	runMode         mode.Options
+	evalOutput      string
+	evalPassed      bool
+	evalRef         *compare.Result
+	evalRefErr      error
+	evalPending     bool
+	evalID          uint64
+	evalReadyTime   time.Time
+	evalReview      *referenceReview
+	resultReview    *referenceReview
+	referenceDiff   *referenceDiffView
+	launchFailed    bool
+	saveErr         error
+	setupErr        error
+	prefsErr        error
 
 	resultDrill       drill.Drill
 	lastDuration      time.Duration
@@ -93,12 +117,14 @@ type MainModel struct {
 	briefingKey       string
 	leaderboardRecent bool
 
-	settingsCursor int
-	settingsOrigin Theme
-	settingsSaved  string
-	settingsErr    error
+	settingsCursor       int
+	settingsOrigin       Theme
+	settingsSaved        string
+	settingsErr          error
+	settingsThemesClosed bool
 
 	mouseOff bool
+	shell    string
 
 	helpPress *helpPressState
 
@@ -111,7 +137,7 @@ func getAvailableCategories(drills []drill.Drill) []string {
 	cats := []string{"ALL"}
 	seen := make(map[string]bool)
 	for _, d := range drills {
-		cat := drill.CategoryOf(d)
+		cat := drill.ParentCategoryOf(d)
 		if key := strings.ToUpper(cat); !seen[key] {
 			seen[key] = true
 			cats = append(cats, cat)
@@ -131,6 +157,7 @@ func NewMainModel() (*MainModel, error) {
 		return nil, loadErr
 	}
 	cfg, _ := storage.PeekConfig()
+	layout, layoutErr := storage.LoadLayout()
 	m := &MainModel{
 		state:          StateMenu,
 		history:        hist,
@@ -138,9 +165,15 @@ func NewMainModel() (*MainModel, error) {
 		categories:     getAvailableCategories(drills),
 		categoryFilter: "ALL",
 		mouseOff:       !cfg.MouseOn(),
+		shell:          cfg.ShellName(),
+		layout:         layout,
+		briefingMode:   mode.Default(),
+		runMode:        mode.Default(),
 	}
 	if loadErr != nil {
 		m.menuNotice = "Some drills could not be loaded: " + loadErr.Error()
+	} else if layoutErr != nil {
+		m.menuNotice = "Could not read the menu arrangement: " + layoutErr.Error()
 	}
 	m.refreshList()
 	return m, nil
@@ -228,6 +261,9 @@ func (m *MainModel) Cleanup() {
 func (m *MainModel) openBriefing(d *drill.Drill) {
 	m.activeDrill = d
 	m.previousState = StateMenu
+	if !m.loadBriefingOptions(d) {
+		return
+	}
 	m.state = StateBriefing
 }
 
@@ -289,11 +325,15 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.cancelPress()
 		m.width, m.height = msg.Width, msg.Height
 		m.sizeList()
+		m.resizeReferenceDiff()
 		return m, nil
 	case countdownTickMsg:
 		return m, m.onCountdownTick(msg)
+	case dragScrollMsg:
+		return m, m.updateDragScroll(msg)
 	case footerPressMsg:
 		if m.helpPress == nil {
 			return m, nil
@@ -352,8 +392,30 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
 	switch key.String() {
-	case "enter", " ":
+	case "enter":
+		m.refreshBriefingReference(m.activeDrill)
+		if m.briefingProblem() != "" {
+			return nil
+		}
 		return m.triggerSprintStart()
+	case " ":
+		m.toggleBriefingOption()
+	case "tab":
+		m.focusBriefingOption(1)
+	case "shift+tab":
+		m.focusBriefingOption(-1)
+	case "left", "←":
+		m.cycleBriefingPreset(-1)
+	case "right", "→":
+		m.cycleBriefingPreset(1)
+	case "1":
+		m.applyBriefingPreset(mode.Study())
+	case "2":
+		m.applyBriefingPreset(mode.Copy())
+	case "3":
+		m.applyBriefingPreset(mode.Recall())
+	case "4":
+		m.applyBriefingPreset(mode.Exam())
 	case "n", "p":
 		delta := 1
 		if key.String() == "p" {
@@ -361,10 +423,16 @@ func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
 		}
 		if d := m.stepDrill(*m.activeDrill, delta); d != nil {
 			m.activeDrill = d
+			if !m.loadBriefingOptions(d) {
+				return nil
+			}
 		}
 	case "r":
 		if d := m.randomDrill(m.activeDrill.ID); d != nil {
 			m.activeDrill = d
+			if !m.loadBriefingOptions(d) {
+				return nil
+			}
 		}
 	case "l":
 		m.openLeaderboard(StateBriefing)

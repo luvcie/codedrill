@@ -126,15 +126,22 @@ func TestRenderMarkdownCodeFollowsThemeChange(t *testing.T) {
 	}
 }
 
-func TestRenderMarkdownInlineCodeChip(t *testing.T) {
+func TestRenderMarkdownInlineCodeNoBackgroundAndSubtleAccent(t *testing.T) {
 	forceTrueColor(t)
 	restoreDefaultTheme(t)
 	th, _ := ThemeByID("nord")
 	ApplyTheme(th)
 	out := RenderMarkdown("Use `strlen` here.", 80)
-	chip := "48;2;" + strings.ReplaceAll(hexFG(th.Border), "38;2;", "")
-	if !strings.Contains(out, chip) {
-		t.Fatalf("inline code lacks the border background %s:\n%q", chip, out)
+	if strings.Contains(out, "48;2;") {
+		t.Fatalf("inline code must not have a background fill:\n%q", out)
+	}
+	fg := hexFG(th.Accent)
+	if !strings.Contains(out, fg) {
+		t.Fatalf("inline code lacks subtle accent foreground %s:\n%q", fg, out)
+	}
+	plain := ansi.Strip(out)
+	if !strings.Contains(plain, "Use strlen here.") {
+		t.Fatalf("inline code has extra spaces or wrong formatting: %q", plain)
 	}
 }
 

@@ -14,49 +14,51 @@ import (
 // right of the theme list. Narrower windows stack it under the list.
 const settingsSideWidth = 70
 
-// settingsPreviewHeight is the number of rows settingsPreview draws.
 const settingsPreviewHeight = 8
 
-// openSettings opens the settings screen from the menu. The cursor starts on
-// the active theme. The active theme is kept, so Esc can go back to it.
+// openSettings opens the settings screen from the menu. The Themes section
+// starts folded, with the cursor on its header. The active theme is kept, so
+// Esc can go back to it.
 func (m *MainModel) openSettings() {
 	m.settingsOrigin = CurrentTheme()
-	m.settingsCursor = 0
-	for i, t := range Themes {
-		if t.ID == m.settingsOrigin.ID {
-			m.settingsCursor = i
-		}
-	}
+	m.settingsThemesClosed = true
+	m.settingsCursor = -1
 	// A config that cannot be read has no saved theme to mark. Enter will
 	// report the read error when it tries to save.
 	m.settingsSaved = ""
 	if cfg, err := storage.LoadConfig(); err == nil {
 		m.settingsSaved = ThemeOrDefault(cfg.Theme).ID
+		m.shell = cfg.ShellName()
 	}
 	m.settingsErr = nil
 	m.state = StateSettings
 }
 
 // updateSettings handles keys on the settings screen. The cursor moves through
-// the theme rows and then the mouse row. Moving onto a theme previews it. Enter
-// saves the highlighted theme, or toggles mouse support on the mouse row. Esc
-// or q puts back the theme that was active when the screen opened.
+// the Themes header, the theme rows, the shell row and then the mouse row.
+// Moving onto a theme previews it. Enter folds the theme section, saves the
+// highlighted theme, cycles the shell, or toggles mouse support. Esc or q puts
+// back the theme that was active when the screen opened.
 func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
-	last := len(Themes)
+	last := len(Themes) + 1
 	switch key.String() {
 	case "up", "k":
-		m.moveSettings(m.settingsCursor - 1)
+		m.stepSettings(-1)
 	case "down", "j":
-		m.moveSettings(m.settingsCursor + 1)
+		m.stepSettings(1)
 	case "g", "home":
-		m.moveSettings(0)
+		m.moveSettings(m.settingsHome())
 	case "G", "end":
 		m.moveSettings(last)
 	case "enter", " ":
-		if m.settingsOnMouse() {
+		switch {
+		case m.settingsOnThemesHeader():
+			m.toggleThemes()
+		case m.settingsOnMouse():
 			return m.toggleMouse()
-		}
-		if key.String() == "enter" {
+		case m.settingsOnShell():
+			return m.cycleShell()
+		case key.String() == "enter":
 			m.saveSettings()
 		}
 	case "esc", "q":
@@ -65,25 +67,76 @@ func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// settingsOnMouse reports whether the cursor is on the mouse row, which comes
-// after the theme rows.
-func (m *MainModel) settingsOnMouse() bool {
+func (m *MainModel) settingsOnShell() bool {
 	return m.settingsCursor == len(Themes)
 }
 
-// moveSettings puts the cursor on row i, clamped to the theme rows and the
-// mouse row. A theme row applies its theme. The mouse row changes nothing, so
-// the theme under the cursor before stays previewed. Nothing is saved.
+func (m *MainModel) settingsOnThemesHeader() bool {
+	return m.settingsCursor < 0
+}
+
+func (m *MainModel) settingsThemesOpen() bool {
+	return !m.settingsThemesClosed
+}
+
+// settingsHome is the first row Home jumps to: the Themes header when the
+// section is collapsed, otherwise the first theme.
+func (m *MainModel) settingsHome() int {
+	if !m.settingsThemesOpen() {
+		return -1
+	}
+	return 0
+}
+
+func (m *MainModel) settingsOrder() []int {
+	order := []int{-1}
+	if m.settingsThemesOpen() {
+		for i := range Themes {
+			order = append(order, i)
+		}
+	}
+	return append(order, len(Themes), len(Themes)+1)
+}
+
+func (m *MainModel) stepSettings(delta int) {
+	order := m.settingsOrder()
+	pos := 0
+	for i, row := range order {
+		if row == m.settingsCursor {
+			pos = i
+			break
+		}
+	}
+	pos = min(max(pos+delta, 0), len(order)-1)
+	m.moveSettings(order[pos])
+}
+
+func (m *MainModel) toggleThemes() {
+	m.settingsThemesClosed = !m.settingsThemesClosed
+	m.settingsCursor = -1
+}
+
+func (m *MainModel) settingsOnMouse() bool {
+	return m.settingsCursor == len(Themes)+1
+}
+
+// moveSettings puts the cursor on row i, clamped to the Themes header and the
+// mouse row. A hidden theme row maps to the header while the section is
+// collapsed. A theme row applies its theme. Other rows change nothing, so the
+// theme under the cursor before stays previewed. Nothing is saved.
 func (m *MainModel) moveSettings(i int) {
-	i = min(max(i, 0), len(Themes))
-	if i == m.settingsCursor && (i == len(Themes) || CurrentTheme().ID == Themes[i].ID) {
+	i = min(max(i, -1), len(Themes)+1)
+	if !m.settingsThemesOpen() && i >= 0 && i < len(Themes) {
+		i = -1
+	}
+	if i == m.settingsCursor && (i < 0 || i >= len(Themes) || CurrentTheme().ID == Themes[i].ID) {
 		return
 	}
 	m.settingsCursor = i
 	// The error belongs to the last save attempt. Moving the cursor makes it
 	// stale, so it goes.
 	m.settingsErr = nil
-	if i < len(Themes) {
+	if i >= 0 && i < len(Themes) {
 		m.applyTheme(Themes[i])
 	}
 }
@@ -108,6 +161,29 @@ func (m *MainModel) toggleMouse() tea.Cmd {
 		return tea.EnableMouseCellMotion
 	}
 	return tea.DisableMouse
+}
+
+// cycleShell steps the Zellij pane shell between bash and zsh and saves it to
+// config.json. A custom shell set with `codedrill config shell` stays active
+// until Enter cycles it to zsh; the terminal pane falls back to bash with a
+// message when the configured shell is not on PATH.
+func (m *MainModel) cycleShell() tea.Cmd {
+	next := "zsh"
+	if strings.EqualFold(m.shell, "zsh") {
+		next = "bash"
+	}
+	cfg, err := storage.LoadConfig()
+	if err == nil {
+		cfg.Shell = next
+		err = storage.SaveConfig(cfg)
+	}
+	if err != nil {
+		m.settingsErr = err
+		return nil
+	}
+	m.settingsErr = nil
+	m.shell = next
+	return nil
 }
 
 // saveSettings writes the highlighted theme to config.json and returns to the
@@ -155,21 +231,23 @@ func (m *MainModel) closeSettings() {
 type settingsParts struct {
 	preview bool // the sample of the theme roles
 	top     bool // the blank row between the header and the body
-	label   bool // the "theme" and "mouse" labels, and the blank above the mouse label
+	label   bool // the Themes header
 	below   bool // the blank rows above the error and the help
 	err     bool // the save error
 	help    bool // the key help
 }
 
-// settingsRows returns how many theme rows fit in a window h rows tall when the
-// parts in p are drawn, and whether the mouse row fits with them. hh, hp and eh
-// are the heights of the header, the help and the save error. onMouse says the
-// cursor is on the mouse row, which then needs only its own row. ok is false
-// when the cursor row does not fit.
+// settingsRows returns how many of themeRows fit in a window h rows tall when
+// the parts in p are drawn, and whether the shell and mouse rows fit with them.
+// hh, hp and eh are the heights of the header, the help and the save error.
+// onHeader, onShell and onMouse say the cursor is on that row, which then needs
+// no theme row. ok is false when the cursor row does not fit.
 //
-// The mouse row is kept before the theme rows: it fits as long as one theme
-// row fits with it, unless the cursor is on it.
-func settingsRows(p settingsParts, h, hh, hp, eh int, side, onMouse bool) (rows int, mouse, ok bool) {
+// The shell and mouse rows are kept before the theme rows: they fit as long as
+// one theme row fits with them, unless the cursor is on another row. When the
+// window cannot hold both, the shell row goes first, so the mouse row stays
+// whenever it fits.
+func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, onHeader, onShell, onMouse bool) (rows int, shell, mouse, ok bool) {
 	rest := hh
 	if p.top {
 		rest++
@@ -192,26 +270,37 @@ func settingsRows(p settingsParts, h, hh, hp, eh int, side, onMouse bool) (rows 
 	region := h - rest
 	// Side by side, the preview needs the height of the list and its labels.
 	if p.preview && side && region < settingsPreviewHeight {
-		return 0, false, false
+		return 0, false, false, false
 	}
-	themeCost, mouseCost := 0, 1
+	themeCost := 0
 	if p.label {
-		themeCost, mouseCost = 1, 3
+		themeCost = 1
 	}
-	need := mouseCost + themeCost + 1
-	if onMouse {
-		need = mouseCost + themeCost
+	shell, mouse = true, true
+	for {
+		extras := 0
+		if shell {
+			extras++
+		}
+		if mouse {
+			extras++
+		}
+		needTheme := 0
+		if themeRows > 0 && !onHeader && !onShell && !onMouse {
+			needTheme = 1
+		}
+		if region >= themeCost+extras+needTheme {
+			return min(max(0, region-themeCost-extras), themeRows), shell, mouse, true
+		}
+		switch {
+		case shell && !onShell:
+			shell = false
+		case mouse && !onMouse:
+			mouse = false
+		default:
+			return 0, shell, mouse, false
+		}
 	}
-	mouse = region >= need
-	if mouse {
-		rows = region - themeCost - mouseCost
-	} else {
-		rows = region - themeCost
-	}
-	if onMouse {
-		return rows, mouse, mouse
-	}
-	return rows, mouse, rows >= 1
 }
 
 // settingsFit is how the settings screen is laid out in one window: which
@@ -222,11 +311,11 @@ func settingsRows(p settingsParts, h, hh, hp, eh int, side, onMouse bool) (rows 
 type settingsFit struct {
 	parts settingsParts
 	side  bool // the preview sits beside the list
-	rows  int  // theme rows in the list, at least 1 unless the cursor is on the mouse row
+	rows  int  // theme rows in the list; zero when the section is collapsed
+	shell bool // the shell row is drawn
 	mouse bool // the mouse row is drawn
 }
 
-// settingsError is the save error as drawn, or "" when there is none.
 func (m *MainModel) settingsError(w int) string {
 	if m.settingsErr == nil {
 		return ""
@@ -243,11 +332,18 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 	errText := m.settingsError(w)
 
 	side := w >= settingsSideWidth
-	onMouse := m.settingsOnMouse()
+	onHeader := m.settingsOnThemesHeader()
+	onShell, onMouse := m.settingsOnShell(), m.settingsOnMouse()
+	themeRows := 0
+	if m.settingsThemesOpen() {
+		themeRows = len(Themes)
+	}
 	// Under the list the preview needs its width and the column-2 indent.
 	stacked := indentLines(settingsPreview())
+	// The colour sample belongs to the Themes section, so it stays hidden
+	// while that section is folded.
 	p := settingsParts{
-		preview: side || lipgloss.Width(stacked) <= w,
+		preview: m.settingsThemesOpen() && (side || lipgloss.Width(stacked) <= w),
 		top:     true,
 		label:   true,
 		below:   true,
@@ -258,16 +354,22 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 	if errText != "" {
 		eh = lipgloss.Height(errText)
 	}
-	rows, mouse, ok := settingsRows(p, h, hh, hp, eh, side, onMouse)
-	// The whole list, with the mouse row, comes before the preview and the
-	// blank rows. Each part goes only while the list still does not fit.
-	for _, drop := range []*bool{&p.preview, &p.top, &p.label, &p.below} {
-		if ok && mouse && rows >= len(Themes) {
+	rows, shell, mouse, ok := settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
+	// The whole list, with the shell and mouse rows, comes before the preview
+	// and the blank rows. Each part goes only while the list still does not
+	// fit. Keep the Themes header while the cursor is on it.
+	drops := []*bool{&p.preview, &p.top}
+	if !onHeader {
+		drops = append(drops, &p.label)
+	}
+	drops = append(drops, &p.below)
+	for _, drop := range drops {
+		if ok && shell && mouse && rows >= themeRows {
 			break
 		}
 		if *drop {
 			*drop = false
-			rows, mouse, ok = settingsRows(p, h, hh, hp, eh, side, onMouse)
+			rows, shell, mouse, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
 		}
 	}
 	// The list is cut to a window only after those parts are gone. The error
@@ -278,14 +380,14 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 		}
 		if *drop {
 			*drop = false
-			rows, mouse, ok = settingsRows(p, h, hh, hp, eh, side, onMouse)
+			rows, shell, mouse, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
 		}
 	}
 	floor := 1
-	if onMouse {
+	if onHeader || onShell || onMouse || themeRows == 0 {
 		floor = 0
 	}
-	return settingsFit{parts: p, side: side, rows: max(floor, rows), mouse: mouse}
+	return settingsFit{parts: p, side: side, rows: max(floor, rows), shell: shell, mouse: mouse}
 }
 
 // settingsWindow returns the first theme index and the number of theme rows
@@ -297,17 +399,17 @@ func settingsWindow(cursor, rows, n int) (start, shown int) {
 	return start, shown
 }
 
-// viewSettings draws the settings screen. The theme list comes first. The
+// viewSettings draws the settings screen. The Themes section comes first. The
 // preview sits beside it when the window is wide enough, under it when the
 // window is narrower. The list is cut to a window around the cursor when the
 // height is short. Every row starts at column 2.
 //
 // When the height is short the parts give way in a fixed order. The preview
-// goes first, then the blank under the header, the label and the blank above
-// the error and the help, so the whole list fits if it can. Only when the list
-// still does not fit is it cut to a window around the cursor. Then the error
-// goes, and last the help. The cursor row goes only when the window has no row
-// left for it. The result is never taller than the window.
+// goes first, then the blank under the header, the Themes header and the blank
+// above the error and the help, so the whole list fits if it can. Only when the
+// list still does not fit is it cut to a window around the cursor. Then the
+// error goes, and last the help. The cursor row goes only when the window has
+// no row left for it. The result is never taller than the window.
 func (m *MainModel) viewSettings() string {
 	w, h := m.screenSize()
 	header := m.screenHeader("settings")
@@ -355,42 +457,68 @@ func (m *MainModel) viewSettings() string {
 	return strings.Join(lines[:min(len(lines), h)], "\n")
 }
 
-// settingsList draws the theme rows, then the mouse section when the fit has
-// it. The labels come with the rows when the fit has them. At most fit.rows
-// theme rows are drawn, a window that keeps the cursor in view. Each row is cut
-// to w columns.
+// settingsList draws the Themes header, the open theme rows, then the shell
+// and mouse rows when the fit has them. At most fit.rows theme rows are drawn,
+// a window that keeps the cursor in view. Each row is cut to w columns.
 func (m *MainModel) settingsList(fit settingsFit, w int) string {
-	start, shown := settingsWindow(m.settingsCursor, fit.rows, len(Themes))
-
 	var lines []string
 	if fit.parts.label {
-		lines = append(lines, "  "+SubtextStyle.Render("theme"))
+		lines = append(lines, m.settingsThemesRow(w))
 	}
-	for i := start; i < start+shown; i++ {
-		t := Themes[i]
-		var line string
-		if i == m.settingsCursor {
-			bar := lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ ")
-			line = "  " + bar + lipgloss.NewStyle().Foreground(ColorSecondary).Render(t.Name)
-		} else {
-			line = "    " + lipgloss.NewStyle().Foreground(ColorText).Render(t.Name)
+	if m.settingsThemesOpen() {
+		start, shown := settingsWindow(m.settingsCursor, fit.rows, len(Themes))
+		for i := start; i < start+shown; i++ {
+			t := Themes[i]
+			var line string
+			if i == m.settingsCursor {
+				bar := lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ ")
+				line = "  " + bar + lipgloss.NewStyle().Foreground(ColorSecondary).Render(t.Name)
+			} else {
+				line = "    " + lipgloss.NewStyle().Foreground(ColorText).Render(t.Name)
+			}
+			if t.ID == m.settingsSaved {
+				line += " " + SubtextStyle.Render("(current)")
+			}
+			lines = append(lines, ansi.Truncate(line, w, ""))
 		}
-		if t.ID == m.settingsSaved {
-			line += " " + SubtextStyle.Render("(current)")
-		}
-		lines = append(lines, ansi.Truncate(line, w, ""))
+	}
+	if fit.shell {
+		lines = append(lines, m.settingsShellRow(w))
 	}
 	if fit.mouse {
-		if fit.parts.label {
-			lines = append(lines, "", "  "+SubtextStyle.Render("mouse"))
-		}
 		lines = append(lines, m.settingsMouseRow(w))
 	}
 	return strings.Join(lines, "\n")
 }
 
-// settingsMouseRow draws the mouse row, marked as the theme rows are. It is cut
-// to w columns.
+func (m *MainModel) settingsThemesRow(w int) string {
+	arrow := "▾"
+	if !m.settingsThemesOpen() {
+		arrow = "▸"
+	}
+	text := arrow + " Themes"
+	var line string
+	if m.settingsOnThemesHeader() {
+		bar := lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ ")
+		line = "  " + bar + lipgloss.NewStyle().Foreground(ColorSecondary).Render(text)
+	} else {
+		line = "    " + SubtextStyle.Render(text)
+	}
+	return ansi.Truncate(line, w, "")
+}
+
+func (m *MainModel) settingsShellRow(w int) string {
+	text := "Shell  " + m.shell
+	var line string
+	if m.settingsOnShell() {
+		bar := lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ ")
+		line = "  " + bar + lipgloss.NewStyle().Foreground(ColorSecondary).Render(text)
+	} else {
+		line = "    " + lipgloss.NewStyle().Foreground(ColorText).Render(text)
+	}
+	return ansi.Truncate(line, w, "")
+}
+
 func (m *MainModel) settingsMouseRow(w int) string {
 	value := "on"
 	if m.mouseOff {
@@ -408,7 +536,8 @@ func (m *MainModel) settingsMouseRow(w int) string {
 }
 
 // settingsPreview draws a sample of every role the screens use, so a theme can
-// be judged before it is saved. It is settingsPreviewHeight rows tall.
+// be judged before it is saved. It is settingsPreviewHeight rows tall and is
+// drawn only while the Themes section is open.
 func settingsPreview() string {
 	tabs := activeTabStyle.Render("ALL") + " " + inactiveTabStyle.Render("42")
 	selected := lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ [GO] ft_strlen")

@@ -379,8 +379,10 @@ func TestResultsAndEvaluationUseLabelValueCopy(t *testing.T) {
 	m.accumulatedTime = 2 * time.Second
 	m.evalOutput = "ok"
 	plain = ansi.Strip(m.View())
-	if !strings.Contains(plain, "Tests passed  time 2.000s") || !strings.Contains(plain, "streak 2") {
-		t.Errorf("evaluation copy is off:\n%s", plain)
+	for _, want := range []string{"Tests: passed", "Reference: unavailable", "Overall: passed", "time 2.000s", "streak 2"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("evaluation copy lacks %q:\n%s", want, plain)
+		}
 	}
 	if strings.Contains(plain, "Time:") || strings.Contains(plain, "Streak:") {
 		t.Errorf("evaluation still uses Label: value copy:\n%s", plain)

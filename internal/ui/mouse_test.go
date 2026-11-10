@@ -34,6 +34,14 @@ func leftClick(x, y int) tea.MouseMsg {
 	return tea.MouseMsg{X: x, Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
 }
 
+func leftMotion(x, y int) tea.MouseMsg {
+	return tea.MouseMsg{X: x, Y: y, Action: tea.MouseActionMotion, Button: tea.MouseButtonLeft}
+}
+
+func leftRelease(x, y int) tea.MouseMsg {
+	return tea.MouseMsg{X: x, Y: y, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft}
+}
+
 func wheel(up bool, x, y int) tea.MouseMsg {
 	b := tea.MouseButtonWheelDown
 	if up {
@@ -137,6 +145,7 @@ func checkMenuRows(t *testing.T, m *MainModel) {
 		}
 		if m.pendingDelete == nil && idx != m.list.Index() {
 			m.Update(leftClick(3, y))
+			m.Update(leftRelease(3, y))
 			if m.list.Index() != idx || m.state != StateMenu {
 				t.Fatalf("click on row %d: index %d, state %v; want item %d selected", y, m.list.Index(), m.state, idx)
 			}
@@ -271,17 +280,21 @@ func TestMenuClickSelectsThenOpens(t *testing.T) {
 
 	y := rowOf(t, m, itemTitle(m, 2))
 	m.Update(leftClick(3, y))
+	m.Update(leftRelease(3, y))
 	if m.state != StateMenu || m.list.Index() != 2 {
 		t.Fatalf("first click: state %v, index %d; want menu, 2", m.state, m.list.Index())
 	}
 
 	// A click on the description row of an unselected item selects it.
 	m.Update(leftClick(3, rowOf(t, m, itemTitle(m, 3))+1))
+	m.Update(leftRelease(3, rowOf(t, m, itemTitle(m, 3))+1))
 	if m.state != StateMenu || m.list.Index() != 3 {
 		t.Fatalf("description click: state %v, index %d; want menu, 3", m.state, m.list.Index())
 	}
 
-	m.Update(leftClick(3, rowOf(t, m, itemTitle(m, 3))))
+	y = rowOf(t, m, itemTitle(m, 3))
+	m.Update(leftClick(3, y))
+	m.Update(leftRelease(3, y))
 	if m.state != StateBriefing || m.activeDrill == nil || m.activeDrill.ID != m.list.Items()[3].(drillItem).drill.ID {
 		t.Fatalf("second click: state %v; want the briefing of the selected drill", m.state)
 	}
@@ -299,10 +312,12 @@ func TestMenuClickAddDrillOpensForm(t *testing.T) {
 
 	y := rowOf(t, m, "+ Add a drill")
 	m.Update(leftClick(3, y))
+	m.Update(leftRelease(3, y))
 	if m.state != StateMenu || m.list.Index() != last {
 		t.Fatalf("first click: state %v, index %d; want menu, %d", m.state, m.list.Index(), last)
 	}
 	m.Update(leftClick(3, y))
+	m.Update(leftRelease(3, y))
 	if m.state != StateAddDrill || m.form == nil {
 		t.Fatalf("second click: state %v; want the add drill form", m.state)
 	}
@@ -636,18 +651,25 @@ func TestSprintFinishedEnablesMouse(t *testing.T) {
 	})
 }
 
-// settingsThemeRows maps each theme row on screen to the row's theme index and
-// column, from the rendered text. The mouse row maps to len(Themes).
+// settingsThemeRows maps each settings row on screen to its index and column,
+// from the rendered text. The Themes header maps to -1, the shell row to
+// len(Themes) and the mouse row to len(Themes)+1.
 func settingsThemeRows(m *MainModel) map[int][2]int {
 	rows := map[int][2]int{}
 	for y, line := range stripLines(m) {
+		if idx := strings.Index(line, "Themes"); idx >= 0 {
+			rows[y] = [2]int{-1, lipgloss.Width(line[:idx])}
+		}
 		for i, th := range Themes {
 			if idx := strings.Index(line, th.Name); idx >= 0 {
 				rows[y] = [2]int{i, lipgloss.Width(line[:idx])}
 			}
 		}
-		if idx := strings.Index(line, "Mouse  "); idx >= 0 {
+		if idx := strings.Index(line, "Shell  "); idx >= 0 {
 			rows[y] = [2]int{len(Themes), lipgloss.Width(line[:idx])}
+		}
+		if idx := strings.Index(line, "Mouse  "); idx >= 0 {
+			rows[y] = [2]int{len(Themes) + 1, lipgloss.Width(line[:idx])}
 		}
 	}
 	return rows
@@ -660,6 +682,7 @@ func TestSettingsHitTestMatchesRendering(t *testing.T) {
 			m := newMenuTestModel(t)
 			m.Update(size)
 			m.Update(runeKey("o"))
+			m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 			if m.state != StateSettings {
 				t.Fatal("o did not open settings")
 			}
@@ -694,6 +717,7 @@ func TestSettingsClickPreviewsThenSaves(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	rows := settingsThemeRows(m)
 
 	target := 2
@@ -740,6 +764,7 @@ func TestSettingsWheelMovesCursor(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.moveSettings(0)
 
 	m.Update(wheel(false, 3, 5))
@@ -748,8 +773,8 @@ func TestSettingsWheelMovesCursor(t *testing.T) {
 	}
 	m.Update(wheel(true, 3, 5))
 	m.Update(wheel(true, 3, 5))
-	if m.settingsCursor != 0 || CurrentTheme().ID != Themes[0].ID {
-		t.Fatalf("wheel up: cursor %d, theme %s", m.settingsCursor, CurrentTheme().ID)
+	if !m.settingsOnThemesHeader() || CurrentTheme().ID != Themes[0].ID {
+		t.Fatalf("wheel up: cursor %d, theme %s; want the Themes header", m.settingsCursor, CurrentTheme().ID)
 	}
 	if m.state != StateSettings {
 		t.Fatal("wheel left settings")
@@ -761,11 +786,11 @@ func TestSettingsClickOutsideListDoesNothing(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	cursor := m.settingsCursor
 	rows := settingsThemeRows(m)
-	// A click on the header, a blank row, or the preview side of a wide window
-	// does nothing. The theme rows span the list's width, so a click on a row
-	// is a click on that theme and is covered elsewhere.
+	// A click on a blank row or the preview side of a wide window does nothing.
+	// The rows span the list's width, so a click on one is covered elsewhere.
 	for y := range 24 {
 		if _, isRow := rows[y]; isRow {
 			continue

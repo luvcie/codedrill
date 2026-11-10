@@ -18,27 +18,88 @@ import (
 var presetsJSON []byte
 
 type Drill struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Category    string            `json:"category"`
-	Language    string            `json:"language"`
-	Description string            `json:"description"`
-	Difficulty  string            `json:"difficulty,omitempty"`
-	EntryFile   string            `json:"entry_file"`
-	StarterCode string            `json:"starter_code"`
-	TestCommand string            `json:"test_command"`
-	AutoSubmit  bool              `json:"auto_submit"`
-	ExtraFiles  map[string]string `json:"extra_files,omitempty"`
+	ID                   string            `json:"id"`
+	Title                string            `json:"title"`
+	Category             string            `json:"category"`
+	Language             string            `json:"language"`
+	Description          string            `json:"description"`
+	Difficulty           string            `json:"difficulty,omitempty"`
+	EntryFile            string            `json:"entry_file"`
+	StarterCode          string            `json:"starter_code"` // Legacy import/export data; not used to initialize workspaces.
+	TestCommand          string            `json:"test_command"`
+	AutoSubmit           bool              `json:"auto_submit"`
+	ExtraFiles           map[string]string `json:"extra_files,omitempty"`
+	StudentFiles         []string          `json:"student_files,omitempty"`
+	OptionalStudentFiles []string          `json:"optional_student_files,omitempty"`
 
 	IsPreset bool   `json:"-"`
 	Dir      string `json:"-"`
 }
 
+// CategorySeparator divides a category into a parent and a subcategory. A
+// drill whose category is "42/Exam 05" belongs to the 42 tab and is listed in
+// a collapsible "Exam 05" group there.
+const CategorySeparator = "/"
+
 func CategoryOf(d Drill) string {
-	if c := strings.TrimSpace(d.Category); c != "" {
+	if c := NormalizeCategory(d.Category); c != "" {
 		return c
 	}
 	return "Custom"
+}
+
+// NormalizeCategory cleans up a category name. It maps the old "42 Exam" and
+// "42 Exam NN" names onto the current 42 category, keeping the exam part as a
+// subcategory, and trims the parts of a "parent/subcategory" path.
+func NormalizeCategory(category string) string {
+	c := strings.TrimSpace(category)
+	if c == "" {
+		return ""
+	}
+	if i := strings.Index(c, CategorySeparator); i >= 0 {
+		parent := strings.TrimSpace(c[:i])
+		sub := strings.TrimSpace(c[i+1:])
+		switch {
+		case parent == "":
+			return sub
+		case sub == "":
+			return parent
+		default:
+			return parent + CategorySeparator + sub
+		}
+	}
+	const legacy = "42 Exam"
+	if len(c) > len(legacy) && strings.EqualFold(c[:len(legacy)], legacy) && (c[len(legacy)] == ' ' || c[len(legacy)] == '\t') {
+		return "42/Exam " + strings.TrimSpace(c[len(legacy):])
+	}
+	if strings.EqualFold(c, legacy) {
+		return "42"
+	}
+	return c
+}
+
+// ParentCategory is the tab a category belongs to: "42" for "42/Exam 05".
+func ParentCategory(category string) string {
+	c := NormalizeCategory(category)
+	if i := strings.Index(c, CategorySeparator); i >= 0 {
+		return strings.TrimSpace(c[:i])
+	}
+	return c
+}
+
+// ParentCategoryOf is ParentCategory with the empty-category fallback.
+func ParentCategoryOf(d Drill) string {
+	return ParentCategory(CategoryOf(d))
+}
+
+// SubcategoryOf returns the part after the separator, or "" when the category
+// has no subcategory.
+func SubcategoryOf(d Drill) string {
+	c := CategoryOf(d)
+	if i := strings.Index(c, CategorySeparator); i >= 0 {
+		return strings.TrimSpace(c[i+1:])
+	}
+	return ""
 }
 
 func SortCategories(cats []string) {
@@ -62,11 +123,11 @@ func categoryRank(c string) int {
 }
 
 func isLastCategory(c string) bool {
-	return strings.EqualFold(strings.TrimSpace(c), "42")
+	return strings.EqualFold(ParentCategory(c), "42")
 }
 
 func isCustomCategory(c string) bool {
-	return strings.EqualFold(strings.TrimSpace(c), "Custom")
+	return strings.EqualFold(ParentCategory(c), "Custom")
 }
 
 func Matches(d Drill, filter string) bool {
@@ -76,6 +137,7 @@ func Matches(d Drill, filter string) bool {
 	}
 	cat := CategoryOf(d)
 	return strings.EqualFold(cat, filter) ||
+		strings.EqualFold(ParentCategory(cat), filter) ||
 		strings.EqualFold(d.Language, filter) ||
 		strings.EqualFold(d.Difficulty, filter) ||
 		(len(filter) >= 3 && strings.Contains(strings.ToLower(cat), strings.ToLower(filter)))
@@ -119,6 +181,7 @@ func LoadDrills() ([]Drill, error) {
 	}
 	for i := range drills {
 		drills[i].IsPreset = true
+		drills[i].Category = NormalizeCategory(drills[i].Category)
 	}
 
 	dir, err := GetUserDrillsDir()
@@ -171,9 +234,7 @@ func loadManifest(dir string) (Drill, error) {
 		return d, fmt.Errorf("%s/drill.json: %w", dir, err)
 	}
 	d.Dir = dir
-	if strings.EqualFold(strings.TrimSpace(d.Category), "42 Exam") {
-		d.Category = "42"
-	}
+	d.Category = NormalizeCategory(d.Category)
 	return d, nil
 }
 
@@ -335,6 +396,12 @@ func SaveDrill(d Drill) error {
 	if d.EntryFile != "" && !filepath.IsLocal(d.EntryFile) {
 		return fmt.Errorf("entry file %q must be a relative path inside the drill", d.EntryFile)
 	}
+	if d.EntryFile != "" || len(d.StudentFiles)+len(d.OptionalStudentFiles) > 0 {
+		if _, _, err := d.StudentPaths(); err != nil {
+			return err
+		}
+	}
+	d.Category = NormalizeCategory(d.Category)
 
 	drillDir := filepath.Join(baseDir, d.ID)
 	if err := os.MkdirAll(drillDir, 0755); err != nil {
@@ -388,6 +455,7 @@ func ImportDrill(data []byte) (*Drill, error) {
 		d.ID = d.Title
 	}
 	d.ID = SanitizeDrillID(d.ID)
+	d.Category = NormalizeCategory(d.Category)
 	if err := SaveDrill(d); err != nil {
 		return nil, err
 	}

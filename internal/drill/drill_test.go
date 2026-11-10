@@ -41,8 +41,8 @@ func TestLoadDrillsPresets(t *testing.T) {
 		if d.EntryFile == "" {
 			t.Errorf("drill %s has empty EntryFile", d.ID)
 		}
-		if d.StarterCode == "" {
-			t.Errorf("drill %s has empty StarterCode", d.ID)
+		if d.StarterCode != "" {
+			t.Errorf("drill %s still contains starter code", d.ID)
 		}
 		if d.TestCommand == "" {
 			t.Errorf("drill %s has empty TestCommand", d.ID)
@@ -188,6 +188,70 @@ func TestMatchesAndFind(t *testing.T) {
 	}
 	if Find([]Drill{d}, "FT_STRLEN") == nil || Find([]Drill{d}, "nope") != nil {
 		t.Error("Find is wrong")
+	}
+}
+
+func TestNormalizeCategory(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"42", "42"},
+		{"42 Exam", "42"},
+		{"42 EXAM", "42"},
+		{"42 Exam 05", "42/Exam 05"},
+		{"42 EXAM 05", "42/Exam 05"},
+		{" 42 / Exam 05 ", "42/Exam 05"},
+		{"Rust / Ownership", "Rust/Ownership"},
+		{"Custom", "Custom"},
+	}
+	for _, c := range cases {
+		if got := NormalizeCategory(c.in); got != c.want {
+			t.Errorf("NormalizeCategory(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestCategoryHierarchy(t *testing.T) {
+	d := Drill{Category: "42 EXAM 05"}
+	if got := CategoryOf(d); got != "42/Exam 05" {
+		t.Fatalf("CategoryOf = %q, want 42/Exam 05", got)
+	}
+	if got := ParentCategoryOf(d); got != "42" {
+		t.Fatalf("ParentCategoryOf = %q, want 42", got)
+	}
+	if got := SubcategoryOf(d); got != "Exam 05" {
+		t.Fatalf("SubcategoryOf = %q, want Exam 05", got)
+	}
+	if got := SubcategoryOf(Drill{Category: "42"}); got != "" {
+		t.Fatalf("plain category has subcategory %q", got)
+	}
+	if !Matches(d, "42") || !Matches(d, "42/Exam 05") {
+		t.Fatal("a subcategory should match its parent and its full path")
+	}
+	if Matches(d, "LeetCode") {
+		t.Fatal("a subcategory matched an unrelated category")
+	}
+}
+
+func TestLoadNormalizesLegacy42ExamSubcategory(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	base, _ := GetUserDrillsDir()
+	dir := filepath.Join(base, "legacy")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"id": "legacy", "title": "Legacy", "category": "42 EXAM 05", "entry_file": "a.c"}`
+	if err := os.WriteFile(filepath.Join(dir, "drill.json"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+	drills, err := LoadDrills()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Find(drills, "legacy")
+	if d == nil || d.Category != "42/Exam 05" {
+		t.Fatalf("legacy subcategory not normalized: %+v", d)
 	}
 }
 

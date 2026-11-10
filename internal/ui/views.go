@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/luvcie/codedrill/internal/compare"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -88,6 +90,12 @@ func (m *MainModel) viewCountdown() string {
 
 func (m *MainModel) viewSetupError() string {
 	w, _ := m.screenSize()
+	if m.prefsErr != nil {
+		header := m.screenHeader(joinContext(m.activeTitle(), "preferences unavailable"))
+		body := m.wrap(indentLines("The sprint has not started because this drill's preferences could not be read.\n\n" +
+			DangerStyle.Render(m.prefsErr.Error()) + "\n\nFix or remove the preferences file, then retry."))
+		return header + "\n\n" + body + "\n\n" + m.renderHelpNow(setupHelp, w)
+	}
 	header := m.screenHeader(joinContext(m.activeTitle(), "workspace setup failed"))
 	body := m.wrap(indentLines("The sprint has not started.\n\n" + DangerStyle.Render(m.setupErr.Error())))
 	return header + "\n\n" + body + "\n\n" + m.renderHelpNow(setupHelp, w)
@@ -111,14 +119,14 @@ func (m *MainModel) viewBriefing() string {
 		m.briefingKey, m.briefingCache = key, RenderMarkdown(desc, width)
 	}
 
-	return m.screenHeader(joinContext(context...)) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(d.Difficulty)
+	return m.screenHeader(joinContext(context...)) + "\n\n" + indentLines(m.briefingModePanel()) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(d.Difficulty)
 }
 
 func (m *MainModel) viewEvaluating() string {
 	title := m.activeTitle()
 	elapsed := labelValue("time", storage.FormatDuration(m.accumulatedTime), timeStyle)
 	if m.saveErr != nil {
-		body := DangerStyle.Render("Not saved") + "\n" + testStatus(m.evalPassed) + "  " + elapsed +
+		body := DangerStyle.Render("Not saved") + "\n" + "Tests: " + passedValue(m.evalPassed) + "  " + elapsed +
 			"\nYour workspace is still available.\n\n" + DangerStyle.Render(m.saveErr.Error())
 		return m.screenHeader(joinContext(title, "not saved")) + "\n\n" + m.wrap(indentLines(body))
 	}
@@ -128,11 +136,12 @@ func (m *MainModel) viewEvaluating() string {
 	header := m.screenHeader(joinContext(title, "evaluation"))
 	if m.evalPending {
 		return header + "\n\n" + indentLines(AccentStyle.Render("Running tests...")+"  "+elapsed+
-			"\n\n"+SubtextStyle.Render("Sprint actions return when the tests finish."))
+			"\n\n"+SubtextStyle.Render("Sprint actions return when evaluation finishes."))
 	}
 
-	body := testStatus(m.evalPassed) + "  " + elapsed
-	if m.evalPassed {
+	verdict := m.passVerdict()
+	body := evaluationStatus(verdict, m.evalPassed, m.runMode, m.evalRef, m.evalRefErr) + "  " + elapsed
+	if verdict.Passed {
 		if m.history.CurrentStreak > 0 {
 			body += "\n\n" + labelValue("streak", strconv.Itoa(m.history.CurrentStreak), lipgloss.NewStyle())
 		}
@@ -142,11 +151,38 @@ func (m *MainModel) viewEvaluating() string {
 	return header + "\n\n" + indentLines(body) + "\n\n" + formatEvalOutput(m.evalOutput, m.width)
 }
 
-func testStatus(passed bool) string {
-	if passed {
-		return SuccessStyle.Render("Tests passed")
+func evaluationStatus(verdict mode.Verdict, testsPassed bool, opts mode.Options, ref *compare.Result, refErr error) string {
+	lines := []string{"Tests: " + passedValue(testsPassed)}
+	lines = append(lines, referenceStatus(opts, ref, refErr))
+	overall := "Overall: " + passedValue(verdict.Passed)
+	if !verdict.Passed && verdict.Reason != "" {
+		overall += " (" + verdict.Reason + ")"
 	}
-	return DangerStyle.Render("Tests failed")
+	return strings.Join(append(lines, overall), "\n")
+}
+
+func referenceStatus(opts mode.Options, ref *compare.Result, refErr error) string {
+	if !opts.CheckReference {
+		return "Reference: " + SubtextStyle.Render("not checked")
+	}
+	if refErr != nil {
+		return "Reference: " + DangerStyle.Render("unavailable") + " (" + refErr.Error() + ")"
+	}
+	if ref == nil {
+		return "Reference: " + DangerStyle.Render("unavailable")
+	}
+	percent := strconv.FormatFloat(ref.Percent(), 'f', -1, 64) + "%"
+	if ref.Exact {
+		return "Reference: " + SuccessStyle.Render(percent+" exact")
+	}
+	return "Reference: " + percent
+}
+
+func passedValue(passed bool) string {
+	if passed {
+		return SuccessStyle.Render("passed")
+	}
+	return DangerStyle.Render("failed")
 }
 
 func labelValue(label, value string, valueStyle lipgloss.Style) string {

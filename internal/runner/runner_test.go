@@ -57,7 +57,7 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 
 	entryPath := filepath.Join(sess.Workspace, "solution.py")
 	content, err := os.ReadFile(entryPath)
-	if err != nil || !strings.Contains(string(content), "def solve(): pass") {
+	if err != nil || len(content) != 0 {
 		t.Errorf("entry file missing or invalid content")
 	}
 
@@ -80,6 +80,9 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 		t.Errorf("run script is not executable")
 	}
 
+	if err := os.WriteFile(entryPath, []byte("def solve(): pass\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command("./run")
 	cmd.Dir = sess.Workspace
 	out, err := cmd.CombinedOutput()
@@ -140,6 +143,9 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 		t.Errorf("d shortcut missing")
 	}
 
+	if err := os.WriteFile(entryPath, nil, 0644); err != nil {
+		t.Fatal(err)
+	}
 	dCmd := exec.Command("./d")
 	dCmd.Dir = sess.Workspace
 	dOut, err := dCmd.CombinedOutput()
@@ -171,13 +177,13 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executing ./diff -r failed: %v, output: %s", err, string(resetOut))
 	}
-	if !strings.Contains(string(resetOut), "Reset solution.py to the starter code") {
+	if !strings.Contains(string(resetOut), "Reset student files to the empty baseline") {
 		t.Errorf("expected restoration message, got: %s", string(resetOut))
 	}
 
 	revertedContent, err := os.ReadFile(entryPath)
-	if err != nil || !strings.Contains(string(revertedContent), "def solve(): pass") {
-		t.Errorf("entry file was not restored to starter code, got: %s", string(revertedContent))
+	if err != nil || len(revertedContent) != 0 {
+		t.Errorf("entry file was not restored to empty, got: %s", string(revertedContent))
 	}
 }
 
@@ -217,6 +223,9 @@ func TestRunTestsSuccessAndTimeout(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 	defer sessSuccess.Cleanup()
+	if err := os.WriteFile(filepath.Join(sessSuccess.Workspace, sessSuccess.EntryFile), []byte("echo work"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	passed, out := sessSuccess.RunTests()
 	if !passed {
@@ -235,6 +244,9 @@ func TestRunTestsSuccessAndTimeout(t *testing.T) {
 		t.Fatalf("failed to create timeout session: %v", err)
 	}
 	defer sessTimeout.Cleanup()
+	if err := os.WriteFile(filepath.Join(sessTimeout.Workspace, sessTimeout.EntryFile), []byte("echo work"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	tPassed, tOut := sessTimeout.RunTests()
 	if tPassed {
@@ -298,13 +310,13 @@ func TestAllPresetsWorkspaceSetup(t *testing.T) {
 
 			entryPath := filepath.Join(sess.Workspace, d.EntryFile)
 			content, err := os.ReadFile(entryPath)
-			if err != nil || string(content) != d.StarterCode {
+			if err != nil || len(content) != 0 {
 				t.Errorf("entry file missing or content mismatch for drill %s", d.ID)
 			}
 
 			starterPath := filepath.Join(sess.Workspace, ".starter_code")
 			starterContent, err := os.ReadFile(starterPath)
-			if err != nil || string(starterContent) != d.StarterCode {
+			if err != nil || len(starterContent) != 0 {
 				t.Errorf(".starter_code missing or mismatch for drill %s", d.ID)
 			}
 
@@ -313,16 +325,17 @@ func TestAllPresetsWorkspaceSetup(t *testing.T) {
 				t.Errorf("PROBLEM.md missing for drill %s", d.ID)
 			}
 
-			for _, helper := range []string{"r", "p", "s", "i", "d", "run", "pace", "submit", "info", "diff"} {
+			for _, helper := range []string{"r", "p", "s", "i", "d", "m", "run", "pace", "submit", "info", "diff", "match"} {
 				if _, err := os.Stat(filepath.Join(sess.Workspace, helper)); os.IsNotExist(err) {
 					t.Errorf("expected helper %s to exist for drill %s", helper, d.ID)
 				}
 			}
 
-			for filename := range d.ExtraFiles {
-				if _, err := os.Stat(filepath.Join(sess.Workspace, filename)); os.IsNotExist(err) {
-					t.Errorf("extra file %s missing for drill %s", filename, d.ID)
-				}
+			for filename, content := range d.ExtraFiles {
+				assertFileContent(t, sess.Workspace, filename, content)
+			}
+			if passed, output := sess.RunTests(); passed {
+				t.Errorf("empty built-in implementation passed %s: %s", d.ID, output)
 			}
 		})
 	}
@@ -398,6 +411,9 @@ func TestShellQuotingInHelpers(t *testing.T) {
 	out, err := exec.Command(filepath.Join(sess.Workspace, "info")).CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) != title {
 		t.Fatalf("info printed %q, err %v", out, err)
+	}
+	if err := os.WriteFile(filepath.Join(sess.Workspace, "my solution.sh"), []byte("echo hi\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
 	out, err = exec.Command(filepath.Join(sess.Workspace, "run")).CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "hi") {

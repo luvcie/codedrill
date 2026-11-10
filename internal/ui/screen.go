@@ -23,9 +23,17 @@ func (m *MainModel) screenSize() (int, int) {
 }
 
 func (m *MainModel) screenHelp() string {
+	help := m.screenKeys()
+	if m.currentReferenceReview() != nil {
+		help += "\n[v] Reference diff"
+	}
+	return help
+}
+
+func (m *MainModel) screenKeys() string {
 	switch m.state {
 	case StateBriefing:
-		return "[Enter] start  [n/p] next/prev  [r] random\n[l] history  [Esc/q] back"
+		return "[Tab/Shift+Tab] option  [Space] toggle  [←/→] mode\n[Enter] start  [n/p] next/prev  [r] random\n[l] history  [Esc/q] back"
 	case StateEvaluating:
 		switch {
 		case m.evalPending:
@@ -34,7 +42,7 @@ func (m *MainModel) screenHelp() string {
 			return "[e] try again  [Enter/q] back to the briefing"
 		case m.saveErr != nil:
 			return "[Enter] retry save  [e] editor  [q/Esc] discard this run"
-		case m.evalPassed:
+		case m.passVerdict().Passed:
 			return "[Enter] finish  [e] editor  [q/Esc] quit without saving"
 		}
 		return "[Enter/e] editor  [q/Esc] forfeit"
@@ -78,6 +86,9 @@ func (m *MainModel) screenLines() ([]string, string, int) {
 }
 
 func (m *MainModel) View() string {
+	if m.referenceDiff != nil {
+		return m.viewReferenceDiff()
+	}
 	if !m.scrollable() {
 		return m.contentView()
 	}
@@ -92,6 +103,12 @@ func (m *MainModel) View() string {
 }
 
 func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.referenceDiff != nil {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			return m, m.updateReferenceDiff(msg)
+		}
+	}
 	if key, ok := msg.(tea.KeyMsg); ok && m.scrollable() {
 		lines, _, available := m.screenLines()
 		switch key.String() {
@@ -254,7 +271,7 @@ func (m *MainModel) menuHelp() string {
 }
 
 func (m *MainModel) menuKeys() string {
-	keys := "[Enter] select  [h/l ←/→ Tab] category  [d] daily  [r] random\n[/] search  [s] profile  [v] history  [o] settings  [x] delete  [e] edit  [q] quit"
+	keys := "[Enter] select  [h/l ←/→ Tab] category  [d] daily  [r] random\n[Shift+↑/↓] reorder  [/] search  [s] profile  [v] history  [o] settings  [x] delete  [e] edit  [q] quit"
 	if m.search.pattern != "" {
 		hint := "[n/N] next/prev"
 		if m.search.hl {

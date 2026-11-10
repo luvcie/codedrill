@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/luvcie/codedrill/internal/compare"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/runner"
+	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
 	"github.com/luvcie/codedrill/internal/ui"
 )
@@ -29,6 +32,8 @@ Usage:
   codedrill random [filter]  Jump straight into a random drill sprint (e.g. random c, random 42)
   codedrill new              Create a new custom drill interactively
   codedrill export <id>      Export drill definition as JSON to stdout
+  codedrill solution <id> [path...]  List attached reference solutions, or attach files
+  codedrill match <id> [--workspace DIR] [--json]  Compare a workspace with its reference
   codedrill import <file>    Import drill definition from a JSON file
   codedrill rm <id>          Delete a custom drill, or hide a built-in one
   codedrill restore [id|all] List hidden built-in drills, or bring them back
@@ -38,7 +43,7 @@ Usage:
   codedrill list [filter]    List all drills, or filter by category, language or difficulty
   codedrill search <query>   Search drills by id, title, language, category, difficulty or description
   codedrill stats            View aggregate sprint statistics & profile
-  codedrill config [opt]     View or set config (e.g. config editor nvim, config sound off, config mouse off, config countdown 0)
+  codedrill config [opt]     View or set config (e.g. config editor nvim, config shell zsh, config sound off, config countdown 0)
   codedrill config theme [id] List colour themes, or set one (e.g. config theme gruvbox)
   codedrill reset <id>       Reset stats and Personal Best for a specific drill
   codedrill reset all        Reset all personal bests, attempts, and streaks
@@ -162,6 +167,14 @@ func (c *cli) dispatch(args []string) error {
 		}
 		c.printf("Imported %q as %s.\n", d.Title, d.ID)
 		return nil
+	case "solution", "solutions":
+		return c.solution(args[1:])
+	case "match":
+		return c.match(args[1:])
+	case "reference-view":
+		return c.referenceView(args[1:])
+	case "reference-diff":
+		return c.referenceDiff(args[1:])
 	case "version", "--version", "-v":
 		c.printf("codedrill v%s\n", Version)
 		return nil
@@ -540,6 +553,234 @@ func (c *cli) restore(args []string) error {
 	return nil
 }
 
+func (c *cli) solution(args []string) error {
+	if len(args) == 0 {
+		return usage("missing drill id, e.g. codedrill solution ft_strlen answer.c")
+	}
+	d, err := c.findDrill(args[0])
+	if err != nil {
+		return err
+	}
+	if len(args) == 1 {
+		return c.listSolutions(*d)
+	}
+	att, err := solutions.Attach(d.ID, args[1:])
+	if err != nil {
+		return err
+	}
+	noun := "files"
+	if len(att.Files) == 1 {
+		noun = "file"
+	}
+	c.printf("Attached %d solution %s for %s:\n", len(att.Files), noun, d.ID)
+	for _, rel := range att.Files {
+		c.printf("  %s\n", rel)
+	}
+	c.printf("Destination: %s\n", att.Dir)
+	return nil
+}
+
+func (c *cli) listSolutions(d drill.Drill) error {
+	dir, err := solutions.OverlayDir(d.ID)
+	if err != nil {
+		return err
+	}
+	files, err := solutions.List(dir)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		c.printf("No solution files attached for %s.\n", d.ID)
+		c.printf("Attach one with: codedrill solution %s <path>\n", d.ID)
+		return nil
+	}
+	c.printf("Solution files for %s:\n", d.ID)
+	for _, f := range files {
+		c.printf("  %s\n", f.Rel)
+	}
+	c.printf("Destination: %s\n", dir)
+	return nil
+}
+
+type matchReport struct {
+	Drill           string            `json:"drill"`
+	Title           string            `json:"title"`
+	Language        string            `json:"language"`
+	Workspace       string            `json:"workspace"`
+	Exact           bool              `json:"exact"`
+	Percent         float64           `json:"percent"`
+	MatchedTokens   int               `json:"matched_tokens"`
+	MissingTokens   int               `json:"missing_tokens"`
+	ExtraTokens     int               `json:"extra_tokens"`
+	ReferenceTokens int               `json:"reference_tokens"`
+	StudentTokens   int               `json:"student_tokens"`
+	FirstDifference *matchLocation    `json:"first_difference,omitempty"`
+	Files           []matchFileReport `json:"files"`
+}
+
+type matchLocation struct {
+	Path    string `json:"path"`
+	Line    int    `json:"line,omitempty"`
+	Missing bool   `json:"missing,omitempty"`
+}
+
+type matchFileReport struct {
+	Path               string  `json:"path"`
+	Missing            bool    `json:"missing"`
+	Exact              bool    `json:"exact"`
+	Percent            float64 `json:"percent"`
+	MatchedTokens      int     `json:"matched_tokens"`
+	MissingTokens      int     `json:"missing_tokens"`
+	ExtraTokens        int     `json:"extra_tokens"`
+	ReferenceTokens    int     `json:"reference_tokens"`
+	StudentTokens      int     `json:"student_tokens"`
+	FirstDifferingLine int     `json:"first_differing_line,omitempty"`
+}
+
+func (c *cli) match(args []string) error {
+	workspace := ""
+	asJSON := false
+	var drillArgs []string
+	for i := 0; i < len(args); i++ {
+		switch arg := args[i]; {
+		case arg == "--json":
+			asJSON = true
+		case arg == "--workspace":
+			if i+1 >= len(args) {
+				return usage("missing directory after --workspace")
+			}
+			i++
+			workspace = args[i]
+		case strings.HasPrefix(arg, "--workspace="):
+			workspace = strings.TrimPrefix(arg, "--workspace=")
+			if workspace == "" {
+				return usage("missing directory after --workspace")
+			}
+		case strings.HasPrefix(arg, "-"):
+			return usage("unknown option %q; use --workspace DIR or --json", arg)
+		default:
+			drillArgs = append(drillArgs, arg)
+		}
+	}
+	if len(drillArgs) == 0 {
+		return usage("missing drill id, e.g. codedrill match ft_strlen")
+	}
+	d, err := c.findDrill(strings.Join(drillArgs, " "))
+	if err != nil {
+		return err
+	}
+	if workspace == "" {
+		workspace, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+	}
+	res, err := compare.Compare(*d, workspace)
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		return c.printMatchJSON(*d, workspace, res)
+	}
+	c.printMatch(*d, res)
+	return nil
+}
+
+func matchCounts(res compare.Result) (missing, extra int) {
+	return res.ReferenceTokens - res.Matched, res.StudentTokens - res.Matched
+}
+
+func firstMatchDifference(res compare.Result) (matchLocation, bool) {
+	for _, f := range res.Files {
+		if f.Missing {
+			return matchLocation{Path: f.Rel, Missing: true}, true
+		}
+		if !f.Result.Exact {
+			return matchLocation{Path: f.Rel, Line: f.Result.FirstDifferingLine}, true
+		}
+	}
+	return matchLocation{}, false
+}
+
+func (c *cli) printMatch(d drill.Drill, res compare.Result) {
+	title := d.Title
+	if title == "" {
+		title = d.ID
+	}
+	missing, extra := matchCounts(res)
+	c.printf("Match: %s (%s)\n", title, strings.ToUpper(d.Language))
+	c.printf("Score: %.1f%%\n", res.Percent())
+	c.printf("Tokens: %d matched, %d missing, %d extra\n", res.Matched, missing, extra)
+	if loc, ok := firstMatchDifference(res); ok {
+		switch {
+		case loc.Missing:
+			c.printf("First difference: %s (missing from workspace)\n", loc.Path)
+		case loc.Line > 0:
+			c.printf("First difference: %s:%d\n", loc.Path, loc.Line)
+		default:
+			c.printf("First difference: %s\n", loc.Path)
+		}
+	}
+	if len(res.Files) > 1 {
+		c.println("Files:")
+		for _, f := range res.Files {
+			status := "exact"
+			switch {
+			case f.Missing:
+				status = "missing from workspace"
+			case !f.Result.Exact:
+				status = fmt.Sprintf("%d missing, %d extra", f.Result.Missing, f.Result.Extra)
+			}
+			c.printf("  %-24s %5.1f%%  %s\n", f.Rel, f.Result.Percent(), status)
+		}
+	}
+}
+
+func (c *cli) printMatchJSON(d drill.Drill, workspace string, res compare.Result) error {
+	title := d.Title
+	if title == "" {
+		title = d.ID
+	}
+	missing, extra := matchCounts(res)
+	report := matchReport{
+		Drill:           d.ID,
+		Title:           title,
+		Language:        strings.ToLower(d.Language),
+		Workspace:       workspace,
+		Exact:           res.Exact,
+		Percent:         res.Percent(),
+		MatchedTokens:   res.Matched,
+		MissingTokens:   missing,
+		ExtraTokens:     extra,
+		ReferenceTokens: res.ReferenceTokens,
+		StudentTokens:   res.StudentTokens,
+		Files:           make([]matchFileReport, 0, len(res.Files)),
+	}
+	if loc, ok := firstMatchDifference(res); ok {
+		report.FirstDifference = &loc
+	}
+	for _, f := range res.Files {
+		report.Files = append(report.Files, matchFileReport{
+			Path:               f.Rel,
+			Missing:            f.Missing,
+			Exact:              f.Result.Exact,
+			Percent:            f.Result.Percent(),
+			MatchedTokens:      f.Result.Matched,
+			MissingTokens:      f.Result.Missing,
+			ExtraTokens:        f.Result.Extra,
+			ReferenceTokens:    f.Result.ReferenceTokens,
+			StudentTokens:      f.Result.StudentTokens,
+			FirstDifferingLine: f.Result.FirstDifferingLine,
+		})
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	c.println(string(data))
+	return nil
+}
+
 func (c *cli) config(args []string) error {
 	cfg, err := storage.LoadConfig()
 	if err != nil {
@@ -557,6 +798,16 @@ func (c *cli) config(args []string) error {
 		}
 		cfg.Editor = args[1]
 		msg = fmt.Sprintf("Editor set to %s.", cfg.Editor)
+	case "shell":
+		if len(args) < 2 {
+			return usage("missing shell name, e.g. codedrill config shell zsh")
+		}
+		shell := strings.TrimSpace(args[1])
+		if shell == "" {
+			return usage("shell cannot be empty; use bash, zsh or a path")
+		}
+		cfg.Shell = shell
+		msg = fmt.Sprintf("Shell set to %s.", shell)
 	case "sound", "bell":
 		if len(args) < 2 {
 			return usage("missing value, e.g. codedrill config sound off")
@@ -614,7 +865,7 @@ func (c *cli) config(args []string) error {
 			msg = "Countdown off; sprints start immediately."
 		}
 	default:
-		return usage("unknown config option %q; use editor, sound, mouse, countdown or theme", args[0])
+		return usage("unknown config option %q; use editor, shell, sound, mouse, countdown or theme", args[0])
 	}
 	if err := storage.SaveConfig(cfg); err != nil {
 		return err
@@ -644,6 +895,10 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	if !cfg.MouseOn() {
 		mouse = "off"
 	}
+	shell := cfg.ShellName()
+	if cfg.Shell == "" {
+		shell += " (default)"
+	}
 	countdown := fmt.Sprintf("%ds", cfg.GetCountdown())
 	if cfg.GetCountdown() == 0 {
 		countdown = "off"
@@ -659,12 +914,13 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	c.printf("  Config File:    %s\n", path)
 	c.printf("  Drills Dir:     %s\n", drillsDir)
 	c.printf("  Editor:         %s\n", editor)
+	c.printf("  Shell:          %s\n", shell)
 	c.printf("  Sound:          %s\n", sound)
 	c.printf("  Countdown:      %s\n", countdown)
 	c.printf("  Mouse:          %s\n", mouse)
 	c.printf("  Theme:          %s\n", themeText)
 	c.println(short)
-	c.println("Change with: codedrill config editor <name> | sound <on|off> | mouse <on|off> | countdown <0-10|off> | theme <id>")
+	c.println("Change with: codedrill config editor <name> | shell <bash|zsh|path> | sound <on|off> | mouse <on|off> | countdown <0-10|off> | theme <id>")
 	return nil
 }
 

@@ -95,7 +95,6 @@ func matchRunes(text, pattern string) []int {
 	return out
 }
 
-// drillMatches reports whether pattern occurs in the drill's ID or title.
 func drillMatches(d drill.Drill, pattern string) bool {
 	return len(matchRunes(d.ID, pattern)) > 0 || len(matchRunes(d.Title, pattern)) > 0
 }
@@ -209,6 +208,8 @@ func findMatch(hits [][]bool, origin searchSpot, forward, include bool) (spot se
 type drillDelegate struct {
 	list.DefaultDelegate
 	highlight string
+	// drop is the row that shows the drag drop marker, or -1 for none.
+	drop int
 }
 
 func newDrillDelegate(highlight string) drillDelegate {
@@ -219,7 +220,7 @@ func newDrillDelegate(highlight string) drillDelegate {
 	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(ColorListDesc)
 	delegate.Styles.DimmedTitle = delegate.Styles.DimmedTitle.Foreground(ColorListDesc)
 	delegate.Styles.DimmedDesc = delegate.Styles.DimmedDesc.Foreground(ColorBorder)
-	return drillDelegate{DefaultDelegate: delegate, highlight: highlight}
+	return drillDelegate{DefaultDelegate: delegate, highlight: highlight, drop: -1}
 }
 
 // titleMatches returns the rune positions of highlight in the rendered title
@@ -251,6 +252,10 @@ func (d drillDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 	textWidth := m.Width() - s.NormalTitle.GetPaddingLeft() - s.NormalTitle.GetPaddingRight()
 	title := ansi.Truncate(it.Title(), textWidth, "…")
 	desc := it.Description()
+	if index == d.drop {
+		desc = "drop here"
+		descStyle = s.SelectedDesc.Foreground(ColorSecondary)
+	}
 	if d.ShowDescription {
 		var lines []string
 		for i, line := range strings.Split(desc, "\n") {
@@ -277,38 +282,31 @@ func (d drillDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 	fmt.Fprintf(w, "%s", title) //nolint: errcheck
 }
 
-// currentSpot is the selected row on the current tab.
 func (m *MainModel) currentSpot() searchSpot {
 	return searchSpot{tab: m.categoryIndex, index: m.list.Index()}
 }
 
 // searchHits marks the matching rows of every category tab. The current tab
-// is read from the list, so the marks match what is on screen. Every tab
-// ends with a slot for the "+ Add a drill" row, which never matches.
+// is read from the list, so the marks match what is on screen. Other tabs use
+// the same row builder as the list, which keeps group headers and collapsed
+// subcategories in step. Headers and the "+ Add a drill" row never match.
 func (m *MainModel) searchHits(pattern string) [][]bool {
 	hits := make([][]bool, len(m.categories))
 	for t, c := range m.categories {
+		items := m.menuItemsFor(c)
 		if t == m.categoryIndex {
-			items := m.list.Items()
-			hits[t] = make([]bool, len(items))
-			for i, it := range items {
-				if di, ok := it.(drillItem); ok && !di.isAdd {
-					hits[t][i] = drillMatches(di.drill, pattern)
-				}
-			}
-			continue
+			items = m.list.Items()
 		}
-		rows := drill.Filter(m.drills, c)
-		hits[t] = make([]bool, len(rows)+1)
-		for i, d := range rows {
-			hits[t][i] = drillMatches(d, pattern)
+		hits[t] = make([]bool, len(items))
+		for i, it := range items {
+			if di, ok := it.(drillItem); ok && !di.isAdd && !di.isGroup() {
+				hits[t][i] = drillMatches(di.drill, pattern)
+			}
 		}
 	}
 	return hits
 }
 
-// goTo selects a row, switching category tab first when the row is on
-// another tab.
 func (m *MainModel) goTo(spot searchSpot) {
 	if spot.tab != m.categoryIndex || m.categoryFilter != m.categories[spot.tab] {
 		m.categoryIndex = spot.tab
@@ -318,7 +316,6 @@ func (m *MainModel) goTo(spot searchSpot) {
 	m.list.Select(spot.index)
 }
 
-// searchFrom moves the selection to the next match of pattern, see findMatch.
 func (m *MainModel) searchFrom(pattern string, from searchSpot, forward, include bool) (wrapped, ok bool) {
 	spot, wrapped, ok := findMatch(m.searchHits(pattern), from, forward, include)
 	if ok {
@@ -330,11 +327,10 @@ func (m *MainModel) searchFrom(pattern string, from searchSpot, forward, include
 // syncSearch brings the list in line with the search state after it changed:
 // the underlines. Callers resize the list afterwards.
 func (m *MainModel) syncSearch() {
-	m.list.SetDelegate(newDrillDelegate(m.search.highlight()))
+	m.list.SetDelegate(m.menuDelegate())
 	m.list.SetShowHelp(false)
 }
 
-// openSearch shows the / prompt and remembers where the selection was.
 func (m *MainModel) openSearch() {
 	m.search.open = true
 	m.search.text = ""
@@ -386,7 +382,6 @@ func (m *MainModel) commitSearch() {
 	m.sizeList()
 }
 
-// stepSearch implements n (forward) and N (backward) for the last pattern.
 func (m *MainModel) stepSearch(forward bool) {
 	if m.search.pattern == "" {
 		m.menuNotice = "No previous search"

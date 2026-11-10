@@ -54,8 +54,10 @@ func briefingStyle(t Theme) glamourconfig.StyleConfig {
 		h.Bold = &bold
 	}
 
-	cfg.Code.Color = &text
-	cfg.Code.BackgroundColor = &border
+	cfg.Code.Color = &accent
+	cfg.Code.BackgroundColor = nil
+	cfg.Code.Prefix = ""
+	cfg.Code.Suffix = ""
 
 	cfg.CodeBlock.Color = &text
 	cfg.CodeBlock.Chroma = codeChroma(t)
@@ -77,9 +79,9 @@ func codeChroma(t Theme) *glamourconfig.Chroma {
 	strong.Bold = boolRef(true)
 
 	return &glamourconfig.Chroma{
-		Text:    text,
-		Error:   danger,
-		Comment: comment,
+		Text:           text,
+		Error:          danger,
+		Comment:        comment,
 		CommentPreproc: accent,
 
 		Keyword:          accent,
@@ -183,7 +185,7 @@ func RenderMarkdown(content string, width int) string {
 	r, err := glamour.NewTermRenderer(
 		glamour.WithStyles(cfg),
 		glamour.WithWordWrap(max(width-10, 40)),
-	glamour.WithChromaFormatter("terminal16m"),
+		glamour.WithChromaFormatter("terminal16m"),
 	)
 	if err != nil {
 		return content

@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,9 @@ func newEvaluationTestModel(t *testing.T) *MainModel {
 		Workspace:   t.TempDir(),
 		EntryFile:   "solution.c",
 		TestCommand: "printf 'current evaluation'",
+	}
+	if err := os.WriteFile(filepath.Join(m.session.Workspace, m.session.EntryFile), []byte("int student_work;"), 0644); err != nil {
+		t.Fatal(err)
 	}
 	m.state = StateSprinting
 	m.sprintStartTime = time.Now().Add(-time.Second)

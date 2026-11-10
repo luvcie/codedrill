@@ -97,18 +97,23 @@ func TestSettingsCursorReachesMouseRow(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.moveSettings(0)
 	for range len(Themes) {
 		m.Update(runeKey("j"))
 	}
-	if !m.settingsOnMouse() || m.settingsCursor != len(Themes) {
-		t.Fatalf("cursor %d after %d downs, want the mouse row %d", m.settingsCursor, len(Themes), len(Themes))
-	}
-	if CurrentTheme().ID != Themes[len(Themes)-1].ID {
-		t.Fatalf("moving onto the mouse row changed the theme to %q", CurrentTheme().ID)
+	if !m.settingsOnShell() || m.settingsCursor != len(Themes) {
+		t.Fatalf("cursor %d after %d downs, want the shell row %d", m.settingsCursor, len(Themes), len(Themes))
 	}
 	m.Update(runeKey("j"))
-	if m.settingsCursor != len(Themes) {
+	if !m.settingsOnMouse() || m.settingsCursor != len(Themes)+1 {
+		t.Fatalf("cursor %d after %d downs, want the mouse row %d", m.settingsCursor, len(Themes)+1, len(Themes)+1)
+	}
+	if CurrentTheme().ID != Themes[len(Themes)-1].ID {
+		t.Fatalf("moving onto the shell or mouse row changed the theme to %q", CurrentTheme().ID)
+	}
+	m.Update(runeKey("j"))
+	if m.settingsCursor != len(Themes)+1 {
 		t.Fatalf("down past the mouse row moved the cursor to %d", m.settingsCursor)
 	}
 }
@@ -186,16 +191,97 @@ func TestSettingsWheelMovesOntoMouseRow(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.moveSettings(0)
-	for range len(Themes) {
+	for range len(Themes) + 1 {
 		m.Update(wheel(false, 3, 5))
 	}
 	if !m.settingsOnMouse() {
 		t.Fatalf("wheel down stopped at %d, want the mouse row", m.settingsCursor)
 	}
 	m.Update(wheel(true, 3, 5))
+	if !m.settingsOnShell() || CurrentTheme().ID != Themes[len(Themes)-1].ID {
+		t.Fatalf("wheel up from the mouse row: cursor %d theme %q, want the shell row", m.settingsCursor, CurrentTheme().ID)
+	}
+	m.Update(wheel(true, 3, 5))
 	if m.settingsCursor != len(Themes)-1 || CurrentTheme().ID != Themes[len(Themes)-1].ID {
-		t.Fatalf("wheel up from the mouse row: cursor %d theme %q", m.settingsCursor, CurrentTheme().ID)
+		t.Fatalf("wheel up from the shell row: cursor %d theme %q", m.settingsCursor, CurrentTheme().ID)
+	}
+}
+
+// shellRowY returns the row where the shell row is drawn.
+func shellRowY(t *testing.T, m *MainModel) (int, int) {
+	t.Helper()
+	for y, line := range stripLines(m) {
+		if idx := strings.Index(line, "Shell  "); idx >= 0 {
+			return y, ansi.StringWidth(line[:idx])
+		}
+	}
+	t.Fatal("the shell row is not on screen")
+	return 0, 0
+}
+
+func TestSettingsClickThemesHeaderCollapses(t *testing.T) {
+	restoreDefaultTheme(t)
+	m := newMenuTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+
+	var y, x int
+	found := false
+	for row, r := range settingsThemeRows(m) {
+		if r[0] == -1 {
+			y, x, found = row, r[1], true
+		}
+	}
+	if !found {
+		t.Fatal("the Themes header is not on screen")
+	}
+	if !m.settingsThemesClosed || !m.settingsOnThemesHeader() {
+		t.Fatalf("open: cursor %d closed %v, want the folded header", m.settingsCursor, m.settingsThemesClosed)
+	}
+
+	m.Update(leftClick(x, y))
+	if m.settingsThemesClosed || !strings.Contains(ansi.Strip(m.viewSettings()), Themes[1].Name) {
+		t.Fatal("first click did not unfold the themes")
+	}
+	m.Update(leftClick(x, y))
+	if !m.settingsThemesClosed {
+		t.Fatal("second click did not fold the themes")
+	}
+	if strings.Contains(ansi.Strip(m.viewSettings()), Themes[1].Name) {
+		t.Fatalf("folded themes still draw %q", Themes[1].Name)
+	}
+	m.Update(leftClick(x, y))
+	if m.settingsThemesClosed {
+		t.Fatal("third click did not unfold the themes")
+	}
+}
+
+func TestSettingsClickCyclesShell(t *testing.T) {
+	restoreDefaultTheme(t)
+	m := newMenuTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+	y, x := shellRowY(t, m)
+
+	m.Update(leftClick(x, y))
+	if m.settingsCursor != len(Themes) || m.shell != "bash" {
+		t.Fatalf("first click: cursor %d shell %q, want the shell row selected and bash kept", m.settingsCursor, m.shell)
+	}
+	if cfg, _ := storage.LoadConfig(); cfg.Shell == "zsh" {
+		t.Fatal("first click saved the shell")
+	}
+
+	m.Update(leftClick(x, y))
+	if m.state != StateSettings || m.shell != "zsh" {
+		t.Fatalf("second click: state %v shell %q, want settings and zsh", m.state, m.shell)
+	}
+	if cfg, err := storage.LoadConfig(); err != nil || cfg.Shell != "zsh" {
+		t.Fatalf("second click: saved shell %q, err %v; want zsh", cfg.Shell, err)
+	}
+	if !strings.Contains(ansi.Strip(m.viewSettings()), "Shell  zsh") {
+		t.Fatalf("row does not read zsh:\n%s", ansi.Strip(m.viewSettings()))
 	}
 }
 
@@ -223,6 +309,8 @@ func TestSettingsEscAfterThemePreviewStillCancels(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	if CurrentTheme().ID != Themes[1].ID {
 		t.Fatalf("preview did not apply: %q", CurrentTheme().ID)
@@ -282,13 +370,14 @@ func TestSettingsMouseRowHitTestMatchesRendering(t *testing.T) {
 				m := newMenuTestModel(t)
 				m.Update(size)
 				m.Update(runeKey("o"))
+				m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 				if onMouse {
 					m.Update(runeKey("G"))
 				}
 				rows := settingsThemeRows(m)
 				if onMouse {
 					y, x := mouseRowY(t, m)
-					if got, ok := m.settingsRowAt(x, y); !ok || got != len(Themes) {
+					if got, ok := m.settingsRowAt(x, y); !ok || got != len(Themes)+1 {
 						t.Fatalf("mouse row %d col %d: settingsRowAt = %d, %v", y, x, got, ok)
 					}
 				}

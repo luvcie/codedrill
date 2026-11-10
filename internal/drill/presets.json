@@ -7,7 +7,7 @@
     "difficulty": "easy",
     "description": "# ft_strlen\n\nWrite a function that returns the length of a string passed as parameter.\n\n### Prototype\n```c\nint ft_strlen(char *str);\n```\n\n### Constraints\n- Reproduce standard `strlen` behavior.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
     "entry_file": "ft_strlen.c",
-    "starter_code": "int\tft_strlen(char *str)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_strlen.c ft_strlen.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -22,7 +22,7 @@
     "difficulty": "easy",
     "description": "# ft_swap\n\nWrite a function that swaps the contents of two integers whose addresses are entered as parameters.\n\n### Prototype\n```c\nvoid ft_swap(int *a, int *b);\n```",
     "entry_file": "ft_swap.c",
-    "starter_code": "void\tft_swap(int *a, int *b)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_swap.c ft_swap.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -37,7 +37,7 @@
     "difficulty": "medium",
     "description": "# ft_split\n\nWrite a function that takes a string and splits it into an array of words separated by spaces, tabs, or newlines.\n\n### Prototype\n```c\nchar **ft_split(char *str);\n```\n\n### Requirements\n- The returned array must be NULL-terminated.\n- Handles consecutive delimiters and edge cases gracefully.",
     "entry_file": "ft_split.c",
-    "starter_code": "#include <stdlib.h>\n\nchar\t**ft_split(char *str)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_split.c ft_split.c -o test && ./test",
     "auto_submit": false,
     "extra_files": {
@@ -52,7 +52,7 @@
     "difficulty": "easy",
     "description": "# reverse_bits\n\nWrite a function that takes a byte, reverses its bits (bit 7 becomes bit 0, etc.) and returns the result.\n\n### Prototype\n```c\nunsigned char reverse_bits(unsigned char octet);\n```\n\n### Example\n`1 byte = 00100110` -> `01100100`",
     "entry_file": "reverse_bits.c",
-    "starter_code": "unsigned char\treverse_bits(unsigned char octet)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_bits.c reverse_bits.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -67,7 +67,7 @@
     "difficulty": "easy",
     "description": "# Two Sum\n\nGiven an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\n\n### Function Signature\n```go\nfunc TwoSum(nums []int, target int) []int\n```\n\n### Constraints\n- Exactly one solution exists.\n- You may not use the same element twice.",
     "entry_file": "solution.go",
-    "starter_code": "package main\n\nfunc TwoSum(nums []int, target int) []int {\n\t// your code here\n\treturn nil\n}\n",
+    "starter_code": "",
     "test_command": "go test -v",
     "auto_submit": true,
     "extra_files": {
@@ -83,7 +83,7 @@
     "difficulty": "easy",
     "description": "# Valid Palindrome\n\nA phrase is a palindrome if, after converting all uppercase letters into lowercase letters and removing all non-alphanumeric characters, it reads the same forward and backward.\n\n### Prototype\n```python\ndef is_palindrome(s: str) -> bool:\n    pass\n```",
     "entry_file": "solution.py",
-    "starter_code": "def is_palindrome(s: str) -> bool:\n    # your code here\n    pass\n",
+    "starter_code": "",
     "test_command": "python3 -m unittest test_solution.py",
     "auto_submit": true,
     "extra_files": {
@@ -98,7 +98,7 @@
     "difficulty": "medium",
     "description": "# ft_atoi\n\nWrite a function that converts the initial portion of the string pointed to by `str` to `int` representation.\n\n### Prototype\n```c\nint ft_atoi(const char *str);\n```\n\n### Requirements\n- Skips leading whitespaces (spaces, \\t, \\n, \\v, \\f, \\r).\n- Handles an optional `+` or `-` sign.\n- Parses consecutive numerical digits until non-digit character.",
     "entry_file": "ft_atoi.c",
-    "starter_code": "int\tft_atoi(const char *str)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_atoi.c ft_atoi.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -113,7 +113,7 @@
     "difficulty": "easy",
     "description": "# Binary Search\n\nGiven an array of integers `nums` which is sorted in ascending order, and an integer `target`, write a function to search `target` in `nums`.\n\nIf `target` exists, then return its index. Otherwise, return `-1`.\n\nYou must write an algorithm with `O(log n)` runtime complexity.\n\n### Prototype\n```python\ndef search(nums: list[int], target: int) -> int:\n    pass\n```",
     "entry_file": "solution.py",
-    "starter_code": "def search(nums: list[int], target: int) -> int:\n    # your code here\n    pass\n",
+    "starter_code": "",
     "test_command": "python3 -m unittest test_solution.py",
     "auto_submit": true,
     "extra_files": {
@@ -128,7 +128,7 @@
     "difficulty": "hard",
     "description": "# ft_itoa\n\nWrite a function that allocates (with `malloc`) and returns a string representing the integer received as an argument.\n\n### Prototype\n```c\nchar *ft_itoa(int nbr);\n```\n\n### Requirements\n- Negative numbers must be handled (including `INT_MIN = -2147483648`).\n- Must return a valid NULL-terminated string.\n- Return `NULL` if memory allocation fails.\n- Must compile with `-Wall -Wextra -Werror`.",
     "entry_file": "ft_itoa.c",
-    "starter_code": "#include <stdlib.h>\n\nchar\t*ft_itoa(int nbr)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_itoa.c ft_itoa.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -143,7 +143,7 @@
     "difficulty": "easy",
     "description": "# Valid Parentheses\n\nGiven a string `s` containing just the characters `'('`, `')'`, `'{'`, `'}'`, `'['` and `']'`, determine if the input string is valid.\n\n### Prototype\n```python\ndef is_valid(s: str) -> bool:\n    pass\n```",
     "entry_file": "solution.py",
-    "starter_code": "def is_valid(s: str) -> bool:\n    # your code here\n    pass\n",
+    "starter_code": "",
     "test_command": "python3 -m unittest test_solution.py",
     "auto_submit": true,
     "extra_files": {
@@ -158,7 +158,7 @@
     "difficulty": "easy",
     "description": "# ft_strrev\n\nWrite a function that reverses a string in-place and returns a pointer to the string.\n\n### Prototype\n```c\nchar *ft_strrev(char *str);\n```\n\n### Constraints\n- The string must be modified in-place (no dynamic memory allocation).\n- Returns `str`.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
     "entry_file": "ft_strrev.c",
-    "starter_code": "char\t*ft_strrev(char *str)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_strrev.c ft_strrev.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -173,7 +173,7 @@
     "difficulty": "easy",
     "description": "# ft_list_size\n\nWrite a function that returns the number of elements in the linked list passed as parameter.\n\n### Prototype & Structures\nThe `t_list` structure is defined in `ft_list.h`:\n```c\ntypedef struct s_list {\n    struct s_list *next;\n    void          *data;\n} t_list;\n\nint ft_list_size(t_list *begin_list);\n```\n\n### Constraints\n- Returns 0 if `begin_list` is NULL.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
     "entry_file": "ft_list_size.c",
-    "starter_code": "#include \"ft_list.h\"\n\nint\tft_list_size(t_list *begin_list)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_list_size.c ft_list_size.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -189,7 +189,7 @@
     "difficulty": "medium",
     "description": "# Maximum Subarray\n\nGiven an integer array `nums`, find the subarray with the largest sum, and return its sum.\n\nA subarray is a contiguous non-empty sequence of elements within an array.\n\n### Prototype\n```python\ndef max_sub_array(nums: list[int]) -> int:\n    pass\n```\n\n### Constraints\n- `1 <= len(nums) <= 10^5`\n- `-10^4 <= nums[i] <= 10^4`",
     "entry_file": "solution.py",
-    "starter_code": "def max_sub_array(nums: list[int]) -> int:\n    # your code here\n    pass\n",
+    "starter_code": "",
     "test_command": "python3 -m unittest test_solution.py",
     "auto_submit": true,
     "extra_files": {
@@ -204,7 +204,7 @@
     "difficulty": "easy",
     "description": "# ft_strdup\n\nReproduce the behavior of the function `strdup` (man strdup).\n\n### Prototype\n```c\nchar *ft_strdup(char *src);\n```\n\n### Constraints\n- Allocates sufficient memory for a copy of the string `src`, does the copy, and returns a pointer to it.\n- Must compile cleanly with `-Wall -Wextra -Werror`.",
     "entry_file": "ft_strdup.c",
-    "starter_code": "#include <stdlib.h>\n\nchar\t*ft_strdup(char *src)\n{\n\t// your code here\n}\n",
+    "starter_code": "",
     "test_command": "gcc -Wall -Wextra -Werror test_strdup.c ft_strdup.c -o test && ./test",
     "auto_submit": true,
     "extra_files": {
@@ -219,7 +219,7 @@
     "difficulty": "easy",
     "description": "# Climbing Stairs\n\nYou are climbing a staircase. It takes `n` steps to reach the top.\n\nEach time you can either climb `1` or `2` steps. In how many distinct ways can you climb to the top?\n\n### Prototype\n```python\ndef climb_stairs(n: int) -> int:\n    pass\n```\n\n### Constraints\n- `1 <= n <= 45`",
     "entry_file": "solution.py",
-    "starter_code": "def climb_stairs(n: int) -> int:\n    # your code here\n    pass\n",
+    "starter_code": "",
     "test_command": "python3 -m unittest test_solution.py",
     "auto_submit": true,
     "extra_files": {

@@ -29,16 +29,27 @@ func settingsTestModel(t *testing.T) *MainModel {
 	return newMenuTestModel(t)
 }
 
-func TestSettingsOpensFromMenuOnCurrentTheme(t *testing.T) {
+func TestSettingsOpensFoldedOnCurrentTheme(t *testing.T) {
 	m := settingsTestModel(t)
 	m.applyTheme(Themes[3])
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	m.Update(runeKey("o"))
 	if m.state != StateSettings {
 		t.Fatalf("state %v after o, want StateSettings", m.state)
 	}
-	if m.settingsCursor != 3 {
-		t.Errorf("cursor %d, want 3 (the active theme)", m.settingsCursor)
+	if !m.settingsThemesClosed || !m.settingsOnThemesHeader() {
+		t.Errorf("open: cursor %d closed %v, want the folded Themes header", m.settingsCursor, m.settingsThemesClosed)
+	}
+	plain := ansi.Strip(m.viewSettings())
+	if !strings.Contains(plain, "▸ Themes") {
+		t.Error("opening does not draw the folded Themes header")
+	}
+	if strings.Contains(plain, Themes[3].Name) {
+		t.Error("opening draws theme rows though the section starts folded")
+	}
+	if strings.Contains(plain, "PASS") || strings.Contains(plain, "[GO] ft_strlen") {
+		t.Error("opening draws the theme preview though the section starts folded")
 	}
 	if CurrentTheme().ID != Themes[3].ID {
 		t.Errorf("opening changed the theme to %q", CurrentTheme().ID)
@@ -51,6 +62,7 @@ func TestSettingsMarksSavedTheme(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if m.settingsSaved != "nord" {
 		t.Fatalf("saved theme %q, want nord", m.settingsSaved)
 	}
@@ -64,8 +76,9 @@ func TestSettingsListsLegacyThenCyanWithLegacyCurrent(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
-	if m.settingsCursor != 0 {
-		t.Fatalf("fresh config opens with cursor %d, want 0 (legacy)", m.settingsCursor)
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.settingsThemesOpen() {
+		t.Fatal("enter on the folded Themes header did not unfold it")
 	}
 
 	legacy, cyan := -1, -1
@@ -95,6 +108,8 @@ func TestSettingsListsLegacyThenCyanWithLegacyCurrent(t *testing.T) {
 func TestSettingsMovePreviewsWithoutSaving(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	if got := CurrentTheme().ID; got != Themes[1].ID {
 		t.Fatalf("after j the active theme is %q, want %q", got, Themes[1].ID)
@@ -111,6 +126,7 @@ func TestSettingsMovePreviewsWithoutSaving(t *testing.T) {
 func TestSettingsHomeEndJumpToFirstAndLast(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(runeKey("G"))
 	// The last row is the mouse row. It changes no theme, so the preview stays
 	// on the theme that was there before.
@@ -118,16 +134,140 @@ func TestSettingsHomeEndJumpToFirstAndLast(t *testing.T) {
 		t.Fatalf("G: cursor %d theme %q, want the mouse row with the theme kept", m.settingsCursor, CurrentTheme().ID)
 	}
 	m.Update(runeKey("k"))
+	if !m.settingsOnShell() || CurrentTheme().ID != Themes[0].ID {
+		t.Fatalf("k from the mouse row: cursor %d theme %q, want the shell row with the theme kept", m.settingsCursor, CurrentTheme().ID)
+	}
+	m.Update(runeKey("k"))
 	if m.settingsCursor != len(Themes)-1 || CurrentTheme().ID != Themes[len(Themes)-1].ID {
-		t.Fatalf("k from the mouse row: cursor %d theme %q, want the last theme", m.settingsCursor, CurrentTheme().ID)
+		t.Fatalf("k from the shell row: cursor %d theme %q, want the last theme", m.settingsCursor, CurrentTheme().ID)
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyHome})
 	if m.settingsCursor != 0 || CurrentTheme().ID != Themes[0].ID {
 		t.Fatalf("home: cursor %d theme %q, want the first theme", m.settingsCursor, CurrentTheme().ID)
 	}
 	m.Update(runeKey("k"))
+	if !m.settingsOnThemesHeader() {
+		t.Fatalf("up from the first theme: cursor %d, want the Themes header", m.settingsCursor)
+	}
+	m.Update(runeKey("k"))
+	if !m.settingsOnThemesHeader() {
+		t.Fatalf("up on the Themes header moved the cursor to %d", m.settingsCursor)
+	}
+}
+
+func TestSettingsThemesSectionCollapses(t *testing.T) {
+	m := settingsTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+
+	if !m.settingsThemesClosed || !m.settingsOnThemesHeader() {
+		t.Fatalf("open: cursor %d closed %v, want the folded Themes header", m.settingsCursor, m.settingsThemesClosed)
+	}
+	plain := ansi.Strip(m.viewSettings())
+	if !strings.Contains(plain, "▸ Themes") {
+		t.Fatal("folded section lost its header")
+	}
+	if strings.Contains(plain, Themes[1].Name) {
+		t.Fatalf("folded section draws %q:\n%s", Themes[1].Name, plain)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.settingsThemesClosed {
+		t.Fatal("enter did not unfold the section")
+	}
+	plain = ansi.Strip(m.viewSettings())
+	if !strings.Contains(plain, "▾ Themes") {
+		t.Fatal("unfolded section has no open header")
+	}
+	if !strings.Contains(plain, Themes[1].Name) {
+		t.Fatalf("unfolded section does not draw %q:\n%s", Themes[1].Name, plain)
+	}
+	m.Update(runeKey("j"))
 	if m.settingsCursor != 0 {
-		t.Fatalf("up past the first theme moved the cursor to %d", m.settingsCursor)
+		t.Fatalf("down from the open header: cursor %d, want the first theme", m.settingsCursor)
+	}
+
+	m.Update(runeKey("k"))
+	if !m.settingsOnThemesHeader() {
+		t.Fatalf("up from the first theme: cursor %d, want the Themes header", m.settingsCursor)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.settingsThemesClosed {
+		t.Fatal("enter on the Themes header did not fold the section")
+	}
+	m.Update(runeKey("j"))
+	if !m.settingsOnShell() {
+		t.Fatalf("down from the folded header: cursor %d, want the shell row", m.settingsCursor)
+	}
+	m.Update(runeKey("k"))
+	if !m.settingsOnThemesHeader() {
+		t.Fatalf("up from the shell row: cursor %d, want the Themes header", m.settingsCursor)
+	}
+}
+
+func TestSettingsPreviewHiddenWhileThemesFolded(t *testing.T) {
+	restoreDefaultTheme(t)
+	m := newMenuTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+
+	plain := ansi.Strip(m.viewSettings())
+	if strings.Contains(plain, "PASS") || strings.Contains(plain, "[GO] ft_strlen") {
+		t.Fatalf("folded themes draw the preview:\n%s", plain)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	plain = ansi.Strip(m.viewSettings())
+	if !strings.Contains(plain, "PASS") || !strings.Contains(plain, "[GO] ft_strlen") {
+		t.Fatalf("unfolded themes do not draw the preview:\n%s", plain)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	plain = ansi.Strip(m.viewSettings())
+	if strings.Contains(plain, "PASS") || strings.Contains(plain, "[GO] ft_strlen") {
+		t.Fatalf("refolded themes draw the preview:\n%s", plain)
+	}
+}
+
+func TestSettingsCollapsedThemesFitShortWindows(t *testing.T) {
+	restoreDefaultTheme(t)
+	for _, size := range []struct{ w, h int }{{60, 10}, {40, 8}, {30, 6}} {
+		m := newMenuTestModel(t)
+		m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
+		m.Update(runeKey("o"))
+		if !m.settingsThemesClosed || !m.settingsOnThemesHeader() {
+			t.Fatalf("%dx%d: cursor %d closed %v, want the Themes header folded", size.w, size.h, m.settingsCursor, m.settingsThemesClosed)
+		}
+		checkSettingsWindow(t, m, size.w, size.h)
+	}
+}
+
+func TestSettingsShellRowCyclesAndSaves(t *testing.T) {
+	m := settingsTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+	m.moveSettings(len(Themes))
+	if !m.settingsOnShell() || m.shell != "bash" {
+		t.Fatalf("cursor %d shell %q, want the shell row with bash", m.settingsCursor, m.shell)
+	}
+	if !strings.Contains(ansi.Strip(m.viewSettings()), "Shell  bash") {
+		t.Fatalf("row does not read bash:\n%s", ansi.Strip(m.viewSettings()))
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.state != StateSettings || m.shell != "zsh" {
+		t.Fatalf("after enter: state %v shell %q, want settings and zsh", m.state, m.shell)
+	}
+	if cfg, err := storage.LoadConfig(); err != nil || cfg.Shell != "zsh" {
+		t.Fatalf("saved shell %q, err %v; want zsh", cfg.Shell, err)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.shell != "bash" {
+		t.Fatalf("second enter: shell %q, want bash", m.shell)
+	}
+	if cfg, err := storage.LoadConfig(); err != nil || cfg.Shell != "bash" {
+		t.Fatalf("saved shell %q, err %v; want bash", cfg.Shell, err)
 	}
 }
 
@@ -139,6 +279,8 @@ func TestSettingsEnterSavesTheme(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -173,6 +315,8 @@ func TestSettingsEscAndQRevertWithoutSaving(t *testing.T) {
 		m := settingsTestModel(t)
 		m.applyTheme(Themes[4])
 		m.Update(runeKey("o"))
+		m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m.moveSettings(4)
 		m.Update(runeKey("j"))
 		m.Update(runeKey("j"))
 		if CurrentTheme().ID != Themes[6].ID {
@@ -231,6 +375,8 @@ func TestSettingsKeepsMenuStateAfterReturn(t *testing.T) {
 	index := m.list.Index()
 
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -253,6 +399,8 @@ func TestSettingsSaveFailureStaysOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
@@ -278,6 +426,8 @@ func TestSettingsSaveFailureStaysOpen(t *testing.T) {
 func TestSettingsSaveFailureKeepsEnterWorking(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(runeKey("j"))
 	m.settingsErr = errors.New("disk full")
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if m.state != StateMenu {
@@ -325,7 +475,7 @@ func checkSettingsLayout(t *testing.T, m *MainModel, w, h int) {
 	// The label gives way before the list is cut, so it may be missing only
 	// when every theme is drawn.
 	plain := ansi.Strip(view)
-	if strings.Contains(plain, "theme") {
+	if strings.Contains(plain, "Themes") {
 		return
 	}
 	for _, th := range Themes {
@@ -340,10 +490,16 @@ func TestSettingsLongListStillShowsCursor(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(runeKey("G"))
 	plain := ansi.Strip(m.View())
 	if !strings.Contains(plain, "│ Mouse  on") {
 		t.Errorf("60x20: cursor on the mouse row, but the row is not on screen:\n%s", plain)
+	}
+	m.Update(runeKey("k"))
+	plain = ansi.Strip(m.View())
+	if !strings.Contains(plain, "│ Shell  bash") {
+		t.Errorf("60x20: cursor on the shell row, but it is not on screen:\n%s", plain)
 	}
 	m.Update(runeKey("k"))
 	plain = ansi.Strip(m.View())
@@ -360,6 +516,8 @@ func TestSettingsShowsEveryThemeWhenItFits(t *testing.T) {
 			m := newMenuTestModel(t)
 			m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
 			m.Update(runeKey("o"))
+			m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			m.moveSettings(0)
 			if withErr {
 				m.settingsErr = errors.New("a long reason that wraps across more than one row of the window")
 			}
@@ -378,6 +536,7 @@ func TestSettingsSideBySidePreviewAt80x24(t *testing.T) {
 	m := newMenuTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	plain := ansi.Strip(m.viewSettings())
 	for _, th := range Themes {
 		if !strings.Contains(plain, th.Name) {
@@ -397,7 +556,11 @@ func TestSettingsPreviewUsesThemeAccentAndSuccess(t *testing.T) {
 		m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 		m.applyTheme(th)
 		m.Update(runeKey("o"))
+		m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 		view := m.viewSettings()
+		if !strings.Contains(ansi.Strip(view), "PASS") {
+			t.Errorf("%s: settings view has no preview", th.ID)
+		}
 		if !strings.Contains(view, fg(th.Accent)) {
 			t.Errorf("%s: settings view has no Accent colour %s", th.ID, fg(th.Accent))
 		}
@@ -411,6 +574,7 @@ func TestSettingsPreviewPlacement(t *testing.T) {
 	restoreDefaultTheme(t)
 	m := newMenuTestModel(t)
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if !strings.Contains(ansi.Strip(m.viewSettings()), "PASS") {
@@ -442,12 +606,13 @@ func TestSettingsViewFitsShortWindows(t *testing.T) {
 	sizes := []struct{ w, h int }{{60, 20}, {60, 10}, {40, 8}, {30, 6}, {20, 4}, {40, 3}, {20, 40}}
 	for _, size := range sizes {
 		for _, withErr := range []bool{false, true} {
-			for _, moves := range []int{0, len(Themes) / 2, len(Themes) - 1, len(Themes)} {
-				// The cursor opens on the active theme, so start from the first.
+			for _, moves := range []int{0, len(Themes) / 2, len(Themes) - 1, len(Themes), len(Themes) + 1} {
+				// The cursor opens on the Themes header, so unfold it before moving.
 				ApplyTheme(Themes[0])
 				m := newMenuTestModel(t)
 				m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
 				m.Update(runeKey("o"))
+				m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 				for range moves {
 					m.Update(runeKey("j"))
 				}
@@ -483,8 +648,18 @@ func checkSettingsWindow(t *testing.T, m *MainModel, w, h int) {
 		}
 	}
 	if h >= lipgloss.Height(m.screenHeader("settings"))+1 {
-		name := "Mouse  " + map[bool]string{true: "on", false: "off"}[!m.mouseOff]
-		if !m.settingsOnMouse() {
+		var name string
+		switch {
+		case m.settingsOnMouse():
+			name = "Mouse  " + map[bool]string{true: "on", false: "off"}[!m.mouseOff]
+		case m.settingsOnShell():
+			name = "Shell  " + m.shell
+		case m.settingsOnThemesHeader():
+			name = "▾ Themes"
+			if !m.settingsThemesOpen() {
+				name = "▸ Themes"
+			}
+		default:
 			name = ansi.Truncate(Themes[m.settingsCursor].Name, w-4, "")
 		}
 		if !strings.Contains(plain, "│ "+name) {
@@ -496,6 +671,7 @@ func checkSettingsWindow(t *testing.T, m *MainModel, w, h int) {
 func TestSettingsSaveErrorClearsOnCursorMove(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(runeKey("o"))
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(runeKey("j"))
 	m.Update(runeKey("j"))
 	for _, k := range []tea.KeyMsg{runeKey("k"), runeKey("j"), runeKey("g"), runeKey("G"), {Type: tea.KeyHome}, {Type: tea.KeyEnd}} {
@@ -517,10 +693,11 @@ func TestSettingsSaveErrorClearsOnCursorMove(t *testing.T) {
 func TestSettingsSaveErrorStaysWhenCursorDoesNotMove(t *testing.T) {
 	m := settingsTestModel(t)
 	m.Update(runeKey("o"))
+	m.moveSettings(-1)
 	m.settingsErr = errors.New("disk full")
 	m.Update(runeKey("k"))
 	if m.settingsErr == nil {
-		t.Errorf("up on the first theme cleared the save error, but the cursor did not move")
+		t.Errorf("up on the Themes header cleared the save error, but the cursor did not move")
 	}
 }
 

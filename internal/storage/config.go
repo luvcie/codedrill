@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type Config struct {
@@ -15,6 +16,7 @@ type Config struct {
 	Countdown *int   `json:"countdown,omitempty"`
 	Theme     string `json:"theme,omitempty"`
 	Mouse     *bool  `json:"mouse,omitempty"`
+	Shell     string `json:"shell,omitempty"`
 }
 
 func (c Config) IsSoundEnabled() bool {
@@ -29,6 +31,15 @@ func (c Config) MouseOn() bool {
 		return true
 	}
 	return *c.Mouse
+}
+
+// ShellName is the shell the Zellij panes hand the terminal to. An empty
+// setting means bash, which is what the workspace helpers are written for.
+func (c Config) ShellName() string {
+	if shell := strings.TrimSpace(c.Shell); shell != "" {
+		return shell
+	}
+	return "bash"
 }
 
 func (c Config) GetCountdown() int {

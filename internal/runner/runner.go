@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -24,9 +25,16 @@ type Session struct {
 	StartTime   time.Time
 	Submits     int
 
-	drill   drill.Drill
-	pb      time.Duration
-	logoRGB string
+	drill           drill.Drill
+	pb              time.Duration
+	logoRGB         string
+	referenceDir    string
+	referencePolicy string
+}
+
+// Options carries the sprint's reference policy. An absent policy denies source access.
+type Options struct {
+	ReferenceOptions *mode.Options
 }
 
 const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
@@ -34,7 +42,7 @@ const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
 	"   '''  '''"
 
 var helperFiles = []string{
-	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d",
+	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
 	".sprint_start", ".starter_code",
 }
@@ -45,7 +53,25 @@ func NewSession(d drill.Drill, pb time.Duration) (*Session, error) {
 	return NewSessionWithLogo(d, pb, "")
 }
 
-func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (_ *Session, err error) {
+func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (*Session, error) {
+	return NewSessionWithOptions(d, pb, logoRGB, Options{})
+}
+
+func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts Options) (_ *Session, err error) {
+	required, optional, err := d.StudentPaths()
+	if err != nil {
+		return nil, err
+	}
+	student := make(map[string]bool)
+	reservedPaths := append(helperFiles[:len(helperFiles):len(helperFiles)], "PROBLEM.md", "solution", "drill.json")
+	for _, name := range append(append([]string(nil), required...), optional...) {
+		for _, reserved := range reservedPaths {
+			if name == reserved || strings.HasPrefix(name, reserved+string(filepath.Separator)) || strings.HasPrefix(reserved, name+string(filepath.Separator)) {
+				return nil, fmt.Errorf("student file %q clashes with reserved path %q", name, reserved)
+			}
+		}
+		student[name] = true
+	}
 	tempDir, err := os.MkdirTemp("", "codedrill-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp workspace: %w", err)
@@ -57,31 +83,23 @@ func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (_ *Ses
 	}()
 
 	if d.Dir != "" {
-		if err := copyDrillDir(d.Dir, tempDir); err != nil {
+		if err := copyDrillDir(d.Dir, tempDir, student); err != nil {
 			return nil, fmt.Errorf("copy drill files: %w", err)
 		}
 	}
 
-	if !filepath.IsLocal(d.EntryFile) || filepath.Clean(d.EntryFile) == "." {
-		return nil, fmt.Errorf("invalid entry filename: %q", d.EntryFile)
-	}
 	for name, content := range d.ExtraFiles {
+		if student[filepath.Clean(name)] {
+			continue
+		}
 		if err := writeWorkspaceFile(tempDir, name, []byte(content), 0755); err != nil {
 			return nil, fmt.Errorf("write extra file %q: %w", name, err)
 		}
 	}
 
-	entryPath := filepath.Join(tempDir, d.EntryFile)
-	info, statErr := os.Stat(entryPath)
-	if statErr != nil && !os.IsNotExist(statErr) {
-		return nil, fmt.Errorf("check entry file: %w", statErr)
-	}
-	if info != nil && !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("entry is not a regular file: %s", d.EntryFile)
-	}
-	if d.StarterCode != "" || os.IsNotExist(statErr) {
-		if err := writeWorkspaceFile(tempDir, d.EntryFile, []byte(d.StarterCode), 0644); err != nil {
-			return nil, fmt.Errorf("write entry file: %w", err)
+	for _, name := range required {
+		if err := writeWorkspaceFile(tempDir, name, nil, 0644); err != nil {
+			return nil, fmt.Errorf("create student file: %w", err)
 		}
 	}
 
@@ -95,11 +113,6 @@ func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (_ *Ses
 		}
 	}
 
-	starter, err := os.ReadFile(entryPath)
-	if err != nil {
-		return nil, fmt.Errorf("read entry file: %w", err)
-	}
-
 	sess := &Session{
 		SessionName: fmt.Sprintf("codedrill-%d", time.Now().UnixMilli()),
 		Workspace:   tempDir,
@@ -110,13 +123,23 @@ func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (_ *Ses
 		pb:          pb,
 		logoRGB:     logoRGB,
 	}
-	if err := sess.writeHelpers(starter); err != nil {
+	defer func() {
+		if err != nil && sess.referenceDir != "" {
+			_ = os.RemoveAll(sess.referenceDir)
+		}
+	}()
+	if opts.ReferenceOptions != nil {
+		if err := sess.writeReferenceSession(opts.ReferenceOptions); err != nil {
+			return nil, fmt.Errorf("write reference session policy: %w", err)
+		}
+	}
+	if err := sess.writeHelpers(); err != nil {
 		return nil, fmt.Errorf("write workspace helpers: %w", err)
 	}
 	return sess, nil
 }
 
-func copyDrillDir(src, dst string) error {
+func copyDrillDir(src, dst string, student map[string]bool) error {
 	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -129,6 +152,16 @@ func copyDrillDir(src, dst string) error {
 			return fmt.Errorf("source is not a directory: %s", path)
 		}
 		if name == "." || name == "drill.json" {
+			return nil
+		}
+		// A bundled reference solution must stay out of the sprint workspace.
+		if name == "solution" && entry.IsDir() {
+			return fs.SkipDir
+		}
+		if student[name] {
+			if entry.IsDir() || !entry.Type().IsRegular() {
+				return fmt.Errorf("student path is not a regular file: %s", name)
+			}
 			return nil
 		}
 		if entry.IsDir() {
@@ -283,12 +316,32 @@ case "$1" in
   -r|--reset|reset)
     resp=y
     if [ "$2" != "-y" ]; then
-      read -r -p "Reset $ENTRY to the starter code? [y/N] " resp
+      read -r -p "Reset all student files to the empty baseline? [y/N] " resp
     fi
     case "$resp" in
       [yY]|[yY][eE][sS])
-        cp "$STARTER" "$ENTRY"
-        echo "Reset $ENTRY to the starter code."
+        for file in "${STUDENT_FILES[@]}" "${OPTIONAL_STUDENT_FILES[@]}"; do
+          path=$file
+          while true; do
+            if [ -L "$path" ]; then
+              printf 'Cannot reset through symbolic link: %s\n' "$path" >&2
+              exit 1
+            fi
+            [ "$path" = "${path%/*}" ] && break
+            path=${path%/*}
+          done
+          if [ -e "$file" ] && [ ! -f "$file" ]; then
+            printf 'Cannot reset non-file: %s\n' "$file" >&2
+            exit 1
+          fi
+        done
+        for file in "${STUDENT_FILES[@]}"; do
+          rm -f -- "$file" && mkdir -p -- "$(dirname -- "$file")" && : > "$file" || exit 1
+        done
+        for file in "${OPTIONAL_STUDENT_FILES[@]}"; do
+          rm -f -- "$file" || exit 1
+        done
+        echo "Reset student files to the empty baseline."
         ;;
       *) echo "Cancelled." ;;
     esac
@@ -314,20 +367,110 @@ fi
 exit 0
 `
 
-const editorBody = `if ! command -v "${EDITOR_CMD%% *}" >/dev/null 2>&1; then
+// matchBody prints the reference score. It calls the codedrill binary that
+// started the sprint, so it works without a global install. Only the score
+// lines are read; reference source never reaches the terminal.
+const matchBody = `match_output() {
+  local out status score tokens first line
+  out=$("$CODEDRILL" match "$DRILL" --workspace "$WORKSPACE" 2>&1)
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    out=${out#codedrill: }
+    printf 'match: %s' "${out:-comparison failed}"
+    return 1
+  fi
+  score="" tokens="" first=""
+  while IFS= read -r line; do
+    case "$line" in
+      "Score: "*) score=${line#Score: } ;;
+      "Tokens: "*) tokens=${line#Tokens: } ;;
+      "First difference: "*) first=${line#First difference: } ;;
+    esac
+  done <<< "$out"
+  printf 'match %s | %s' "${score:-unknown}" "${tokens:-unknown}"
+  if [ -n "$first" ]; then
+    printf ' | %s' "$first"
+  fi
+  return 0
+}
+
+case "$1" in
+  -w|--watch|watch)
+    printf '\033[?25l'
+    trap 'printf "\033[?25h\033[0m\n"' EXIT
+    trap 'exit 0' INT TERM
+    while true; do
+      printf '\r\033[K'
+      match_output
+      sleep 0.5
+    done
+    ;;
+  "")
+    match_output
+    status=$?
+    echo
+    exit "$status"
+    ;;
+  -v|--view|view)
+    exec "$CODEDRILL" reference-view --session "$POLICY" --open
+    ;;
+  -p|--pane)
+    exec "$CODEDRILL" reference-view --session "$POLICY" --toggle-pane
+    ;;
+  -d|--diff)
+    exec "$CODEDRILL" reference-diff --session "$POLICY"
+    ;;
+  *)
+    echo 'm: unknown option; use m, m -w, m -v, m -p, or m -d' >&2
+    exit 2
+    ;;
+esac
+`
+
+// executablePath is the codedrill binary the helpers call. It falls back to
+// PATH when the running executable cannot be named.
+func executablePath() string {
+	exe, err := os.Executable()
+	if err != nil || exe == "" {
+		return "codedrill"
+	}
+	if abs, err := filepath.Abs(exe); err == nil {
+		return abs
+	}
+	return exe
+}
+
+const shellNotFound = `echo -e "\033[1;31mShell '$SHELL_CMD' not found in PATH.\033[0m"
+echo "Set one with: codedrill config shell bash."
+exec bash
+`
+
+const editorBody = `exec_shell() {
+  if command -v "$SHELL_CMD" >/dev/null 2>&1; then
+    exec "$SHELL_CMD"
+  fi
+  ` + shellNotFound + `}
+
+if ! command -v "${EDITOR_CMD%% *}" >/dev/null 2>&1; then
   echo -e "\033[1;31mEditor '$EDITOR_CMD' not found in PATH.\033[0m"
   echo "Set one with: codedrill config editor <name>, or export CODEDRILL_EDITOR."
-  exec bash
+  exec_shell
 fi
 $EDITOR_CMD "$ENTRY"
 if [ "$AUTO_SUBMIT" = 1 ]; then
   exec ./submit
 fi
 echo -e "\033[1;33mEditor closed.\033[0m Reopen it with: $EDITOR_CMD $ENTRY"
-exec bash
+exec_shell
 `
 
 const terminalBody = `export PATH=".:$PATH"
+exec_shell() {
+  if command -v "$SHELL_CMD" >/dev/null 2>&1; then
+    exec "$SHELL_CMD"
+  fi
+  ` + shellNotFound + `}
+
 clear
 columns=$(tput cols 2>/dev/null || echo 40)
 if [ "${#TITLE}" -gt "$columns" ]; then TITLE="${TITLE:0:$((columns-1))}…"; fi
@@ -338,11 +481,13 @@ echo
 echo -e "\033[1;32mr  run tests\033[0m"
 echo 'p  pace   p -w watch'
 echo 'd  diff   d -r reset'
+echo 'm  match  m -w watch'
+[ -n "$REFERENCE_HELP" ] && echo "$REFERENCE_HELP"
 echo 'i  problem'
 echo -e "\033[1;36ms  submit\033[0m"
 echo "$HINT"
 echo
-exec bash
+exec_shell
 `
 
 type helperFile struct {
@@ -351,8 +496,13 @@ type helperFile struct {
 	mode os.FileMode
 }
 
-func (s *Session) writeHelpers(starter []byte) error {
+func (s *Session) writeHelpers() error {
 	d := s.drill
+	required, optional, err := d.StudentPaths()
+	if err != nil {
+		return err
+	}
+	studentFiles := shellArray("STUDENT_FILES", required) + shellArray("OPTIONAL_STUDENT_FILES", optional)
 	sMax, aMax, bMax := drill.PaceTargets(d.Difficulty)
 
 	sound := "0"
@@ -372,22 +522,27 @@ func (s *Session) writeHelpers(starter []byte) error {
 		autoSubmit, hint = "1", "Close the editor to submit."
 	}
 	editor := DetectEditor()
+	shell := DetectShell()
 	ws := s.Workspace
 	logo := s.logoRGB
+	referenceHelp := ""
+	if policy, err := LoadReferenceSession(s.referencePolicy); err == nil && policy.Options.ShowReference {
+		referenceHelp = "m -v  reference peek (Alt+v)\nm -p  reference beside editor (Alt+b)\nm -d  normalized reference diff\nFocus reference to scroll/Tab files; q closes it."
+	}
 	if logo == "" {
 		logo = defaultLogoRGB
 	}
 
 	files := []helperFile{
 		{".sprint_start", []byte(strconv.FormatInt(s.StartTime.UnixMilli(), 10)), 0644},
-		{".starter_code", starter, 0644},
+		{".starter_code", nil, 0644},
 		{"pace", script(paceBody, "S_MS", ms(sMax), "A_MS", ms(aMax), "B_MS", ms(bMax), "PB_MS", ms(s.pb)), 0755},
 		{"run", script(runBody, "TEST_CMD", s.resolveRunCommand(), "SOUND", sound), 0755},
-		{"submit", script(submitBody), 0755},
-		{"info", script(infoBody, "TITLE", title), 0755},
-		{"diff", script(diffBody, "ENTRY", s.EntryFile), 0755},
-		{"start-editor.sh", script(editorBody, "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit), 0755},
-		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint), 0755},
+		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
+		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
+		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
+		{"start-editor.sh", script(editorBody, "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell), 0755},
+		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
         pane command="bash" {
@@ -401,6 +556,13 @@ func (s *Session) writeHelpers(starter []byte) error {
     }
 }
 `, strconv.Quote(filepath.Join(ws, "start-editor.sh")), strconv.Quote(filepath.Join(ws, "start-terminal.sh")))), 0644},
+	}
+	if s.referencePolicy != "" {
+		for i := range files {
+			if files[i].name == "layout.kdl" {
+				files[i].data = append(files[i].data, []byte(s.referenceKeybind())...)
+			}
+		}
 	}
 	if d.Description != "" {
 		category := d.Category
@@ -421,7 +583,7 @@ func (s *Session) writeHelpers(starter []byte) error {
 			return err
 		}
 	}
-	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff"} {
+	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match"} {
 		if err := os.Symlink(long, filepath.Join(ws, short)); err != nil {
 			if err := os.WriteFile(filepath.Join(ws, short), []byte("#!/usr/bin/env bash\nexec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
 				return err
@@ -438,6 +600,16 @@ func (s *Session) Cleanup() {
 	if s.Workspace != "" {
 		_ = os.RemoveAll(s.Workspace)
 	}
+	if s.referenceDir != "" {
+		_ = os.RemoveAll(s.referenceDir)
+	}
+}
+
+// DetectShell is the shell the Zellij panes hand the terminal to after their
+// helper script finishes. It comes from config.json and defaults to bash.
+func DetectShell() string {
+	cfg, _ := storage.LoadConfig()
+	return cfg.ShellName()
 }
 
 func DetectEditor() string {
@@ -482,10 +654,31 @@ func (s *Session) GetSprintCmd() *exec.Cmd {
 }
 
 func (s *Session) resolveRunCommand() string {
-	if cmd := strings.TrimSpace(s.TestCommand); cmd != "" {
-		return cmd
+	d := s.drill
+	d.EntryFile = s.EntryFile
+	required, optional, err := d.StudentPaths()
+	if err != nil {
+		return "echo 'Invalid student file policy.' >&2; false"
 	}
+	cmd := strings.TrimSpace(s.TestCommand)
+	if cmd == "" {
+		cmd = s.fallbackRunCommand()
+	}
+	return shellArray("CODEDRILL_STUDENT_FILES", append(required, optional...)) + `codedrill_has_work=0
+for codedrill_student_file in "${CODEDRILL_STUDENT_FILES[@]}"; do
+  if [ -f "$codedrill_student_file" ] && grep -q '[^[:space:]]' -- "$codedrill_student_file"; then
+    codedrill_has_work=1
+    break
+  fi
+done
+if [ "$codedrill_has_work" = 0 ]; then
+  echo 'Write your implementation before running tests.' >&2
+  false
+else
+` + cmd + "\nfi"
+}
 
+func (s *Session) fallbackRunCommand() string {
 	f := shellQuote(s.EntryFile)
 	switch filepath.Ext(s.EntryFile) {
 	case ".c":

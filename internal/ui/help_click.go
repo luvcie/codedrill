@@ -53,6 +53,9 @@ func (m *MainModel) renderHelpNow(s string, width int) string {
 }
 
 func (m *MainModel) helpText() string {
+	if m.referenceDiff != nil {
+		return referenceDiffHelp
+	}
 	switch m.state {
 	case StateMenu:
 		if m.search.open {
@@ -138,7 +141,7 @@ func helpItemKey(item string, x int) (tea.KeyMsg, bool) {
 		key = "Tab"
 	case "any other key":
 		key = "Esc"
-	case "n/p", "n/N":
+	case "n/p", "n/N", "←/→":
 		parts := strings.Split(key, "/")
 		key = parts[0]
 		if x >= 3 && x <= 4 {

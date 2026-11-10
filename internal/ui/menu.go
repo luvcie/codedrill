@@ -19,7 +19,16 @@ type drillItem struct {
 	drill drill.Drill
 	pb    time.Duration
 	isAdd bool
+
+	// A group row is the header of a collapsible subcategory. It has no
+	// drill of its own.
+	group     string
+	groupKey  string
+	count     int
+	collapsed bool
 }
+
+func (i drillItem) isGroup() bool { return i.group != "" }
 
 func langTag(d drill.Drill) string {
 	lang := strings.ToUpper(d.Language)
@@ -33,6 +42,13 @@ func (i drillItem) Title() string {
 	if i.isAdd {
 		return "+ Add a drill"
 	}
+	if i.isGroup() {
+		arrow := "▾"
+		if i.collapsed {
+			arrow = "▸"
+		}
+		return arrow + " " + strings.ToUpper(i.group)
+	}
 	title := langTag(i.drill) + i.drill.Title
 	if grade, _ := CalculateGrade(i.pb, i.drill.Difficulty); grade != "" {
 		title += fmt.Sprintf("  [%s-RANK]", grade)
@@ -43,6 +59,12 @@ func (i drillItem) Title() string {
 func (i drillItem) Description() string {
 	if i.isAdd {
 		return "Create a custom drill"
+	}
+	if i.isGroup() {
+		if i.count == 1 {
+			return "1 drill"
+		}
+		return fmt.Sprintf("%d drills", i.count)
 	}
 	difficulty := strings.ToUpper(i.drill.Difficulty)
 	if difficulty == "" {
@@ -59,6 +81,9 @@ func (i drillItem) Description() string {
 func (i drillItem) FilterValue() string {
 	if i.isAdd {
 		return "add new drill exercise create"
+	}
+	if i.isGroup() {
+		return i.group
 	}
 	d := i.drill
 	return strings.Join([]string{d.ID, d.Title, d.Language, d.Category, d.Difficulty}, " ")
@@ -85,13 +110,7 @@ func (m *MainModel) renderCategoryHeader() string {
 }
 
 func (m *MainModel) refreshList() {
-	var items []list.Item
-	for _, d := range drill.Filter(m.drills, m.categoryFilter) {
-		items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
-	}
-	items = append(items, drillItem{isAdd: true})
-
-	l := list.New(items, newDrillDelegate(m.search.highlight()), 0, 0)
+	l := list.New(m.menuItemsFor(m.categoryFilter), m.menuDelegate(), 0, 0)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 	l.KeyMap.PrevPage = key.NewBinding(
@@ -106,6 +125,70 @@ func (m *MainModel) refreshList() {
 	l.Styles.Title = lipgloss.NewStyle()
 	themeList(&l)
 	m.list = l
+	m.sizeList()
+}
+
+// groupKey identifies a subcategory independently of the case used in the
+// category names.
+func groupKey(parent, sub string) string {
+	return strings.ToUpper(strings.TrimSpace(parent)) + "\x00" + strings.ToUpper(strings.TrimSpace(sub))
+}
+
+func (m *MainModel) groupCollapsed(key string) bool {
+	return m.collapsedGroups[key]
+}
+
+// menuItemsFor builds the rows of one category. A parent category with
+// subcategories puts a header row before each group. Blocks follow the saved
+// arrangement; anything new is appended in the old default order. The add row
+// is always last. Other views of the menu, like search, use this so their row
+// numbers match the list.
+func (m *MainModel) menuItemsFor(category string) []list.Item {
+	var items []list.Item
+	if !m.reorderableCategory(category) {
+		for _, d := range drill.Filter(m.drills, category) {
+			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
+		}
+		return append(items, drillItem{isAdd: true})
+	}
+
+	for _, block := range m.menuBlocks(category) {
+		if !block.isGroup() {
+			items = append(items, drillItem{drill: block.drill, pb: m.history.GetPB(block.drill.ID)})
+			continue
+		}
+		key := groupKey(category, block.group)
+		collapsed := m.groupCollapsed(key)
+		items = append(items, drillItem{
+			group:     block.group,
+			groupKey:  key,
+			count:     len(block.drills),
+			collapsed: collapsed,
+		})
+		if collapsed {
+			continue
+		}
+		for _, d := range block.drills {
+			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
+		}
+	}
+	return append(items, drillItem{isAdd: true})
+}
+
+// toggleGroup folds or unfolds a subcategory and keeps the cursor on its
+// header.
+func (m *MainModel) toggleGroup(it drillItem) {
+	if m.collapsedGroups == nil {
+		m.collapsedGroups = make(map[string]bool)
+	}
+	m.collapsedGroups[it.groupKey] = !m.collapsedGroups[it.groupKey]
+	m.refreshList()
+	for i, item := range m.list.Items() {
+		if g, ok := item.(drillItem); ok && g.isGroup() && g.groupKey == it.groupKey {
+			m.list.Select(i)
+			break
+		}
+	}
 	m.sizeList()
 }
 
@@ -149,6 +232,7 @@ func (m *MainModel) switchCategory(step int) {
 }
 
 func (m *MainModel) setCategory(i int) {
+	m.cancelPress()
 	m.categoryIndex = i
 	m.categoryFilter = m.categories[i]
 	m.refreshList()
@@ -174,14 +258,20 @@ func (m *MainModel) confirmDelete() {
 
 func (m *MainModel) selectedDrill() (drill.Drill, bool) {
 	it, ok := m.list.SelectedItem().(drillItem)
-	return it.drill, ok && !it.isAdd
+	return it.drill, ok && !it.isAdd && !it.isGroup()
 }
 
 func (m *MainModel) activateSelected() tea.Cmd {
-	if it, ok := m.list.SelectedItem().(drillItem); ok && it.isAdd {
-		m.state = StateAddDrill
-		m.initForm()
-		return m.form.Init()
+	if it, ok := m.list.SelectedItem().(drillItem); ok {
+		switch {
+		case it.isGroup():
+			m.toggleGroup(it)
+			return nil
+		case it.isAdd:
+			m.state = StateAddDrill
+			m.initForm()
+			return m.form.Init()
+		}
 	}
 	if d, ok := m.selectedDrill(); ok {
 		m.openBriefing(&d)
@@ -191,6 +281,7 @@ func (m *MainModel) activateSelected() tea.Cmd {
 
 func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 	if k, ok := msg.(tea.KeyMsg); ok {
+		m.cancelPress()
 		hadNotice := m.menuNotice != ""
 		m.menuNotice = ""
 		if m.pendingDelete != nil {
@@ -249,6 +340,10 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 			m.openBriefing(d)
 		}
 		return nil
+	case "shift+up":
+		return m.keyboardMenuMove(-1)
+	case "shift+down":
+		return m.keyboardMenuMove(1)
 	case "tab", "l", "right":
 		m.switchCategory(1)
 		return nil
@@ -289,17 +384,27 @@ const newCategoryOption = "\x00new"
 
 func (m *MainModel) categoryOptions() []huh.Option[string] {
 	names := []string{"Custom", "42", "Algorithms", "LeetCode"}
-	for _, c := range m.categories {
-		if c == "ALL" {
-			continue
+	add := func(c string) {
+		c = drill.NormalizeCategory(c)
+		if c == "" {
+			return
 		}
-		known := false
 		for _, n := range names {
-			known = known || strings.EqualFold(n, c)
+			if strings.EqualFold(n, c) {
+				return
+			}
 		}
-		if !known {
-			names = append(names, c)
+		names = append(names, c)
+	}
+	for _, c := range m.categories {
+		if !strings.EqualFold(c, "ALL") {
+			add(c)
 		}
+	}
+	// Subcategories are choices too: "42/Exam 05" must be selectable when
+	// editing a drill that already lives there.
+	for _, d := range m.drills {
+		add(drill.CategoryOf(d))
 	}
 	drill.SortCategories(names)
 	opts := make([]huh.Option[string], 0, len(names)+1)
@@ -317,7 +422,27 @@ func validateCategoryName(s string) error {
 	if strings.EqualFold(s, "ALL") {
 		return fmt.Errorf(`"ALL" is reserved`)
 	}
+	if drill.NormalizeCategory(s) == "" {
+		return fmt.Errorf("category name cannot be empty")
+	}
 	return nil
+}
+
+// canonicalCategory normalizes a category path and keeps the spelling a drill
+// already uses. A new "42 exam 05" becomes the existing "42/Exam 05".
+func (m *MainModel) canonicalCategory(category string) string {
+	category = drill.NormalizeCategory(category)
+	for _, d := range m.drills {
+		if c := drill.CategoryOf(d); strings.EqualFold(c, category) {
+			return c
+		}
+	}
+	for _, c := range m.categories {
+		if strings.EqualFold(c, category) {
+			return c
+		}
+	}
+	return category
 }
 
 func formTheme() *huh.Theme {
@@ -487,12 +612,8 @@ func (m *MainModel) saveFormDrill() {
 	category := m.formCategory
 	if category == newCategoryOption {
 		category = strings.TrimSpace(m.form.GetString("new_category"))
-		for _, c := range m.categories {
-			if strings.EqualFold(c, category) {
-				category = c
-			}
-		}
 	}
+	category = m.canonicalCategory(category)
 
 	d := drill.Drill{
 		ID:          drill.UniqueID(m.drills, title),
@@ -637,24 +758,18 @@ func (m *MainModel) saveEditDrill() {
 	category := m.formCategory
 	if category == newCategoryOption {
 		category = strings.TrimSpace(m.form.GetString("new_category"))
-		for _, c := range m.categories {
-			if strings.EqualFold(c, category) {
-				category = c
-			}
-		}
 	}
+	category = m.canonicalCategory(category)
 
-	d := drill.Drill{
-		ID:          m.editDrill.ID,
-		Title:       title,
-		Category:    category,
-		Difficulty:  m.form.GetString("difficulty"),
-		Language:    strings.ToLower(strings.TrimSpace(m.form.GetString("language"))),
-		EntryFile:   entry,
-		TestCommand: strings.TrimSpace(m.form.GetString("test_cmd")),
-		Description: strings.TrimSpace(m.form.GetString("description")),
-		AutoSubmit:  m.form.GetBool("auto_submit"),
-	}
+	d := *m.editDrill
+	d.Title = title
+	d.Category = category
+	d.Difficulty = m.form.GetString("difficulty")
+	d.Language = strings.ToLower(strings.TrimSpace(m.form.GetString("language")))
+	d.EntryFile = entry
+	d.TestCommand = strings.TrimSpace(m.form.GetString("test_cmd"))
+	d.Description = strings.TrimSpace(m.form.GetString("description"))
+	d.AutoSubmit = m.form.GetBool("auto_submit")
 	if err := drill.SaveDrill(d); err != nil {
 		m.menuNotice = "Could not save drill: " + err.Error()
 	} else {
