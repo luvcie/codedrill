@@ -138,6 +138,24 @@ func (m *MainModel) groupCollapsed(key string) bool {
 	return m.collapsedGroups[key]
 }
 
+func (m *MainModel) menuDrills(category string) []drill.Drill {
+	drills := drill.Filter(m.drills, category)
+	if strings.EqualFold(category, "ALL") {
+		slices.SortStableFunc(drills, func(a, b drill.Drill) int {
+			a42 := strings.EqualFold(drill.ParentCategoryOf(a), "42")
+			b42 := strings.EqualFold(drill.ParentCategoryOf(b), "42")
+			if a42 != b42 {
+				if a42 {
+					return 1
+				}
+				return -1
+			}
+			return 0
+		})
+	}
+	return drills
+}
+
 // menuItemsFor builds the rows of one category. A parent category with
 // subcategories puts a header row before each group. Blocks follow the saved
 // arrangement; anything new is appended in the old default order. The add row
@@ -146,7 +164,7 @@ func (m *MainModel) groupCollapsed(key string) bool {
 func (m *MainModel) menuItemsFor(category string) []list.Item {
 	var items []list.Item
 	if !m.reorderableCategory(category) {
-		for _, d := range drill.Filter(m.drills, category) {
+		for _, d := range m.menuDrills(category) {
 			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
 		}
 		return append(items, drillItem{isAdd: true})

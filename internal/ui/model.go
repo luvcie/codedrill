@@ -281,7 +281,7 @@ func (m *MainModel) isDaily(d drill.Drill) bool {
 // filteredDrills is the pool n/p/r pick from: drills in the current category,
 // or every drill if the category is empty.
 func (m *MainModel) filteredDrills() []drill.Drill {
-	if pool := drill.Filter(m.drills, m.categoryFilter); len(pool) > 0 {
+	if pool := m.menuDrills(m.categoryFilter); len(pool) > 0 {
 		return pool
 	}
 	return m.drills

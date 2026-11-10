@@ -6,7 +6,37 @@ import (
 	"testing"
 
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/storage"
 )
+
+func TestAllLists42DrillsLast(t *testing.T) {
+	drills := []drill.Drill{
+		{ID: "42-first", Category: "42"},
+		{ID: "other-first", Category: "Algorithms"},
+		{ID: "exam", Category: "42 Exam 05"},
+		{ID: "other-last", Category: "LeetCode"},
+		{ID: "42-last", Category: "42/Exam 06"},
+	}
+	m := &MainModel{drills: drills, history: &storage.HistoryStore{}, categoryFilter: "ALL"}
+	items := m.menuItemsFor("ALL")
+	var got []string
+	for _, item := range items {
+		d := item.(drillItem)
+		if !d.isAdd {
+			got = append(got, d.drill.ID)
+		}
+	}
+	want := []string{"other-first", "other-last", "42-first", "exam", "42-last"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("ALL order = %v, want %v", got, want)
+	}
+	if next := m.stepDrill(drills[3], 1); next == nil || next.ID != "42-first" {
+		t.Fatalf("next drill after other-last = %v, want 42-first", next)
+	}
+	if !items[len(items)-1].(drillItem).isAdd {
+		t.Fatal("add row should remain last")
+	}
+}
 
 func findSubcategory(t *testing.T, m *MainModel, name string) (int, drillItem) {
 	t.Helper()

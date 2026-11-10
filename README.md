@@ -2,11 +2,7 @@
 
 codedrill is a terminal app for timed coding practice. Pick a drill, solve it in your editor, and run its tests. Practice modes let you work with or without a reference solution.
 
-## Demo
-
 ![codedrill terminal demo](docs/images/codedrill.gif)
-
-[Download the asciinema recording](docs/images/codedrill.cast)
 
 ## Install
 
