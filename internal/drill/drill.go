@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/luvcie/codedrill/internal/exercises"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -155,7 +157,12 @@ func Filter(drills []Drill, filter string) []Drill {
 
 func Find(drills []Drill, idOrTitle string) *Drill {
 	for i, d := range drills {
-		if strings.EqualFold(d.ID, idOrTitle) || strings.EqualFold(d.Title, idOrTitle) {
+		if strings.EqualFold(d.ID, idOrTitle) {
+			return &drills[i]
+		}
+	}
+	for i, d := range drills {
+		if strings.EqualFold(d.Title, idOrTitle) {
 			return &drills[i]
 		}
 	}
@@ -174,16 +181,58 @@ func GetUserDrillsDir() (string, error) {
 	return dir, nil
 }
 
-func LoadDrills() ([]Drill, error) {
+// LoadBuiltins reads only the exercises shipped in this executable.
+func LoadBuiltins() ([]Drill, error) {
 	var drills []Drill
 	if err := json.Unmarshal(presetsJSON, &drills); err != nil {
 		return nil, fmt.Errorf("built-in drills: %w", err)
+	}
+	entries, err := fs.ReadDir(exercises.Files, "exam05")
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		root := "exam05/" + entry.Name()
+		data, err := exercises.Files.ReadFile(root + "/drill.json")
+		if err != nil {
+			return nil, err
+		}
+		var d Drill
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, fmt.Errorf("%s: %w", root, err)
+		}
+		statement, err := exercises.Files.ReadFile(root + "/statement.md")
+		if err != nil {
+			return nil, err
+		}
+		d.Description = string(statement)
+		d.ExtraFiles = make(map[string]string)
+		if err := fs.WalkDir(exercises.Files, root+"/resources", func(path string, e fs.DirEntry, err error) error {
+			if err != nil || e.IsDir() {
+				return err
+			}
+			content, err := exercises.Files.ReadFile(path)
+			if err == nil {
+				d.ExtraFiles[strings.TrimPrefix(path, root+"/resources/")] = string(content)
+			}
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		drills = append(drills, d)
 	}
 	for i := range drills {
 		drills[i].IsPreset = true
 		drills[i].Category = NormalizeCategory(drills[i].Category)
 	}
+	return drills, nil
+}
 
+func LoadDrills() ([]Drill, error) {
+	drills, err := LoadBuiltins()
+	if err != nil {
+		return nil, err
+	}
 	dir, err := GetUserDrillsDir()
 	if err != nil {
 		return drills, err

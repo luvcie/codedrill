@@ -1,7 +1,6 @@
 // Package solutions locates reference solutions for drills. A reference lives
-// either in a local overlay under the config directory or, for custom drills,
-// in a solution directory beside drill.json. Reference files are only located,
-// never copied into a sprint workspace.
+// in the binary, in a local overlay, or beside a custom drill's manifest.
+// Reference files are never copied into a sprint workspace.
 package solutions
 
 import (
@@ -13,13 +12,23 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/luvcie/codedrill/internal/exercises"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
 // File is one reference source file.
 type File struct {
-	Path string // absolute path on disk
+	Path string // absolute path on disk; empty for an embedded reference
 	Rel  string // slash-separated path inside the solution directory
+	data []byte
+}
+
+// Read returns a local or embedded reference's contents.
+func (f File) Read() ([]byte, error) {
+	if f.Path != "" {
+		return os.ReadFile(f.Path)
+	}
+	return slices.Clone(f.data), nil
 }
 
 // Source is the reference solution set for one drill. Local is true when the
@@ -57,7 +66,7 @@ func OverlayDir(drillID string) (string, error) {
 // Resolve finds the reference solution for a drill. drillDir is the custom
 // drill's directory and is empty for a built-in drill. When the local overlay
 // holds at least one supported file it wins outright; the drill's own
-// solution directory is used only when the overlay has none. A missing
+// solution directory (or embedded reference) is used when the overlay has none. A missing
 // solution is (nil, nil), not an error.
 func Resolve(drillID, drillDir string) (*Source, error) {
 	overlay, err := OverlayDir(drillID)
@@ -73,7 +82,26 @@ func Resolve(drillID, drillDir string) (*Source, error) {
 		return fromOverlay, nil
 	}
 	if drillDir == "" {
-		return nil, nil
+		root := "exam05/" + drillID + "/solution"
+		entries, err := fs.ReadDir(exercises.Files, root)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		src := &Source{Dir: "built-in"}
+		for _, entry := range entries {
+			if entry.IsDir() || !supported(entry.Name()) {
+				continue
+			}
+			data, err := exercises.Files.ReadFile(root + "/" + entry.Name())
+			if err != nil {
+				return nil, err
+			}
+			src.Files = append(src.Files, File{Rel: entry.Name(), data: data})
+		}
+		return src, nil
 	}
 	bundled, err := sourceFor(filepath.Join(drillDir, "solution"))
 	if err != nil {

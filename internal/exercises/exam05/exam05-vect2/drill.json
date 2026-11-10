@@ -1,0 +1,13 @@
+{
+  "id": "exam05-vect2",
+  "title": "vect2",
+  "category": "42/Exam 05",
+  "language": "cpp",
+  "difficulty": "hard",
+  "entry_file": "vect2.cpp",
+  "student_files": [
+    "vect2.cpp",
+    "vect2.hpp"
+  ],
+  "test_command": "c++ -Wall -Wextra -Werror vect2.cpp main.cpp -o vect2_test && ./vect2_test"
+}

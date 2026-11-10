@@ -16,6 +16,19 @@ func runeKey(s string) tea.KeyMsg {
 func newMenuTestModel(t *testing.T) *MainModel {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	// These row/order fixtures use the original flat preset list. The embedded
+	// Exam 05 group is exercised separately in TestExam05MenuAndBriefing.
+	drills, err := drill.LoadDrills()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range drills {
+		if d.IsPreset && strings.HasPrefix(d.ID, "exam05-") {
+			if _, _, err := drill.RemoveDrill(d.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	m, err := NewMainModel()
 	if err != nil {
 		t.Fatal(err)

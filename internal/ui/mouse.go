@@ -147,6 +147,9 @@ func (m *MainModel) dismissNotice() {
 // moves the cursor there. A click on the cursor theme row saves the theme, as
 // Enter does.
 func (m *MainModel) updateSettingsMouse(msg tea.MouseMsg) tea.Cmd {
+	if m.reset != nil && m.reset.running {
+		return nil
+	}
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
 		m.stepSettings(-1)
@@ -162,6 +165,8 @@ func (m *MainModel) updateSettingsMouse(msg tea.MouseMsg) tea.Cmd {
 			} else {
 				m.moveSettings(i)
 			}
+		case i == len(Themes)+2:
+			m.moveSettings(i)
 		case i == len(Themes)+1:
 			m.moveSettings(i)
 			return m.toggleMouse()
@@ -251,7 +256,8 @@ func (m *MainModel) menuTabAt(x, y int) (int, bool) {
 
 // settingsRowAt returns the row index drawn at (x, y) on the settings screen.
 // The Themes header gives -1. A theme row gives its index in Themes. The shell
-// row gives len(Themes), and the mouse row len(Themes)+1. The blank rows, the
+// row gives len(Themes), the mouse row len(Themes)+1, and reset len(Themes)+2.
+// The blank rows, the
 // preview and the error and help rows do not count.
 func (m *MainModel) settingsRowAt(x, y int) (int, bool) {
 	w, h := m.screenSize()
@@ -288,8 +294,14 @@ func (m *MainModel) settingsRowAt(x, y int) (int, bool) {
 		}
 		row++
 	}
-	if fit.mouse && y == row {
-		return len(Themes) + 1, true
+	if fit.mouse {
+		if y == row {
+			return len(Themes) + 1, true
+		}
+		row++
+	}
+	if fit.reset && y == row {
+		return len(Themes) + 2, true
 	}
 	return 0, false
 }

@@ -44,7 +44,7 @@ func loadViewerFiles(session runner.ReferenceSession) (map[string][]byte, error)
 			if strings.EqualFold(strings.TrimSpace(session.Language), "c") && ext != ".c" && ext != ".h" {
 				continue
 			}
-			content, err := os.ReadFile(file.Path)
+			content, err := file.Read()
 			if err != nil {
 				return nil, errors.New("reference files are unavailable for this sprint")
 			}

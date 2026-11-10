@@ -113,7 +113,7 @@ func TestSettingsCursorReachesMouseRow(t *testing.T) {
 		t.Fatalf("moving onto the shell or mouse row changed the theme to %q", CurrentTheme().ID)
 	}
 	m.Update(runeKey("j"))
-	if m.settingsCursor != len(Themes)+1 {
+	if !m.settingsOnReset() {
 		t.Fatalf("down past the mouse row moved the cursor to %d", m.settingsCursor)
 	}
 }
@@ -124,6 +124,7 @@ func TestSettingsEnterTogglesMouseOff(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	cmd := send(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.state != StateSettings {
 		t.Fatalf("state %v after toggling mouse, want to stay in settings", m.state)
@@ -148,6 +149,7 @@ func TestSettingsSpaceTogglesMouseOnMouseRow(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	if got := mouseCmdKind(send(m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})); got != "off" {
 		t.Fatalf("space on the mouse row returned %q, want disable", got)
 	}
@@ -167,6 +169,7 @@ func TestSettingsClickTogglesMouseBackOn(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	send(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	// Mouse is off, so the click is the one the settings row accepts.
@@ -291,6 +294,7 @@ func TestSettingsEscAfterMouseToggleSaysNothing(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	send(m, tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if m.state != StateMenu {
@@ -333,6 +337,7 @@ func TestSettingsMouseSaveFailureRevertsAndShowsError(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.Update(runeKey("o"))
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	path := settingsFile(t)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatal(err)
@@ -373,6 +378,7 @@ func TestSettingsMouseRowHitTestMatchesRendering(t *testing.T) {
 				m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 				if onMouse {
 					m.Update(runeKey("G"))
+					m.Update(runeKey("k"))
 				}
 				rows := settingsThemeRows(m)
 				if onMouse {
@@ -412,6 +418,7 @@ func TestSettingsMouseRowStaysVisibleAtSmallSizes(t *testing.T) {
 			m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
 			m.Update(runeKey("o"))
 			m.Update(runeKey("G"))
+			m.Update(runeKey("k"))
 			if withErr {
 				m.settingsErr = errors.New("a long reason that wraps across more than one row of the window")
 			}

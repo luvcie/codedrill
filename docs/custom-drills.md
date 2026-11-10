@@ -2,6 +2,11 @@
 
 A custom drill is a folder in `drills/<id>/` under the [config directory](configuration.md) with a `drill.json` and any other files the drill needs. Resources are copied into the sprint workspace; declared student files start empty or absent, and the root `solution/` reference directory stays outside the workspace. Create one with `codedrill new`, or write the JSON and run `codedrill import drill.json`.
 
+A local drill with a built-in ID replaces that built-in in the menu. This includes
+existing `exam05-*` drills: upgrading does not rewrite, migrate, or delete them.
+Use a separate `XDG_CONFIG_HOME` to try the built-ins without your local overrides.
+Exact drill IDs take precedence over matching titles in CLI lookups.
+
 ```json
 {
   "title": "ft_putchar",

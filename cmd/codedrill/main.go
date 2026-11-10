@@ -581,24 +581,24 @@ func (c *cli) solution(args []string) error {
 }
 
 func (c *cli) listSolutions(d drill.Drill) error {
-	dir, err := solutions.OverlayDir(d.ID)
+	src, err := solutions.Resolve(d.ID, d.Dir)
 	if err != nil {
 		return err
 	}
-	files, err := solutions.List(dir)
-	if err != nil {
-		return err
-	}
-	if len(files) == 0 {
+	if src == nil || len(src.Files) == 0 {
 		c.printf("No solution files attached for %s.\n", d.ID)
 		c.printf("Attach one with: codedrill solution %s <path>\n", d.ID)
 		return nil
 	}
 	c.printf("Solution files for %s:\n", d.ID)
-	for _, f := range files {
+	for _, f := range src.Files {
 		c.printf("  %s\n", f.Rel)
 	}
-	c.printf("Destination: %s\n", dir)
+	if src.Local {
+		c.printf("Destination: %s\n", src.Dir)
+	} else {
+		c.printf("Source: %s\n", src.Dir)
+	}
 	return nil
 }
 

@@ -1,0 +1,13 @@
+{
+  "id": "exam05-bigint",
+  "title": "bigint",
+  "category": "42/Exam 05",
+  "language": "cpp",
+  "difficulty": "hard",
+  "entry_file": "bigint.cpp",
+  "student_files": [
+    "bigint.cpp",
+    "bigint.hpp"
+  ],
+  "test_command": "c++ -Wall -Wextra -Werror bigint.cpp main.cpp -o bigint_test && ./bigint_test"
+}

@@ -31,16 +31,19 @@ func (m *MainModel) openSettings() {
 		m.shell = cfg.ShellName()
 	}
 	m.settingsErr = nil
+	m.reset = nil
 	m.state = StateSettings
 }
 
 // updateSettings handles keys on the settings screen. The cursor moves through
-// the Themes header, the theme rows, the shell row and then the mouse row.
-// Moving onto a theme previews it. Enter folds the theme section, saves the
-// highlighted theme, cycles the shell, or toggles mouse support. Esc or q puts
-// back the theme that was active when the screen opened.
+// the Themes header, theme rows, shell, mouse, and factory reset. Moving onto a
+// theme previews it. Enter selects a setting or advances reset confirmation.
+// Esc cancels a reset confirmation or closes settings.
 func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
-	last := len(Themes) + 1
+	if m.reset != nil && m.reset.running {
+		return nil
+	}
+	last := len(Themes) + 2
 	switch key.String() {
 	case "up", "k":
 		m.stepSettings(-1)
@@ -52,6 +55,10 @@ func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
 		m.moveSettings(last)
 	case "enter", " ":
 		switch {
+		case m.settingsOnReset():
+			if key.String() == "enter" {
+				return m.advanceFactoryReset()
+			}
 		case m.settingsOnThemesHeader():
 			m.toggleThemes()
 		case m.settingsOnMouse():
@@ -62,7 +69,11 @@ func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
 			m.saveSettings()
 		}
 	case "esc", "q":
-		m.closeSettings()
+		if m.reset != nil {
+			m.reset = nil
+		} else {
+			m.closeSettings()
+		}
 	}
 	return nil
 }
@@ -95,7 +106,7 @@ func (m *MainModel) settingsOrder() []int {
 			order = append(order, i)
 		}
 	}
-	return append(order, len(Themes), len(Themes)+1)
+	return append(order, len(Themes), len(Themes)+1, len(Themes)+2)
 }
 
 func (m *MainModel) stepSettings(delta int) {
@@ -120,12 +131,16 @@ func (m *MainModel) settingsOnMouse() bool {
 	return m.settingsCursor == len(Themes)+1
 }
 
+func (m *MainModel) settingsOnReset() bool {
+	return m.settingsCursor == len(Themes)+2
+}
+
 // moveSettings puts the cursor on row i, clamped to the Themes header and the
-// mouse row. A hidden theme row maps to the header while the section is
+// reset row. A hidden theme row maps to the header while the section is
 // collapsed. A theme row applies its theme. Other rows change nothing, so the
 // theme under the cursor before stays previewed. Nothing is saved.
 func (m *MainModel) moveSettings(i int) {
-	i = min(max(i, -1), len(Themes)+1)
+	i = min(max(i, -1), len(Themes)+2)
 	if !m.settingsThemesOpen() && i >= 0 && i < len(Themes) {
 		i = -1
 	}
@@ -133,6 +148,7 @@ func (m *MainModel) moveSettings(i int) {
 		return
 	}
 	m.settingsCursor = i
+	m.reset = nil
 	// The error belongs to the last save attempt. Moving the cursor makes it
 	// stale, so it goes.
 	m.settingsErr = nil
@@ -240,14 +256,14 @@ type settingsParts struct {
 // settingsRows returns how many of themeRows fit in a window h rows tall when
 // the parts in p are drawn, and whether the shell and mouse rows fit with them.
 // hh, hp and eh are the heights of the header, the help and the save error.
-// onHeader, onShell and onMouse say the cursor is on that row, which then needs
+// onHeader, onShell, onMouse and onReset say the cursor is on that row, which needs
 // no theme row. ok is false when the cursor row does not fit.
 //
 // The shell and mouse rows are kept before the theme rows: they fit as long as
 // one theme row fits with them, unless the cursor is on another row. When the
 // window cannot hold both, the shell row goes first, so the mouse row stays
 // whenever it fits.
-func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, onHeader, onShell, onMouse bool) (rows int, shell, mouse, ok bool) {
+func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, onHeader, onShell, onMouse, onReset bool) (rows int, shell, mouse, reset, ok bool) {
 	rest := hh
 	if p.top {
 		rest++
@@ -270,13 +286,13 @@ func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, 
 	region := h - rest
 	// Side by side, the preview needs the height of the list and its labels.
 	if p.preview && side && region < settingsPreviewHeight {
-		return 0, false, false, false
+		return 0, false, false, false, false
 	}
 	themeCost := 0
 	if p.label {
 		themeCost = 1
 	}
-	shell, mouse = true, true
+	shell, mouse, reset = true, true, true
 	for {
 		extras := 0
 		if shell {
@@ -285,20 +301,25 @@ func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, 
 		if mouse {
 			extras++
 		}
+		if reset {
+			extras++
+		}
 		needTheme := 0
-		if themeRows > 0 && !onHeader && !onShell && !onMouse {
+		if themeRows > 0 && !onHeader && !onShell && !onMouse && !onReset {
 			needTheme = 1
 		}
 		if region >= themeCost+extras+needTheme {
-			return min(max(0, region-themeCost-extras), themeRows), shell, mouse, true
+			return min(max(0, region-themeCost-extras), themeRows), shell, mouse, reset, true
 		}
 		switch {
 		case shell && !onShell:
 			shell = false
 		case mouse && !onMouse:
 			mouse = false
+		case reset && !onReset:
+			reset = false
 		default:
-			return 0, shell, mouse, false
+			return 0, shell, mouse, reset, false
 		}
 	}
 }
@@ -314,6 +335,7 @@ type settingsFit struct {
 	rows  int  // theme rows in the list; zero when the section is collapsed
 	shell bool // the shell row is drawn
 	mouse bool // the mouse row is drawn
+	reset bool // the reset row is drawn
 }
 
 func (m *MainModel) settingsError(w int) string {
@@ -333,7 +355,7 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 
 	side := w >= settingsSideWidth
 	onHeader := m.settingsOnThemesHeader()
-	onShell, onMouse := m.settingsOnShell(), m.settingsOnMouse()
+	onShell, onMouse, onReset := m.settingsOnShell(), m.settingsOnMouse(), m.settingsOnReset()
 	themeRows := 0
 	if m.settingsThemesOpen() {
 		themeRows = len(Themes)
@@ -354,7 +376,7 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 	if errText != "" {
 		eh = lipgloss.Height(errText)
 	}
-	rows, shell, mouse, ok := settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
+	rows, shell, mouse, reset, ok := settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse, onReset)
 	// The whole list, with the shell and mouse rows, comes before the preview
 	// and the blank rows. Each part goes only while the list still does not
 	// fit. Keep the Themes header while the cursor is on it.
@@ -364,12 +386,12 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 	}
 	drops = append(drops, &p.below)
 	for _, drop := range drops {
-		if ok && shell && mouse && rows >= themeRows {
+		if ok && shell && mouse && reset && rows >= themeRows {
 			break
 		}
 		if *drop {
 			*drop = false
-			rows, shell, mouse, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
+			rows, shell, mouse, reset, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse, onReset)
 		}
 	}
 	// The list is cut to a window only after those parts are gone. The error
@@ -380,14 +402,14 @@ func (m *MainModel) settingsFit(w, h int) settingsFit {
 		}
 		if *drop {
 			*drop = false
-			rows, shell, mouse, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse)
+			rows, shell, mouse, reset, ok = settingsRows(p, h, hh, hp, eh, side, themeRows, onHeader, onShell, onMouse, onReset)
 		}
 	}
 	floor := 1
-	if onHeader || onShell || onMouse || themeRows == 0 {
+	if onHeader || onShell || onMouse || onReset || themeRows == 0 {
 		floor = 0
 	}
-	return settingsFit{parts: p, side: side, rows: max(floor, rows), shell: shell, mouse: mouse}
+	return settingsFit{parts: p, side: side, rows: max(floor, rows), shell: shell, mouse: mouse, reset: reset}
 }
 
 // settingsWindow returns the first theme index and the number of theme rows
@@ -457,8 +479,8 @@ func (m *MainModel) viewSettings() string {
 	return strings.Join(lines[:min(len(lines), h)], "\n")
 }
 
-// settingsList draws the Themes header, the open theme rows, then the shell
-// and mouse rows when the fit has them. At most fit.rows theme rows are drawn,
+// settingsList draws the Themes header, theme rows, and remaining settings
+// when the fit has them. At most fit.rows theme rows are drawn,
 // a window that keeps the cursor in view. Each row is cut to w columns.
 func (m *MainModel) settingsList(fit settingsFit, w int) string {
 	var lines []string
@@ -487,6 +509,20 @@ func (m *MainModel) settingsList(fit settingsFit, w int) string {
 	}
 	if fit.mouse {
 		lines = append(lines, m.settingsMouseRow(w))
+	}
+	if fit.reset {
+		text := factoryResetSteps[0]
+		if m.reset != nil {
+			text = factoryResetSteps[m.reset.step]
+			if m.reset.running {
+				text = "Backing up and resetting..."
+			}
+		}
+		if m.settingsOnReset() {
+			lines = append(lines, ansi.Truncate("  "+lipgloss.NewStyle().Foreground(ColorSecondary).Render("│ "+text), w, ""))
+		} else {
+			lines = append(lines, ansi.Truncate("    "+lipgloss.NewStyle().Foreground(ColorText).Render(text), w, ""))
+		}
 	}
 	return strings.Join(lines, "\n")
 }

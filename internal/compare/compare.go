@@ -91,10 +91,12 @@ func Compare(d drill.Drill, workspace string) (Result, error) {
 			return Result{}, fmt.Errorf("unsafe reference path %q", f.Rel)
 		}
 
-		if err := referenceOutsideWorkspace(workspace, f.Path); err != nil {
-			return Result{}, err
+		if f.Path != "" {
+			if err := referenceOutsideWorkspace(workspace, f.Path); err != nil {
+				return Result{}, err
+			}
 		}
-		refData, err := os.ReadFile(f.Path)
+		refData, err := f.Read()
 		if err != nil {
 			return Result{}, fmt.Errorf("read reference %s: %w", f.Rel, err)
 		}

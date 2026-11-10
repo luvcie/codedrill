@@ -1,0 +1,15 @@
+{
+  "id": "exam05-bsq",
+  "title": "bsq",
+  "category": "42/Exam 05",
+  "language": "c",
+  "difficulty": "hard",
+  "entry_file": "bsq.c",
+  "student_files": [
+    "bsq.c"
+  ],
+  "optional_student_files": [
+    "bsq.h"
+  ],
+  "test_command": "cc -Wall -Wextra -Werror *.c -o bsq && python3 test_bsq.py"
+}

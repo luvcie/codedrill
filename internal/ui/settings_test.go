@@ -128,8 +128,10 @@ func TestSettingsHomeEndJumpToFirstAndLast(t *testing.T) {
 	m.Update(runeKey("o"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(runeKey("G"))
-	// The last row is the mouse row. It changes no theme, so the preview stays
-	// on the theme that was there before.
+	if !m.settingsOnReset() || CurrentTheme().ID != Themes[0].ID {
+		t.Fatalf("G: cursor %d, want the reset row", m.settingsCursor)
+	}
+	m.Update(runeKey("k"))
 	if !m.settingsOnMouse() || CurrentTheme().ID != Themes[0].ID {
 		t.Fatalf("G: cursor %d theme %q, want the mouse row with the theme kept", m.settingsCursor, CurrentTheme().ID)
 	}
@@ -492,6 +494,7 @@ func TestSettingsLongListStillShowsCursor(t *testing.T) {
 	m.Update(runeKey("o"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(runeKey("G"))
+	m.Update(runeKey("k"))
 	plain := ansi.Strip(m.View())
 	if !strings.Contains(plain, "│ Mouse  on") {
 		t.Errorf("60x20: cursor on the mouse row, but the row is not on screen:\n%s", plain)
@@ -511,7 +514,8 @@ func TestSettingsLongListStillShowsCursor(t *testing.T) {
 
 func TestSettingsShowsEveryThemeWhenItFits(t *testing.T) {
 	restoreDefaultTheme(t)
-	for _, size := range []struct{ w, h int }{{60, 20}, {80, 24}} {
+	// The Factory Reset action adds one footer row at the narrow size.
+	for _, size := range []struct{ w, h int }{{60, 21}, {80, 24}} {
 		for _, withErr := range []bool{false, true} {
 			m := newMenuTestModel(t)
 			m.Update(tea.WindowSizeMsg{Width: size.w, Height: size.h})
@@ -650,6 +654,8 @@ func checkSettingsWindow(t *testing.T, m *MainModel, w, h int) {
 	if h >= lipgloss.Height(m.screenHeader("settings"))+1 {
 		var name string
 		switch {
+		case m.settingsOnReset():
+			name = "Factory Reset"
 		case m.settingsOnMouse():
 			name = "Mouse  " + map[bool]string{true: "on", false: "off"}[!m.mouseOff]
 		case m.settingsOnShell():

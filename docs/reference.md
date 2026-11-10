@@ -2,7 +2,15 @@
 
 ## Add and compare a reference
 
-Run `codedrill solution <id> <path>...` to attach reference files or directories. Run `codedrill solution <id>` to list attached files. A local attachment takes precedence over a custom drill's `solution/` directory when it contains supported files.
+Run `codedrill solution <id> <path>...` to attach reference files or directories.
+Run `codedrill solution <id>` to list the selected reference files. A local
+attachment takes precedence over a custom drill's `solution/` directory or an
+embedded built-in reference when it contains supported files. Attachments replace
+the entire reference selection; they are not merged with the built-in reference.
+
+Exam 05 references are read directly from the executable. They are never extracted
+into the student workspace or installed over local attachments. A custom drill
+that replaces a built-in ID uses its own references, not the built-in fallback.
 
 Run `codedrill match <id> [--workspace DIR] [--json]` to compare a workspace. The default workspace is the current directory; `--json` prints the result as JSON.
 

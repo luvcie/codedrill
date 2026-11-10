@@ -671,6 +671,9 @@ func settingsThemeRows(m *MainModel) map[int][2]int {
 		if idx := strings.Index(line, "Mouse  "); idx >= 0 {
 			rows[y] = [2]int{len(Themes) + 1, lipgloss.Width(line[:idx])}
 		}
+		if idx := strings.Index(line, "Factory Reset"); idx >= 0 {
+			rows[y] = [2]int{len(Themes) + 2, lipgloss.Width(line[:idx])}
+		}
 	}
 	return rows
 }

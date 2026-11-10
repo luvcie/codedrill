@@ -1,0 +1,17 @@
+{
+  "id": "exam05-polyset",
+  "title": "polyset",
+  "category": "42/Exam 05",
+  "language": "cpp",
+  "difficulty": "hard",
+  "entry_file": "searchable_array_bag.cpp",
+  "student_files": [
+    "searchable_array_bag.cpp",
+    "searchable_array_bag.hpp",
+    "searchable_tree_bag.cpp",
+    "searchable_tree_bag.hpp",
+    "set.cpp",
+    "set.hpp"
+  ],
+  "test_command": "c++ -Wall -Wextra -Werror array_bag.cpp tree_bag.cpp searchable_array_bag.cpp searchable_tree_bag.cpp set.cpp main.cpp -o polyset_test && ./polyset_test"
+}

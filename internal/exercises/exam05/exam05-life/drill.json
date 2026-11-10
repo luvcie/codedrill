@@ -1,0 +1,15 @@
+{
+  "id": "exam05-life",
+  "title": "life",
+  "category": "42/Exam 05",
+  "language": "c",
+  "difficulty": "hard",
+  "entry_file": "life.c",
+  "student_files": [
+    "life.c"
+  ],
+  "optional_student_files": [
+    "life.h"
+  ],
+  "test_command": "cc -Wall -Wextra -Werror *.c -o life && python3 test_life.py"
+}

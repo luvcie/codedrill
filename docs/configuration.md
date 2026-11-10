@@ -21,6 +21,30 @@ Pick a theme with `o` in the menu or `codedrill config theme <id>`. The IDs are 
 
 On Linux the config directory is `$XDG_CONFIG_HOME/codedrill` (usually `~/.config/codedrill`). On macOS it is `~/Library/Application Support/codedrill`. `codedrill config` prints the paths in use.
 
+## Factory Reset
+
+Open Settings with `o`, select **Factory Reset**, and press Enter through the
+three confirmations. The fourth Enter resets the data. Escape or moving to
+another setting cancels the sequence.
+
+Reset removes custom drills, local reference attachments, history and progress,
+practice preferences, hidden-drill selections, menu layout, settings, old local
+backups, corrupt-history backups, and interrupted settings saves. Bundled drills
+and references remain available, and hidden built-ins are restored. The app
+returns to its default menu with a success message and the backup location.
+
+Before removal, Codedrill copies all affected data to a private sibling directory
+named `codedrill-backup-<UTC timestamp>-<suffix>`. It verifies the copied contents,
+permissions, and symlink targets against the original before clearing anything.
+If backup or verification fails, the data is not reset. Reset refuses linked
+config roots and source repositories. It preserves unrecognized files and never
+follows exercise symlinks into external collections.
+
+To restore, quit Codedrill and copy the contents of the backup's `data/` directory
+back into the config directory, preserving permissions and symlinks. `RESTORE.txt`
+inside the backup records the original path. Later resets do not remove these
+sibling backups. Do not run another Codedrill instance while resetting or restoring.
+
 ## Editor
 
 codedrill uses the first of these that it finds:

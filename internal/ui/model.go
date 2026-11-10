@@ -122,6 +122,7 @@ type MainModel struct {
 	settingsSaved        string
 	settingsErr          error
 	settingsThemesClosed bool
+	reset                *factoryResetFlow
 
 	mouseOff bool
 	shell    string
@@ -324,6 +325,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.helpPress = nil
 	}
 	switch msg := msg.(type) {
+	case factoryResetFinishedMsg:
+		return m, m.finishFactoryReset(msg)
 	case tea.WindowSizeMsg:
 		m.cancelPress()
 		m.width, m.height = msg.Width, msg.Height

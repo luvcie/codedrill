@@ -65,6 +65,20 @@ In the Zellij sprint terminal, `r` runs tests, `p` shows your pace, and `s` subm
 
 C and C++ drills can use reference solutions for scoring, exact-match checks, viewing, and token diffs. Attach a reference with `codedrill solution <id> <path>`, or compare a workspace with `codedrill match <id>`. The [reference guide](docs/reference.md) covers visibility, multi-file comparisons, and supported syntax.
 
+## Exam Rank 05
+
+The built-in `42/Exam 05` group includes `bigint`, `bsq`, `life`, `polyset`, and
+`vect2`. Statements, tests, and reference solutions are embedded in the executable;
+no import or existing config is needed. All four practice modes work immediately.
+
+These are independently written practice materials, not official school files.
+See [Exam 05 coverage and provenance](docs/exam05.md) for differences and test limits.
+Existing local drills and reference attachments keep precedence.
+
+The exercises need a C99 compiler, a C++11 compiler, and Python 3. The Nix package
+supplies these tools and bash on its runtime path. Other installations use tools
+from your `PATH`.
+
 ## Custom drills
 
 Run `codedrill new` to create a drill, or `codedrill import drill.json` to import one. See [custom drills](docs/custom-drills.md) for the JSON format, student-owned files, and workspace reset behavior.
