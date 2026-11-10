@@ -11,5 +11,5 @@
   "optional_student_files": [
     "life.h"
   ],
-  "test_command": "cc -Wall -Wextra -Werror *.c -o life && python3 test_life.py"
+  "test_command": "gcc *.c -o life && python3 test_life.py"
 }

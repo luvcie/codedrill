@@ -13,8 +13,13 @@ student-file ownership, resources, and references:
 
 The C exercises permit optional `bsq.h` and `life.h`, respectively. Their commands
 compile all student-created `*.c` files. The C++ commands compile the required
-implementation files with the Codedrill test main. No compiler standard flag is
-forced; the supplied materials need C99 and C++11 support.
+implementation files with the Codedrill test main. Exam 05 runs use `gcc` and
+`g++`, print the compiler version, and warn if it differs from the reported
+school C compiler, GCC 16.2.1. The school's `g++` version is not confirmed.
+The inspected subjects do not specify compiler flags or a language standard,
+so these drills use the local GCC defaults and do not add warning-as-error flags.
+The supplied materials need C99 and C++11 support. GCC 16 defaults to GNU C23
+and GNU C++20; the school's actual flags and C++ dialect still need confirmation.
 
 ## Local data and practice modes
 

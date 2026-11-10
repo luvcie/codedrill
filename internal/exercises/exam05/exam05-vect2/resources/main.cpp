@@ -38,6 +38,9 @@ int main() {
             assert(&++value == &value && value == vect2(x + 2, y + 2));
             assert(value-- == vect2(x + 2, y + 2));
             assert(&--value == &value && value == original);
+            value += value += other;
+            assert(value == (original + other) * 2);
+            value = original;
             value += value;
             assert(value == original * 2);
             value -= value;

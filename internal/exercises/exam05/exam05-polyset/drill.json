@@ -13,5 +13,5 @@
     "set.cpp",
     "set.hpp"
   ],
-  "test_command": "c++ -Wall -Wextra -Werror array_bag.cpp tree_bag.cpp searchable_array_bag.cpp searchable_tree_bag.cpp set.cpp main.cpp -o polyset_test && ./polyset_test"
+  "test_command": "g++ array_bag.cpp tree_bag.cpp searchable_array_bag.cpp searchable_tree_bag.cpp set.cpp main.cpp -o polyset_test && ./polyset_test"
 }

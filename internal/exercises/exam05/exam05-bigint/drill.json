@@ -9,5 +9,5 @@
     "bigint.cpp",
     "bigint.hpp"
   ],
-  "test_command": "c++ -Wall -Wextra -Werror bigint.cpp main.cpp -o bigint_test && ./bigint_test"
+  "test_command": "g++ bigint.cpp main.cpp -o bigint_test && ./bigint_test"
 }

@@ -664,7 +664,16 @@ func (s *Session) resolveRunCommand() string {
 	if cmd == "" {
 		cmd = s.fallbackRunCommand()
 	}
-	return shellArray("CODEDRILL_STUDENT_FILES", append(required, optional...)) + `codedrill_has_work=0
+	check, end := "", ""
+	if d.IsPreset && strings.HasPrefix(d.Category, "42/Exam ") {
+		compiler, language := "gcc", "c"
+		if strings.EqualFold(d.Language, "cpp") {
+			compiler, language = "g++", "c++"
+		}
+		check = fmt.Sprintf(examCompilerCheck, compiler, language)
+		end = "\nfi"
+	}
+	return check + shellArray("CODEDRILL_STUDENT_FILES", append(required, optional...)) + `codedrill_has_work=0
 for codedrill_student_file in "${CODEDRILL_STUDENT_FILES[@]}"; do
   if [ -f "$codedrill_student_file" ] && grep -q '[^[:space:]]' -- "$codedrill_student_file"; then
     codedrill_has_work=1
@@ -675,8 +684,28 @@ if [ "$codedrill_has_work" = 0 ]; then
   echo 'Write your implementation before running tests.' >&2
   false
 else
-` + cmd + "\nfi"
+` + cmd + "\nfi" + end
 }
+
+// The supplied subjects do not specify flags or a language standard.
+const examCompilerCheck = `codedrill_compiler=%[1]s
+codedrill_banner=$("$codedrill_compiler" --version 2>/dev/null)
+codedrill_version=$("$codedrill_compiler" -dumpfullversion -dumpversion 2>/dev/null)
+codedrill_macros=$("$codedrill_compiler" -dM -E -x %[2]s /dev/null 2>/dev/null)
+if ! printf '%%s\n' "$codedrill_banner" | head -n 1 | grep -Eiq 'gcc|g\+\+' ||
+   ! printf '%%s\n' "$codedrill_macros" | grep -q '^#define __GNUC__ ' ||
+   printf '%%s\n' "$codedrill_macros" | grep -Eq '^#define (__clang__|__INTEL_COMPILER|__INTEL_LLVM_COMPILER) '; then
+  echo "Cannot run this drill: $codedrill_compiler must be GCC and available on PATH." >&2
+  false
+else
+  printf 'Compiler: %%s\n' "${codedrill_banner%%%%$'\n'*}"
+  if [ "$codedrill_version" != 16.2.1 ]; then
+    echo "WARNING: $codedrill_compiler $codedrill_version differs from the school C compiler GCC 16.2.1." >&2
+  fi
+  if [ "$codedrill_compiler" = g++ ]; then
+    echo "WARNING: School g++ version and C++ standard are unconfirmed; this uses the local compiler default." >&2
+  fi
+`
 
 func (s *Session) fallbackRunCommand() string {
 	f := shellQuote(s.EntryFile)

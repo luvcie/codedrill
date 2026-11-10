@@ -11,5 +11,5 @@
   "optional_student_files": [
     "bsq.h"
   ],
-  "test_command": "cc -Wall -Wextra -Werror *.c -o bsq && python3 test_bsq.py"
+  "test_command": "gcc *.c -o bsq && python3 test_bsq.py"
 }

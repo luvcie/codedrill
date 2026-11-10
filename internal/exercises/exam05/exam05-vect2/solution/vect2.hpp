@@ -6,7 +6,8 @@
 class vect2 {
     int coordinates[2];
 public:
-    vect2(int x = 0, int y = 0);
+    vect2();
+    vect2(int x, int y);
     int& operator[](int index);
     int operator[](int index) const;
     vect2& operator+=(const vect2& rhs);

@@ -15,7 +15,7 @@ import (
 
 // This also runs in the Nix build, without the developer's config or source paths.
 func TestExam05FreshInstall(t *testing.T) {
-	for _, command := range []string{"cc", "c++", "python3", "bash"} {
+	for _, command := range []string{"gcc", "g++", "python3", "bash"} {
 		if _, err := exec.LookPath(command); err != nil {
 			t.Skipf("Exam 05 runtime checks need %s", command)
 		}
