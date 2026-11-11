@@ -9,5 +9,5 @@
     "vect2.cpp",
     "vect2.hpp"
   ],
-  "test_command": "g++ vect2.cpp main.cpp -o vect2_test && ./vect2_test"
+  "test_command": "g++ vect2.cpp main.cpp -o vect2_test && ./vect2_test && g++ vect2.cpp test_vect2.cpp -o vect2_checks && ./vect2_checks"
 }
