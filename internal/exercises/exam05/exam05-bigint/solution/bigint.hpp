@@ -1,5 +1,5 @@
-#ifndef CODEDRILL_BIGINT_HPP
-#define CODEDRILL_BIGINT_HPP
+#ifndef BIGINT_HPP
+#define BIGINT_HPP
 #include <iostream>
 #include <string>
 
