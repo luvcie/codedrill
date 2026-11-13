@@ -8,6 +8,27 @@ codedrill is a terminal app for timed coding practice. Pick a drill, solve it in
 
 You need bash, an editor, and the tools required by your drills, such as a C compiler or Python. [Zellij](https://zellij.dev/) is optional. With Zellij, codedrill opens the editor beside a terminal with sprint commands.
 
+### Termux on Android ARM64
+
+Install the external tools, then download the Android binary into Termux's private
+storage (the binary does not include Bash, Clang, Python, or an editor):
+
+```bash
+pkg update
+pkg install bash clang python nano curl
+curl -fL https://github.com/luvcie/codedrill/releases/latest/download/codedrill-android-arm64 -o "$PREFIX/bin/codedrill"
+chmod +x "$PREFIX/bin/codedrill"
+codedrill
+```
+
+Set your editor with `codedrill config editor nano` if needed. Termux's Clang
+provides the compiler commands for ordinary C and C++ drills. Exam Rank 05
+requires GCC and rejects Clang to preserve its exam compiler checks; its embedded
+materials remain accessible, but running its tests requires a compatible GCC
+environment. Android device and terminal behavior can vary.
+
+### Nix and source
+
 With Nix and flakes enabled:
 
 ```bash

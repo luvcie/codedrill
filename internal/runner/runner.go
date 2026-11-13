@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -194,11 +195,18 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
+func bashShebang() string {
+	if runtime.GOOS == "android" && filepath.IsAbs(os.Getenv("PREFIX")) {
+		return "#!" + filepath.Join(os.Getenv("PREFIX"), "bin", "bash") + "\n"
+	}
+	return "#!/usr/bin/env bash\n"
+}
+
 // script builds a helper that runs from the workspace with the given
 // variables set. vars alternates name, value.
 func script(body string, vars ...string) []byte {
 	var b strings.Builder
-	b.WriteString("#!/usr/bin/env bash\ncd \"$(dirname \"$0\")\" || exit 1\n")
+	b.WriteString(bashShebang() + "cd \"$(dirname \"$0\")\" || exit 1\n")
 	for i := 0; i+1 < len(vars); i += 2 {
 		fmt.Fprintf(&b, "%s=%s\n", vars[i], shellQuote(vars[i+1]))
 	}
@@ -585,7 +593,7 @@ func (s *Session) writeHelpers() error {
 	}
 	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match"} {
 		if err := os.Symlink(long, filepath.Join(ws, short)); err != nil {
-			if err := os.WriteFile(filepath.Join(ws, short), []byte("#!/usr/bin/env bash\nexec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
+			if err := os.WriteFile(filepath.Join(ws, short), []byte(bashShebang()+"exec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
 				return err
 			}
 		}
