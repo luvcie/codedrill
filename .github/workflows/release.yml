@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -buildmode=pie -o dist/codedrill-android-arm64 ./cmd/codedrill
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/codedrill-linux-amd64 ./cmd/codedrill
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/codedrill-linux-arm64 ./cmd/codedrill
+          cd dist
+          sha256sum codedrill-* > SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes
