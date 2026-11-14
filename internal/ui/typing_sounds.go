@@ -35,11 +35,16 @@ func typingChoices() []typingChoice {
 		{ID: typingsound.PrototypePackID, Label: "Generated tones (prototype)", Credit: "Built into Codedrill"},
 	}
 	for _, pack := range typingsound.Catalog {
+		credit, source := pack.Author, pack.Source
+		if source == "" {
+			credit += " (TETR.IO+)"
+			source = typingsound.TETRIODatabase
+		}
 		choices = append(choices, typingChoice{
 			ID:     pack.ID,
 			Label:  pack.Name,
-			Credit: pack.Author + " (TETR.IO+)",
-			Source: typingsound.TETRIODatabase,
+			Credit: credit,
+			Source: source,
 		})
 	}
 	return choices

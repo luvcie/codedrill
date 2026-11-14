@@ -1,6 +1,8 @@
 package typingsound
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -126,6 +128,65 @@ func TestLoadSoundsFromDownloadedPackAndCache(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(path, info.ID+".tpse")); err != nil {
 		t.Fatalf("export missing from cache: %v", err)
+	}
+}
+
+func makeNativePack(t *testing.T, names ...string) []byte {
+	t.Helper()
+	sample := make([]int16, 800)
+	for i := range sample {
+		sample[i] = 1200
+	}
+	audio := makeWAV(sample, 8000)
+	var buf bytes.Buffer
+	archive := zip.NewWriter(&buf)
+	for _, name := range names {
+		file, err := archive.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := file.Write(audio); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestLoadSoundsFromNativeZIP(t *testing.T) {
+	export := makeNativePack(t, "Pack/harddrop.wav", "Pack/clearquad.wav", "Pack/combo_1.wav", "Pack/combo_2.wav")
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write(export)
+	}))
+	defer server.Close()
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	info := PackInfo{ID: "sfx-native", Name: "Native pack", URL: server.URL + "/pack.zip", Format: FormatZIP}
+
+	sounds, err := loadSounds(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sounds.Lock) == 0 || len(sounds.Quad) == 0 || len(sounds.Combos) != 2 {
+		t.Fatalf("sounds: lock %d, quad %d, combos %d", len(sounds.Lock), len(sounds.Quad), len(sounds.Combos))
+	}
+	if _, err := loadSounds(info); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("server hit %d times, want 1", hits.Load())
+	}
+	if _, err := os.Stat(filepath.Join(mustCache(t), info.ID+".zip")); err != nil {
+		t.Fatalf("native ZIP missing from cache: %v", err)
+	}
+}
+
+func TestNativePackWithoutGameplaySoundsIsRejected(t *testing.T) {
+	if err := validateNativePack(makeNativePack(t, "Pack/menu.wav")); err == nil {
+		t.Fatal("accepted a native pack without lock, quad or combo sounds")
 	}
 }
 
@@ -273,12 +334,32 @@ func mustCache(t *testing.T) string {
 	return dir
 }
 
+func TestCatalogHasUniqueCompleteEntries(t *testing.T) {
+	seen := make(map[string]bool, len(Catalog))
+	for _, pack := range Catalog {
+		if pack.ID == "" || pack.Name == "" || pack.Author == "" || pack.URL == "" {
+			t.Fatalf("incomplete catalog entry: %+v", pack)
+		}
+		if seen[pack.ID] {
+			t.Fatalf("duplicate catalog ID %q", pack.ID)
+		}
+		seen[pack.ID] = true
+	}
+}
+
 func TestFindPackAndLabels(t *testing.T) {
-	if len(Catalog) < 20 {
+	if len(Catalog) != 63 {
 		t.Fatalf("catalog has %d packs", len(Catalog))
 	}
 	if pack, ok := FindPack("sfx-Starcat_JP-8Bit_Puzzler"); !ok || pack.Author != "Starcat_JP" {
 		t.Fatalf("catalog lookup failed: %+v %v", pack, ok)
+	}
+	if pack, ok := FindPack("sfx-AltAccountGirl-tb_sfx"); !ok || pack.Format != FormatTPSE {
+		t.Fatalf("legacy tb_sfx lookup failed: %+v %v", pack, ok)
+	}
+	drive, ok := FindPack("sfx-TetrisBattleSFX")
+	if !ok || drive.Format != FormatZIP || drive.Source == "" {
+		t.Fatalf("Drive pack lookup failed: %+v %v", drive, ok)
 	}
 	if _, ok := FindPack("missing"); ok {
 		t.Fatal("found a pack that is not in the catalog")

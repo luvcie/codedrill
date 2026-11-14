@@ -35,26 +35,17 @@ func DownloadPack(info PackInfo) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, info.ID+".tpse")
-	if file, err := os.Open(path); err == nil {
-		ok := false
-		if stat, statErr := file.Stat(); statErr == nil && stat.Size() > 0 && stat.Size() <= maxExportBytes {
-			head := make([]byte, 1)
-			if _, readErr := io.ReadFull(file, head); readErr == nil && head[0] == '{' {
-				ok = true
-			}
-		}
-		file.Close()
-		if ok {
-			return path, nil
-		}
-		_ = os.Remove(path)
+	path := filepath.Join(dir, packCacheName(info))
+	if validPackCache(path, info.Format) {
+		return path, nil
 	}
+	_ = os.Remove(path)
 	client := &http.Client{Timeout: downloadTimeout}
 	request, err := http.NewRequest(http.MethodGet, info.URL, nil)
 	if err != nil {
 		return "", err
 	}
+	request.Header.Set("User-Agent", "codedrill/typing-sounds")
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("download %s: %w", info.Name, err)
@@ -68,9 +59,15 @@ func DownloadPack(info PackInfo) (string, error) {
 		return "", fmt.Errorf("download %s: %w", info.Name, err)
 	}
 	if len(data) > maxExportBytes {
-		return "", fmt.Errorf("download %s: export exceeds 24 MiB", info.Name)
+		return "", fmt.Errorf("download %s: pack exceeds 24 MiB", info.Name)
 	}
-	if _, _, err := ParseExport(data); err != nil {
+	switch info.Format {
+	case FormatZIP:
+		err = validateNativePack(data)
+	default:
+		_, _, err = ParseExport(data)
+	}
+	if err != nil {
 		return "", fmt.Errorf("download %s: %w", info.Name, err)
 	}
 	temp, err := os.CreateTemp(dir, info.ID+".*.tmp")
@@ -130,18 +127,29 @@ func loadSounds(info PackInfo) (Sounds, error) {
 	if err != nil {
 		return Sounds{}, err
 	}
-	audio, atlas, err := ParseExport(data)
-	if err != nil {
-		_ = os.Remove(path)
-		_ = os.Remove(clipCachePath(path))
-		return Sounds{}, err
+	var sounds Sounds
+	switch info.Format {
+	case FormatZIP:
+		sounds, err = nativeSounds(data)
+		if err != nil {
+			_ = os.Remove(path)
+			_ = os.Remove(clipCachePath(path))
+			return Sounds{}, fmt.Errorf("%s: %w", info.Name, err)
+		}
+	default:
+		audio, atlas, err := ParseExport(data)
+		if err != nil {
+			_ = os.Remove(path)
+			_ = os.Remove(clipCachePath(path))
+			return Sounds{}, err
+		}
+		samples, rate, err := decodeAudio(audio)
+		if err != nil {
+			return Sounds{}, fmt.Errorf("%s: %w", info.Name, err)
+		}
+		samples = resample(samples, rate, sampleRate)
+		sounds = extractSounds(samples, atlas)
 	}
-	samples, rate, err := decodeAudio(audio)
-	if err != nil {
-		return Sounds{}, fmt.Errorf("%s: %w", info.Name, err)
-	}
-	samples = resample(samples, rate, sampleRate)
-	sounds := extractSounds(samples, atlas)
 	if len(sounds.Lock) == 0 && len(sounds.Quad) == 0 && len(sounds.Combos) == 0 {
 		return Sounds{}, fmt.Errorf("%s has no lock, quad or combo sounds", info.Name)
 	}
@@ -175,6 +183,32 @@ func extractSounds(samples Clip, atlas Atlas) Sounds {
 		}
 	}
 	return sounds
+}
+
+func packCacheName(info PackInfo) string {
+	if info.Format == FormatZIP {
+		return info.ID + ".zip"
+	}
+	return info.ID + ".tpse"
+}
+
+func validPackCache(path string, format PackFormat) bool {
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil || stat.Size() <= 0 || stat.Size() > maxExportBytes {
+		return false
+	}
+	magic := []byte("{")
+	if format == FormatZIP {
+		magic = []byte("PK\x03\x04")
+	}
+	head := make([]byte, len(magic))
+	_, err = io.ReadFull(file, head)
+	return err == nil && bytes.Equal(head, magic)
 }
 
 // Clip caches avoid decoding a multi-megabyte recording on every editor
