@@ -8,8 +8,14 @@ type Prototype struct {
 	player *PackPlayer
 }
 
-// NewPrototype starts the generated tones on the audio server.
+// NewPrototype starts the generated tones with the default mapping.
 func NewPrototype(volume float64) (*Prototype, error) {
+	return NewPrototypeWithMapping(volume, DefaultMapping())
+}
+
+// NewPrototypeWithMapping starts the generated tones with a configured key
+// mapping.
+func NewPrototypeWithMapping(volume float64, mapping Mapping) (*Prototype, error) {
 	sounds := Sounds{
 		Lock: generatedTone(220),
 		Quad: generatedTone(880),
@@ -17,7 +23,7 @@ func NewPrototype(volume float64) (*Prototype, error) {
 	for _, frequency := range []float64{330, 370, 415, 466, 523, 587, 659, 740} {
 		sounds.Combos = append(sounds.Combos, generatedTone(frequency))
 	}
-	player, err := NewPackPlayer(sounds, volume, DefaultMapping())
+	player, err := NewPackPlayer(sounds, volume, mapping)
 	if err != nil {
 		return nil, err
 	}

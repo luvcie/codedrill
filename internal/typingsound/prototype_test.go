@@ -76,6 +76,22 @@ func TestCustomMapping(t *testing.T) {
 	if _, err := ParseMapping("ab", "", ""); err == nil {
 		t.Fatal("accepted a multi-character key token")
 	}
+	if _, err := ParseMapping("é", "", ""); err == nil {
+		t.Fatal("accepted a non-ASCII key that the byte observer cannot report")
+	}
+}
+
+func TestPrototypePlayerUsesConfiguredMapping(t *testing.T) {
+	mapping, err := ParseMapping(":", "!", "?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	player := &PackPlayer{mapping: mapping, lockIndex: 0, quadIndex: 1, comboBase: 2, comboCount: 2}
+	for key, want := range map[byte]int{':': 0, '!': 2, '?': 1, '{': -1} {
+		if got := player.eventIndex(Event{Key: key}); got != want {
+			t.Errorf("key %q played clip %d, want %d", key, got, want)
+		}
+	}
 }
 
 func TestPrototypeUnavailableServer(t *testing.T) {
@@ -83,6 +99,39 @@ func TestPrototypeUnavailableServer(t *testing.T) {
 	if p, err := NewPrototype(0.7); err == nil {
 		p.Close()
 		t.Fatal("expected connection failure")
+	}
+}
+
+func TestPreviewUsesActualClipDurations(t *testing.T) {
+	player := &PackPlayer{
+		engine: &Engine{clips: []Clip{
+			make(Clip, sampleRate/2),
+			make(Clip, 2*sampleRate),
+			make(Clip, sampleRate),
+		}},
+		lockIndex: 0, quadIndex: 1, comboBase: 2, comboCount: 1,
+	}
+	for action, want := range map[Action]time.Duration{
+		ActionLock:  500 * time.Millisecond,
+		ActionQuad:  2 * time.Second,
+		ActionCombo: time.Second,
+	} {
+		if got := player.PreviewDuration(action); got != want {
+			t.Errorf("action %d preview lasts %s, want %s", action, got, want)
+		}
+	}
+	if got := player.PreviewDuration(ActionSilent); got != 0 {
+		t.Fatalf("silent preview lasts %s, want zero", got)
+	}
+	now := time.Unix(100, 0)
+	if got := previewWait(now.Add(2*time.Second), now); got != 2*time.Second {
+		t.Fatalf("preview wait %s, want two seconds", got)
+	}
+	if got := previewWait(now.Add(20*time.Second), now); got != maxPreviewWait {
+		t.Fatalf("preview wait %s, want the %s cap", got, maxPreviewWait)
+	}
+	if got := previewWait(now, now); got != 0 {
+		t.Fatalf("elapsed preview wait %s, want zero", got)
 	}
 }
 

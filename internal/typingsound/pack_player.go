@@ -1,6 +1,7 @@
 package typingsound
 
 import (
+	"errors"
 	"time"
 )
 
@@ -26,6 +27,9 @@ type PackPlayer struct {
 
 // NewPackPlayer preloads the clips and starts the audio stream.
 func NewPackPlayer(sounds Sounds, volume float64, mapping Mapping) (*PackPlayer, error) {
+	if !soundsWithinLimits(sounds) {
+		return nil, errors.New("sound clips exceed the playback limits")
+	}
 	clips := make([]Clip, 0, 2+len(sounds.Combos))
 	player := &PackPlayer{mapping: mapping, lockIndex: -1, quadIndex: -1, comboBase: -1}
 	add := func(clip Clip) int {
@@ -88,18 +92,35 @@ func (p *PackPlayer) index(key byte) int {
 	return -1
 }
 
-// PreviewKey plays one action directly, for settings previews.
-func (p *PackPlayer) PreviewKey(action Action) {
+func (p *PackPlayer) previewIndex(action Action) int {
 	switch action {
 	case ActionLock:
-		p.engine.Play(p.lockIndex)
+		return p.lockIndex
 	case ActionQuad:
-		p.engine.Play(p.quadIndex)
+		return p.quadIndex
 	case ActionCombo:
 		if p.comboCount > 0 {
-			p.engine.Play(p.comboBase)
+			return p.comboBase
 		}
 	}
+	return -1
+}
+
+// PreviewKey plays one action directly, for settings previews.
+func (p *PackPlayer) PreviewKey(action Action) {
+	if p.engine == nil {
+		return
+	}
+	p.engine.Play(p.previewIndex(action))
+}
+
+// PreviewDuration returns the actual length of the clip a preview action plays.
+func (p *PackPlayer) PreviewDuration(action Action) time.Duration {
+	index := p.previewIndex(action)
+	if p.engine == nil || index < 0 || index >= len(p.engine.clips) {
+		return 0
+	}
+	return time.Duration(len(p.engine.clips[index])) * time.Second / sampleRate
 }
 
 func (p *PackPlayer) Close() {

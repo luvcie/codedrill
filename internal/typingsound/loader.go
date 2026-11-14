@@ -1,9 +1,12 @@
 package typingsound
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -111,7 +114,16 @@ func loadSounds(info PackInfo) (Sounds, error) {
 	if err != nil {
 		return Sounds{}, err
 	}
-	if sounds, ok := readClipCache(path, stat.Size()); ok {
+	if stat.Size() <= 0 || stat.Size() > maxExportBytes {
+		_ = os.Remove(path)
+		_ = os.Remove(clipCachePath(path))
+		return Sounds{}, fmt.Errorf("%s has an invalid export size", info.Name)
+	}
+	hash, err := fileChecksum(path)
+	if err != nil {
+		return Sounds{}, err
+	}
+	if sounds, ok := readClipCache(path, stat.Size(), hash); ok {
 		return sounds, nil
 	}
 	data, err := os.ReadFile(path)
@@ -121,6 +133,7 @@ func loadSounds(info PackInfo) (Sounds, error) {
 	audio, atlas, err := ParseExport(data)
 	if err != nil {
 		_ = os.Remove(path)
+		_ = os.Remove(clipCachePath(path))
 		return Sounds{}, err
 	}
 	samples, rate, err := decodeAudio(audio)
@@ -128,45 +141,77 @@ func loadSounds(info PackInfo) (Sounds, error) {
 		return Sounds{}, fmt.Errorf("%s: %w", info.Name, err)
 	}
 	samples = resample(samples, rate, sampleRate)
-	sounds := Sounds{}
-	for _, name := range []string{"harddrop", "lock"} {
-		if clip := atlasClip(samples, atlas, name); len(clip) > 0 {
-			sounds.Lock = clip
-			break
-		}
-	}
-	for _, name := range []string{"clearquad", "clearline"} {
-		if clip := atlasClip(samples, atlas, name); len(clip) > 0 {
-			sounds.Quad = clip
-			break
-		}
-	}
-	for i := 1; i <= 16; i++ {
-		clip := atlasClip(samples, atlas, fmt.Sprintf("combo_%d", i))
-		if len(clip) == 0 {
-			continue
-		}
-		sounds.Combos = append(sounds.Combos, clip)
-	}
+	sounds := extractSounds(samples, atlas)
 	if len(sounds.Lock) == 0 && len(sounds.Quad) == 0 && len(sounds.Combos) == 0 {
 		return Sounds{}, fmt.Errorf("%s has no lock, quad or combo sounds", info.Name)
 	}
-	writeClipCache(path, stat.Size(), sounds)
+	writeClipCache(path, stat.Size(), hash, sounds)
 	return sounds, nil
 }
 
+// extractSounds copies the gameplay clips within the per-effect and cumulative
+// budgets. A long clip is skipped, not truncated, so a malformed atlas entry
+// cannot consume the budget for the remaining effects.
+func extractSounds(samples Clip, atlas Atlas) Sounds {
+	sounds := Sounds{}
+	total := 0
+	take := func(names ...string) Clip {
+		for _, name := range names {
+			clip := atlasClip(samples, atlas, name)
+			if len(clip) == 0 || total+len(clip) > maxTotalClipSamples {
+				continue
+			}
+			total += len(clip)
+			return clip
+		}
+		return nil
+	}
+	sounds.Lock = take("harddrop", "lock")
+	sounds.Quad = take("clearquad", "clearline")
+	for i := 1; i <= maxComboClips; i++ {
+		name := fmt.Sprintf("combo_%d", i)
+		if clip := take(name); len(clip) > 0 {
+			sounds.Combos = append(sounds.Combos, clip)
+		}
+	}
+	return sounds
+}
+
 // Clip caches avoid decoding a multi-megabyte recording on every editor
-// launch. The header records the export size so a different download is not
-// mistaken for the cached one.
-const clipCacheMagic = "CDTS1"
+// launch. The header records the export size and SHA-256 so two exports of the
+// same size cannot share stale decoded audio.
+const clipCacheMagic = "CDTS2"
+const maxClipCount = 2 + maxComboClips
+
+const maxClipCacheBytes = len(clipCacheMagic) + 8 + sha256.Size + 2 + maxClipCount*4 + maxTotalClipSamples*2
 
 func clipCachePath(exportPath string) string {
 	return exportPath + ".pcm"
 }
 
-func readClipCache(exportPath string, sourceSize int64) (Sounds, bool) {
-	data, err := os.ReadFile(clipCachePath(exportPath))
-	if err != nil || len(data) < len(clipCacheMagic)+10 || string(data[:len(clipCacheMagic)]) != clipCacheMagic {
+func fileChecksum(path string) ([sha256.Size]byte, error) {
+	var sum [sha256.Size]byte
+	file, err := os.Open(path)
+	if err != nil {
+		return sum, err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return sum, err
+	}
+	copy(sum[:], hash.Sum(nil))
+	return sum, nil
+}
+
+func readClipCache(exportPath string, sourceSize int64, sourceHash [sha256.Size]byte) (Sounds, bool) {
+	path := clipCachePath(exportPath)
+	stat, err := os.Stat(path)
+	if err != nil || stat.Size() > int64(maxClipCacheBytes) {
+		return Sounds{}, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) < len(clipCacheMagic)+8+sha256.Size+2 || string(data[:len(clipCacheMagic)]) != clipCacheMagic {
 		return Sounds{}, false
 	}
 	pos := len(clipCacheMagic)
@@ -174,25 +219,35 @@ func readClipCache(exportPath string, sourceSize int64) (Sounds, bool) {
 		return Sounds{}, false
 	}
 	pos += 8
-	count := int(binary.LittleEndian.Uint16(data[pos:]))
-	pos += 2
-	if count < 2 || count > 2+16 {
+	if !bytes.Equal(data[pos:pos+sha256.Size], sourceHash[:]) {
 		return Sounds{}, false
 	}
+	pos += sha256.Size
+	count := int(binary.LittleEndian.Uint16(data[pos:]))
+	pos += 2
+	if count < 2 || count > maxClipCount {
+		return Sounds{}, false
+	}
+	total := 0
 	readClip := func() (Clip, bool) {
 		if pos+4 > len(data) {
 			return nil, false
 		}
-		length := int(binary.LittleEndian.Uint32(data[pos:]))
+		length := uint64(binary.LittleEndian.Uint32(data[pos:]))
 		pos += 4
-		if length < 0 || pos+length*2 > len(data) {
+		if length > uint64(maxClipSamples) || length > uint64(maxTotalClipSamples-total) {
 			return nil, false
 		}
-		clip := make(Clip, length)
+		n := int(length)
+		if n > (len(data)-pos)/2 {
+			return nil, false
+		}
+		clip := make(Clip, n)
 		for i := range clip {
 			clip[i] = int16(binary.LittleEndian.Uint16(data[pos+i*2:]))
 		}
-		pos += length * 2
+		pos += n * 2
+		total += n
 		return clip, true
 	}
 	lock, ok := readClip()
@@ -213,15 +268,26 @@ func readClipCache(exportPath string, sourceSize int64) (Sounds, bool) {
 			sounds.Combos = append(sounds.Combos, clip)
 		}
 	}
+	if pos != len(data) || (len(lock) == 0 && len(quad) == 0 && len(sounds.Combos) == 0) {
+		return Sounds{}, false
+	}
 	return sounds, true
 }
 
-func writeClipCache(exportPath string, sourceSize int64, sounds Sounds) {
+func writeClipCache(exportPath string, sourceSize int64, sourceHash [sha256.Size]byte, sounds Sounds) {
 	clips := []Clip{sounds.Lock, sounds.Quad}
 	clips = append(clips, sounds.Combos...)
-	var out []byte
+	if !soundsWithinLimits(sounds) {
+		return
+	}
+	size := len(clipCacheMagic) + 8 + sha256.Size + 2
+	for _, clip := range clips {
+		size += 4 + len(clip)*2
+	}
+	out := make([]byte, 0, size)
 	out = append(out, clipCacheMagic...)
 	out = binary.LittleEndian.AppendUint64(out, uint64(sourceSize))
+	out = append(out, sourceHash[:]...)
 	out = binary.LittleEndian.AppendUint16(out, uint16(len(clips)))
 	for _, clip := range clips {
 		out = binary.LittleEndian.AppendUint32(out, uint32(len(clip)))
@@ -252,16 +318,22 @@ func writeClipCache(exportPath string, sourceSize int64, sounds Sounds) {
 // export are milliseconds; out-of-range or oversized entries are ignored.
 func atlasClip(samples Clip, atlas Atlas, name string) Clip {
 	timing, ok := atlas[name]
-	if !ok {
+	if !ok || math.IsNaN(timing[0]) || math.IsNaN(timing[1]) ||
+		math.IsInf(timing[0], 0) || math.IsInf(timing[1], 0) ||
+		timing[0] < 0 || timing[0] > maxDecodedSeconds*1000 || timing[1] <= 0 {
 		return nil
 	}
 	start := int(timing[0] / 1000 * sampleRate)
-	end := start + int(timing[1]/1000*sampleRate)
-	if start < 0 || start >= len(samples) || end <= start {
+	length := int(timing[1] / 1000 * sampleRate)
+	if start < 0 || length <= 0 || length > maxClipSamples || start >= len(samples) {
 		return nil
 	}
+	end := start + length
 	if end > len(samples) {
 		end = len(samples)
+	}
+	if end <= start {
+		return nil
 	}
 	clip := make(Clip, end-start)
 	copy(clip, samples[start:end])

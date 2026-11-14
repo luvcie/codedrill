@@ -22,12 +22,18 @@ type Input struct {
 	escapeAt       time.Time
 	wordCompletion bool
 	wordLen        int
+	mapping        Mapping
 }
 
-// NewInput returns an observer. Word completion reports a space or tab after
-// at least two word bytes; it is off otherwise.
+// NewInput returns an observer with the default key mapping. Word completion
+// reports a space or tab after at least two word bytes; it is off otherwise.
 func NewInput(wordCompletion bool) *Input {
-	return &Input{wordCompletion: wordCompletion}
+	return NewInputWithMapping(wordCompletion, DefaultMapping())
+}
+
+// NewInputWithMapping returns an observer that reports the configured trigger keys.
+func NewInputWithMapping(wordCompletion bool, mapping Mapping) *Input {
+	return &Input{wordCompletion: wordCompletion, mapping: mapping}
 }
 
 // Observe reports sound-triggering events. The caller must forward the original
@@ -107,20 +113,27 @@ func (p *Input) observe(data []byte, emit func(Event), now time.Time) {
 // Space or Tab stays silent. Any punctuation, whitespace, newline, backspace or
 // escape ends the word, which also suppresses repeated spaces.
 func (p *Input) track(b byte, emit func(Event)) {
-	switch {
-	case isWordByte(b):
+	action := p.mapping.Action(b)
+	if isWordByte(b) {
 		p.wordLen++
+		if action != ActionSilent {
+			emit(Event{Key: b})
+		}
 		return
-	case b == ' ' || b == '\t':
-		if p.wordCompletion && p.wordLen >= 2 {
+	}
+	if b == ' ' || b == '\t' {
+		// An explicitly mapped whitespace key plays its action. Word completion
+		// stays the default for unmapped space and tab, and never emits twice.
+		if action != ActionSilent {
+			emit(Event{Key: b})
+		} else if p.wordCompletion && p.wordLen >= 2 {
 			emit(Event{Key: b, Word: true})
 		}
 		p.wordLen = 0
 		return
-	case b == '{' || b == '}' || b == ';' || b == '\r' || b == '\n':
-		p.wordLen = 0
+	}
+	if action != ActionSilent {
 		emit(Event{Key: b})
-		return
 	}
 	p.wordLen = 0
 }

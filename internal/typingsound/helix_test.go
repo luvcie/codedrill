@@ -61,6 +61,101 @@ func TestMergeAutoPairsHandlesDottedKey(t *testing.T) {
 	}
 }
 
+func TestMergeAutoPairsHandlesQuotedKeysAndTables(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+		old    string
+	}{
+		{
+			name:   "quoted table and key",
+			source: "[\"editor\"]\n\"auto-pairs\" = true # keep this comment\nline-number = \"relative\"\n",
+			want:   "auto-pairs = false # keep this comment",
+			old:    "auto-pairs\" = true",
+		},
+		{
+			name:   "literal table and key",
+			source: "[ 'editor' ]\n'auto-pairs' = true\n",
+			want:   "auto-pairs = false",
+			old:    "'auto-pairs' = true",
+		},
+		{
+			name:   "quoted dotted key",
+			source: "\"editor\".\"auto-pairs\" = true\ntheme = \"dark\"\n",
+			want:   "editor.auto-pairs = false",
+			old:    "auto-pairs\" = true",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mergeAutoPairs(tc.source)
+			if strings.Contains(got, tc.old) {
+				t.Fatalf("old key remains:\n%s", got)
+			}
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("missing %q:\n%s", tc.want, got)
+			}
+			if strings.Count(got, "auto-pairs") != 1 {
+				t.Fatalf("created a duplicate key:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestMergeAutoPairsInsertsUnderQuotedEditorAndIgnoresOtherTables(t *testing.T) {
+	source := "[\"editor\"]\nline-number = \"relative\"\n\n[keys.normal]\neditor.auto-pairs = true\n"
+	got := mergeAutoPairs(source)
+	if !strings.Contains(got, "[\"editor\"]\nauto-pairs = false\nline-number = \"relative\"") {
+		t.Fatalf("did not insert under the existing editor table:\n%s", got)
+	}
+	if strings.Count(got, "auto-pairs") != 2 {
+		t.Fatalf("changed the key inside keys.normal or created another table:\n%s", got)
+	}
+}
+
+func TestMergeAutoPairsEditsInlineEditorTable(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			name:   "existing key",
+			source: "theme = \"dark\"\neditor = { line-number = \"relative\", \"auto-pairs\" = true } # keep\n",
+			want:   "editor = { line-number = \"relative\", \"auto-pairs\" = false } # keep",
+		},
+		{
+			name:   "missing key",
+			source: "editor = { line-number = \"relative\" }\n",
+			want:   "editor = { line-number = \"relative\", auto-pairs = false }",
+		},
+		{
+			name:   "empty table",
+			source: "editor = {}\n",
+			want:   "editor = { auto-pairs = false }",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mergeAutoPairs(tc.source)
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("missing %q:\n%s", tc.want, got)
+			}
+			if strings.Contains(got, "[editor]") || strings.Count(got, "auto-pairs") != 1 {
+				t.Fatalf("inline table became a duplicate table or key:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestMergeAutoPairsDoesNotMatchCommentedTable(t *testing.T) {
+	got := mergeAutoPairs("# [editor]\ntheme = \"dark\"\n")
+	if !strings.Contains(got, "\n\n[editor]\nauto-pairs = false") {
+		t.Fatalf("commented table changed insertion:\n%s", got)
+	}
+}
+
 func TestHelixArgsWritesSessionConfigAndCleansUp(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)

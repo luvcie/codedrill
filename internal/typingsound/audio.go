@@ -23,6 +23,14 @@ const sampleRate = 48000
 const (
 	maxDecodedSeconds = 600
 	maxDecodedSamples = maxDecodedSeconds * sampleRate
+	maxComboClips     = 16
+
+	// The clip caps stop a malformed or unusually long pack from copying
+	// hundreds of megabytes of decoded audio.
+	maxClipSeconds      = 10
+	maxClipSamples      = maxClipSeconds * sampleRate
+	maxTotalClipSeconds = 120
+	maxTotalClipSamples = maxTotalClipSeconds * sampleRate
 )
 
 func decodedSampleLimit(rate int) int {
@@ -31,6 +39,30 @@ func decodedSampleLimit(rate int) int {
 
 func capDecodedLength(length int) int {
 	return min(length, maxDecodedSamples)
+}
+
+// soundsWithinLimits reports whether a sound set fits the playback limits.
+func soundsWithinLimits(sounds Sounds) bool {
+	if len(sounds.Combos) > maxComboClips {
+		return false
+	}
+	total := 0
+	add := func(clip Clip) bool {
+		if len(clip) > maxClipSamples {
+			return false
+		}
+		total += len(clip)
+		return total <= maxTotalClipSamples
+	}
+	if !add(sounds.Lock) || !add(sounds.Quad) {
+		return false
+	}
+	for _, clip := range sounds.Combos {
+		if !add(clip) {
+			return false
+		}
+	}
+	return true
 }
 
 // decodeAudio turns an Ogg Vorbis, MP3 or WAV recording into mono samples at
@@ -178,13 +210,17 @@ func decodeWAV(data []byte) (Clip, int, error) {
 	if usable == 0 {
 		return nil, 0, errors.New("wav has no audio data")
 	}
-	out := make(Clip, 0, usable/channels)
+	limit := decodedSampleLimit(rate)
+	out := make(Clip, 0, min(usable/channels, limit))
 	for i := 0; i < usable; i += channels {
 		var sum int32
 		for c := 0; c < channels; c++ {
 			sum += int32(samples[i+c])
 		}
 		out = append(out, int16(sum/int32(channels)))
+		if len(out) >= limit {
+			break
+		}
 	}
 	return out, rate, nil
 }

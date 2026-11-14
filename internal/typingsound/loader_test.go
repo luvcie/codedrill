@@ -1,6 +1,7 @@
 package typingsound
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -39,9 +40,14 @@ func makeWAV(samples []int16, rate int) []byte {
 // segments, one for each atlas entry.
 func makeExport(t *testing.T) []byte {
 	t.Helper()
+	return makeExportSamples(t, []int16{1000, 2000, 3000, 4000})
+}
+
+func makeExportSamples(t *testing.T, values []int16) []byte {
+	t.Helper()
 	rate := 8000
 	var samples []int16
-	for _, value := range []int16{1000, 2000, 3000, 4000} {
+	for _, value := range values {
 		for range rate / 10 {
 			samples = append(samples, value)
 		}
@@ -167,6 +173,94 @@ func TestLoadSoundsRejectsBadDownloads(t *testing.T) {
 	defer server3.Close()
 	if _, err := loadSounds(PackInfo{ID: "sfx-empty", Name: "empty", URL: server3.URL}); err == nil {
 		t.Fatal("accepted a pack without gameplay sounds")
+	}
+}
+
+func TestLoadSoundsInvalidatesCacheForEqualSizeExport(t *testing.T) {
+	export := makeExport(t)
+	changed := makeExportSamples(t, []int16{9000, 2000, 3000, 4000})
+	if len(export) != len(changed) {
+		t.Fatalf("test exports differ in size: %d and %d", len(export), len(changed))
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(export)
+	}))
+	defer server.Close()
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	info := PackInfo{ID: "sfx-equal-size", Name: "Equal size", URL: server.URL}
+
+	first, err := loadSounds(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(mustCache(t), info.ID+".tpse")
+	if err := os.WriteFile(path, changed, 0644); err != nil {
+		t.Fatal(err)
+	}
+	second, err := loadSounds(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Lock[0] == second.Lock[0] {
+		t.Fatalf("same-size export reused stale audio: %d", second.Lock[0])
+	}
+	if second.Lock[0] != 9000 {
+		t.Fatalf("decoded lock starts at %d, want 9000", second.Lock[0])
+	}
+}
+
+func TestReadClipCacheRejectsMalformedLengths(t *testing.T) {
+	hash := sha256.Sum256([]byte("source"))
+	cacheHeader := func(magic string, digest [sha256.Size]byte, count uint16, lengths ...uint32) []byte {
+		out := append([]byte(magic), 1, 0, 0, 0, 0, 0, 0, 0)
+		out = append(out, digest[:]...)
+		out = binary.LittleEndian.AppendUint16(out, count)
+		for _, length := range lengths {
+			out = binary.LittleEndian.AppendUint32(out, length)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name string
+		data []byte
+	}{
+		{"length over the effect limit", cacheHeader(clipCacheMagic, hash, 2, maxClipSamples+1, 0)},
+		{"uint32 length overflow", cacheHeader(clipCacheMagic, hash, 2, ^uint32(0), 0)},
+		{"too many clips", cacheHeader(clipCacheMagic, hash, maxClipCount+1, 0, 0)},
+		{"old cache version", cacheHeader("CDTS1", hash, 2, 0, 0)},
+		{"wrong source hash", cacheHeader(clipCacheMagic, sha256.Sum256([]byte("other")), 2, 0, 0)},
+		{"no sounds", cacheHeader(clipCacheMagic, hash, 2, 0, 0)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "pack.tpse")
+			if err := os.WriteFile(clipCachePath(path), tc.data, 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := readClipCache(path, 1, hash); ok {
+				t.Fatal("accepted a malformed clip cache")
+			}
+		})
+	}
+}
+
+func TestReadClipCacheRejectsOversizedFileBeforeReading(t *testing.T) {
+	hash := sha256.Sum256([]byte("source"))
+	path := filepath.Join(t.TempDir(), "pack.tpse")
+	cachePath := clipCachePath(path)
+	if err := os.WriteFile(cachePath, nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(cachePath, int64(maxClipCacheBytes)+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := readClipCache(path, 1, hash); ok {
+		t.Fatal("accepted a cache file over the size limit")
+	}
+}
+
+func TestNewPackPlayerRejectsOversizedClips(t *testing.T) {
+	if _, err := NewPackPlayer(Sounds{Lock: make(Clip, maxClipSamples+1)}, 0.7, DefaultMapping()); err == nil {
+		t.Fatal("accepted a clip over the playback limit")
 	}
 }
 

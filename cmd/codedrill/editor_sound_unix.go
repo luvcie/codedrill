@@ -100,17 +100,17 @@ func runSoundEditor(args []string) error {
 	cmd := exec.Command(args[0], args[1:]...)
 
 	wordSounds := cfg.TypingWordSoundsOn()
+	mapping, mapErr := typingsound.ParseMapping(cfg.TypingKeySettings())
+	if mapErr != nil {
+		mapping = typingsound.DefaultMapping()
+	}
 	sink := &typingSink{}
 	go func() {
 		var keyer typingKeyer
 		var err error
 		if prototype {
-			keyer, err = typingsound.NewPrototype(cfg.TypingVolume())
+			keyer, err = typingsound.NewPrototypeWithMapping(cfg.TypingVolume(), mapping)
 		} else {
-			mapping, mapErr := typingsound.ParseMapping(cfg.TypingKeySettings())
-			if mapErr != nil {
-				mapping = typingsound.DefaultMapping()
-			}
 			keyer, err = typingsound.LoadPack(pack, cfg.TypingVolume(), mapping)
 		}
 		if err == nil && keyer != nil {
@@ -118,7 +118,7 @@ func runSoundEditor(args []string) error {
 		}
 	}()
 
-	err := typingsound.RunEditor(cmd, wordSounds, sink.key)
+	err := typingsound.RunEditorWithMapping(cmd, wordSounds, mapping, sink.key)
 	sink.close()
 	if err != nil && cmd.Process == nil {
 		cmd = exec.Command(args[0], args[1:]...)

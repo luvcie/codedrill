@@ -84,8 +84,8 @@ func parseKeys(spec string) ([]byte, error) {
 		case "space":
 			keys = append(keys, ' ')
 		default:
-			if len([]rune(token)) != 1 {
-				return nil, fmt.Errorf("key %q must be one character or enter/tab/space", token)
+			if len(token) != 1 {
+				return nil, fmt.Errorf("key %q must be one ASCII character or enter/tab/space", token)
 			}
 			keys = append(keys, token[0])
 		}

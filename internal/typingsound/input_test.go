@@ -15,7 +15,7 @@ func emittedKeys(events []Event) []byte {
 }
 
 func TestInputFiltersTerminalSequencesAndPasteAcrossReads(t *testing.T) {
-	var input Input
+	input := NewInput(false)
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	for _, chunk := range []string{
@@ -31,7 +31,7 @@ func TestInputFiltersTerminalSequencesAndPasteAcrossReads(t *testing.T) {
 }
 
 func TestEscapeThenKey(t *testing.T) {
-	var input Input
+	input := NewInput(false)
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	now := time.Unix(0, 0)
@@ -90,6 +90,32 @@ func TestWordCompletionIgnoresPasteAndEscapeSequences(t *testing.T) {
 	input.Observe([]byte("\x1b[A "), emit)
 	if len(got) != 0 {
 		t.Fatalf("got %+v, want no word sounds for paste or navigation", got)
+	}
+}
+
+func TestInputUsesConfiguredMapping(t *testing.T) {
+	mapping, err := ParseMapping(":", "!", "?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewInputWithMapping(false, mapping)
+	var got []Event
+	input.Observe([]byte("a:b!c?d{;}\r"), func(event Event) { got = append(got, event) })
+	if want := []Event{{Key: ':'}, {Key: '!'}, {Key: '?'}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestMappedWhitespaceDoesNotDuplicateWordCompletion(t *testing.T) {
+	mapping, err := ParseMapping("", "space", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := NewInputWithMapping(true, mapping)
+	var got []Event
+	input.Observe([]byte("word "), func(event Event) { got = append(got, event) })
+	if want := []Event{{Key: ' '}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want one mapped space event", got)
 	}
 }
 

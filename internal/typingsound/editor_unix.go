@@ -16,9 +16,15 @@ import (
 	"golang.org/x/term"
 )
 
-// RunEditor connects an editor to a PTY and observes its input. emit must not
-// block; input bytes are sent to the editor before they are observed.
+// RunEditor connects an editor to a PTY and observes its input with the default
+// key mapping. emit must not block; input bytes are sent to the editor before
+// they are observed.
 func RunEditor(cmd *exec.Cmd, wordCompletion bool, emit func(Event)) error {
+	return RunEditorWithMapping(cmd, wordCompletion, DefaultMapping(), emit)
+}
+
+// RunEditorWithMapping is RunEditor with configured trigger keys.
+func RunEditorWithMapping(cmd *exec.Cmd, wordCompletion bool, mapping Mapping, emit func(Event)) error {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		return fmt.Errorf("editor input is not a terminal")
@@ -61,7 +67,7 @@ func RunEditor(cmd *exec.Cmd, wordCompletion bool, emit func(Event)) error {
 	inputDone := make(chan struct{})
 	go func() {
 		defer close(inputDone)
-		input := NewInput(wordCompletion)
+		input := NewInputWithMapping(wordCompletion, mapping)
 		buf := make([]byte, 4096)
 		for {
 			select {

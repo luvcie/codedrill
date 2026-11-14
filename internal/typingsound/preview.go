@@ -5,6 +5,21 @@ import (
 	"time"
 )
 
+const (
+	previewGap     = 220 * time.Millisecond
+	maxPreviewWait = 5 * time.Second
+)
+
+// previewWait is how long to keep the stream open after the last preview
+// trigger. It uses the longest clip that is still playing, capped so a long
+// clip cannot hold the settings preview open indefinitely.
+func previewWait(end, now time.Time) time.Duration {
+	if !end.After(now) {
+		return 0
+	}
+	return min(end.Sub(now), maxPreviewWait)
+}
+
 // PreviewPack loads a pack and plays its lock, first combo and quad sounds.
 // It blocks while the clips play, so callers should run it off the UI thread.
 func PreviewPack(id string, volume float64) error {
@@ -31,11 +46,21 @@ func PreviewPack(id string, volume float64) error {
 		}
 		defer player.Close()
 	}
-	player.PreviewKey(ActionLock)
-	time.Sleep(220 * time.Millisecond)
-	player.PreviewKey(ActionCombo)
-	time.Sleep(220 * time.Millisecond)
-	player.PreviewKey(ActionQuad)
-	time.Sleep(650 * time.Millisecond)
+	var end time.Time
+	play := func(action Action) {
+		player.PreviewKey(action)
+		if length := player.PreviewDuration(action); length > 0 {
+			until := time.Now().Add(length)
+			if until.After(end) {
+				end = until
+			}
+		}
+	}
+	play(ActionLock)
+	time.Sleep(previewGap)
+	play(ActionCombo)
+	time.Sleep(previewGap)
+	play(ActionQuad)
+	time.Sleep(previewWait(end, time.Now()))
 	return nil
 }
