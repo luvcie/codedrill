@@ -16,6 +16,7 @@ import (
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
+	"github.com/luvcie/codedrill/internal/typingsound"
 )
 
 type Session struct {
@@ -42,10 +43,15 @@ const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
 	"`\"\"-=,)===,)=\"''''''\n" +
 	"   '''  '''"
 
+// editorShimDir is the workspace directory the pane shells put on PATH. Its
+// editor shim keeps later editor launches on the typing-sound wrapper after the
+// first editor exits.
+const editorShimDir = ".codedrill-editor"
+
 var helperFiles = []string{
 	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
-	".sprint_start", ".starter_code",
+	".sprint_start", ".starter_code", editorShimDir,
 }
 
 const defaultLogoRGB = "127;160;90"
@@ -284,7 +290,6 @@ END=$(date +%s%N 2>/dev/null)
 ELAPSED=""
 case "$START" in *N*) ;; *) ELAPSED=" ($(( (END - START) / 1000000 ))ms)" ;; esac
 if [ $STATUS -eq 0 ]; then
-  [ "$SOUND" = 1 ] && printf '\a'
   echo -e "\033[1;32mPASS${ELAPSED}\033[0m  s to submit"
 else
   echo -e "\033[1;31mFAIL (exit $STATUS)\033[0m  i for the problem"
@@ -436,8 +441,9 @@ esac
 `
 
 // executablePath is the codedrill binary the helpers call. It falls back to
-// PATH when the running executable cannot be named.
-func executablePath() string {
+// PATH when the running executable cannot be named. It is a variable so tests
+// can point generated helpers at a stub.
+var executablePath = func() string {
 	exe, err := os.Executable()
 	if err != nil || exe == "" {
 		return "codedrill"
@@ -464,15 +470,25 @@ if ! command -v "${EDITOR_CMD%% *}" >/dev/null 2>&1; then
   echo "Set one with: codedrill config editor <name>, or export CODEDRILL_EDITOR."
   exec_shell
 fi
-$EDITOR_CMD "$ENTRY"
+if [ "$TYPING_SOUNDS" = 1 ]; then
+  "$CODEDRILL" __typing-sound-editor $EDITOR_CMD "$ENTRY"
+else
+  $EDITOR_CMD "$ENTRY"
+fi
 if [ "$AUTO_SUBMIT" = 1 ]; then
   exec ./submit
 fi
 echo -e "\033[1;33mEditor closed.\033[0m Reopen it with: $EDITOR_CMD $ENTRY"
+if [ "$TYPING_SOUNDS" = 1 ]; then
+  export PATH="$PWD/.codedrill-editor:$PATH"
+fi
 exec_shell
 `
 
 const terminalBody = `export PATH=".:$PATH"
+if [ -d .codedrill-editor ]; then
+  export PATH="$PWD/.codedrill-editor:$PATH"
+fi
 exec_shell() {
   if command -v "$SHELL_CMD" >/dev/null 2>&1; then
     exec "$SHELL_CMD"
@@ -513,10 +529,6 @@ func (s *Session) writeHelpers() error {
 	studentFiles := shellArray("STUDENT_FILES", required) + shellArray("OPTIONAL_STUDENT_FILES", optional)
 	sMax, aMax, bMax := drill.PaceTargets(d.Difficulty)
 
-	sound := "0"
-	if cfg, _ := storage.LoadConfig(); cfg.IsSoundEnabled() {
-		sound = "1"
-	}
 	title := d.Title
 	if title == "" {
 		title = d.ID
@@ -541,15 +553,16 @@ func (s *Session) writeHelpers() error {
 		logo = defaultLogoRGB
 	}
 
+	typingSounds := typingSoundsFlag()
 	files := []helperFile{
 		{".sprint_start", []byte(strconv.FormatInt(s.StartTime.UnixMilli(), 10)), 0644},
 		{".starter_code", nil, 0644},
 		{"pace", script(paceBody, "S_MS", ms(sMax), "A_MS", ms(aMax), "B_MS", ms(bMax), "PB_MS", ms(s.pb)), 0755},
-		{"run", script(runBody, "TEST_CMD", s.resolveRunCommand(), "SOUND", sound), 0755},
+		{"run", script(runBody, "TEST_CMD", s.resolveRunCommand()), 0755},
 		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
-		{"start-editor.sh", script(editorBody, "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell), 0755},
+		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
@@ -591,6 +604,11 @@ func (s *Session) writeHelpers() error {
 			return err
 		}
 	}
+	if typingSounds == "1" {
+		if err := s.writeEditorShim(editor, executablePath()); err != nil {
+			return err
+		}
+	}
 	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match"} {
 		if err := os.Symlink(long, filepath.Join(ws, short)); err != nil {
 			if err := os.WriteFile(filepath.Join(ws, short), []byte(bashShebang()+"exec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
@@ -599,6 +617,43 @@ func (s *Session) writeHelpers() error {
 		}
 	}
 	return nil
+}
+
+// writeEditorShim creates a shim named after the editor command. The pane
+// shells put this directory on PATH, so a later "hx other.cpp" typed after the
+// editor exits still runs through __typing-sound-editor. The shell itself is
+// not observed, so its own keystrokes stay silent.
+func (s *Session) writeEditorShim(editor, codedrill string) error {
+	fields := strings.Fields(editor)
+	if len(fields) == 0 {
+		return nil
+	}
+	editorPath, err := exec.LookPath(fields[0])
+	if err != nil {
+		return nil
+	}
+	name := filepath.Base(editorPath)
+	for _, helper := range helperFiles {
+		if name == "" || name == "." || name == ".." || name == "codedrill" || name == helper {
+			return nil
+		}
+	}
+	dir := filepath.Join(s.Workspace, editorShimDir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	var b strings.Builder
+	b.WriteString(bashShebang())
+	b.WriteString("exec ")
+	b.WriteString(shellQuote(codedrill))
+	b.WriteString(" __typing-sound-editor ")
+	b.WriteString(shellQuote(editorPath))
+	for _, arg := range fields[1:] {
+		b.WriteString(" ")
+		b.WriteString(shellQuote(arg))
+	}
+	b.WriteString(` "$@"` + "\n")
+	return os.WriteFile(filepath.Join(dir, name), []byte(b.String()), 0755)
 }
 
 func (s *Session) Cleanup() {
@@ -647,6 +702,27 @@ func DetectEditor() string {
 	return "vim"
 }
 
+// typingSoundsFlag says whether the editor session should run through the
+// typing-sound wrapper. The prototype environment variable wins, so the
+// diagnostic mode keeps working when the saved pack is silent.
+func typingSoundsFlag() string {
+	if os.Getenv("CODEDRILL_TYPING_SOUNDS") == "prototype" {
+		return "1"
+	}
+	cfg, _ := storage.LoadConfig()
+	if !cfg.TypingSoundsOn() {
+		return "0"
+	}
+	pack := cfg.TypingPackID()
+	if pack == typingsound.PrototypePackID {
+		return "1"
+	}
+	if _, ok := typingsound.FindPack(pack); ok {
+		return "1"
+	}
+	return "0"
+}
+
 func (s *Session) GetSprintCmd() *exec.Cmd {
 	if _, err := exec.LookPath("zellij"); err == nil {
 		layoutPath := filepath.Join(s.Workspace, "layout.kdl")
@@ -656,6 +732,11 @@ func (s *Session) GetSprintCmd() *exec.Cmd {
 	}
 
 	args := strings.Fields(DetectEditor())
+	if typingSoundsFlag() == "1" {
+		cmd := exec.Command(executablePath(), append([]string{"__typing-sound-editor"}, append(args, filepath.Join(s.Workspace, s.EntryFile))...)...)
+		cmd.Dir = s.Workspace
+		return cmd
+	}
 	cmd := exec.Command(args[0], append(args[1:], filepath.Join(s.Workspace, s.EntryFile))...)
 	cmd.Dir = s.Workspace
 	return cmd

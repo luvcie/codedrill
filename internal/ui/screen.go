@@ -53,7 +53,9 @@ func (m *MainModel) screenKeys() string {
 	case StateStats:
 		return "[Esc/q/Enter] menu"
 	case StateSettings:
-		return "[↑/↓ j/k] move  [Enter] select  [Esc/q] back"
+		return "[Tab] tabs  [↑/↓] move  [Enter] select  [Esc/q] back"
+	case StateTypingSounds:
+		return "[Tab] tabs  [↑/↓] move  [Enter] select  [←/→] volume\n[p] preview  [Esc/q] back"
 	}
 	return ""
 }

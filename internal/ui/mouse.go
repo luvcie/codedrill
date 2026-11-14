@@ -70,6 +70,8 @@ func (m *MainModel) updateMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.updateMenuMouse(msg)
 	case StateSettings:
 		return m.updateSettingsMouse(msg)
+	case StateTypingSounds:
+		return m.updateTypingSoundsMouse(msg)
 	case StateBriefing:
 		return m.updateBriefingMouse(msg)
 	}
@@ -140,12 +142,12 @@ func (m *MainModel) dismissNotice() {
 	}
 }
 
-// updateSettingsMouse handles the wheel and clicks on the settings screen. The
-// wheel moves the cursor a row, and the preview follows it. A click on the
-// mouse row toggles mouse support, as Enter does there. A click on the shell
-// row selects it, and a second click cycles it. A click on another theme row
-// moves the cursor there. A click on the cursor theme row saves the theme, as
-// Enter does.
+// updateSettingsMouse handles the wheel, tabs and clicks on the settings
+// screen. A click on a tab switches to it. The wheel moves the cursor a row,
+// and the preview follows it. A click on the mouse row toggles mouse support,
+// as Enter does there. A click on the shell row selects it, and a second click
+// cycles it. A click on another theme row moves the cursor there. A click on
+// the cursor theme row saves the theme, as Enter does.
 func (m *MainModel) updateSettingsMouse(msg tea.MouseMsg) tea.Cmd {
 	if m.reset != nil && m.reset.running {
 		return nil
@@ -156,6 +158,14 @@ func (m *MainModel) updateSettingsMouse(msg tea.MouseMsg) tea.Cmd {
 	case tea.MouseButtonWheelDown:
 		m.stepSettings(1)
 	case tea.MouseButtonLeft:
+		if tab, ok := m.settingsTabAt(msg.X, msg.Y); ok {
+			if tab == settingsTabTyping {
+				m.openTypingSounds()
+			} else {
+				m.state = StateSettings
+			}
+			return nil
+		}
 		i, ok := m.settingsRowAt(msg.X, msg.Y)
 		switch {
 		case !ok:
@@ -265,7 +275,7 @@ func (m *MainModel) settingsRowAt(x, y int) (int, bool) {
 		return 0, false
 	}
 	fit := m.settingsFit(w, h)
-	top := lipgloss.Height(m.screenHeader("settings"))
+	top := lipgloss.Height(m.settingsHeaderBlock(w))
 	if fit.parts.top {
 		top++
 	}

@@ -11,12 +11,61 @@ import (
 )
 
 type Config struct {
-	Editor    string `json:"editor"`
-	Sound     *bool  `json:"sound,omitempty"`
-	Countdown *int   `json:"countdown,omitempty"`
-	Theme     string `json:"theme,omitempty"`
-	Mouse     *bool  `json:"mouse,omitempty"`
-	Shell     string `json:"shell,omitempty"`
+	Editor    string          `json:"editor"`
+	Sound     *bool           `json:"sound,omitempty"`
+	Countdown *int            `json:"countdown,omitempty"`
+	Theme     string          `json:"theme,omitempty"`
+	Mouse     *bool           `json:"mouse,omitempty"`
+	Shell     string          `json:"shell,omitempty"`
+	Typing    *TypingSettings `json:"typing,omitempty"`
+}
+
+// TypingSettings holds the optional editor typing sounds. They are separate
+// from Sound, which controls the countdown and result cues.
+type TypingSettings struct {
+	Enabled        *bool  `json:"enabled,omitempty"`
+	Pack           string `json:"pack,omitempty"`
+	Volume         *int   `json:"volume,omitempty"`
+	WordCompletion *bool  `json:"wordCompletion,omitempty"`
+	LockKeys       string `json:"lockKeys,omitempty"`
+	ComboKeys      string `json:"comboKeys,omitempty"`
+	QuadKeys       string `json:"quadKeys,omitempty"`
+}
+
+// TypingSoundsOn reports whether typing sounds should be prepared. They stay
+// off until the user turns them on.
+func (c Config) TypingSoundsOn() bool {
+	return c.Typing != nil && c.Typing.Enabled != nil && *c.Typing.Enabled
+}
+
+// TypingPackID is the selected pack, or "silent" when none is chosen.
+func (c Config) TypingPackID() string {
+	if c.Typing == nil {
+		return ""
+	}
+	return c.Typing.Pack
+}
+
+// TypingVolume is a 0 to 1 gain, defaulting to 70%.
+func (c Config) TypingVolume() float64 {
+	if c.Typing == nil || c.Typing.Volume == nil {
+		return 0.7
+	}
+	return float64(min(max(*c.Typing.Volume, 0), 100)) / 100
+}
+
+// TypingWordSoundsOn reports whether a space or tab that finishes a word
+// plays a piece-lock sound. It is off until the user turns it on.
+func (c Config) TypingWordSoundsOn() bool {
+	return c.Typing != nil && c.Typing.WordCompletion != nil && *c.Typing.WordCompletion
+}
+
+// TypingKeySettings returns the configured key lists for the three actions.
+func (c Config) TypingKeySettings() (lock, combo, quad string) {
+	if c.Typing == nil {
+		return "", "", ""
+	}
+	return c.Typing.LockKeys, c.Typing.ComboKeys, c.Typing.QuadKeys
 }
 
 func (c Config) IsSoundEnabled() bool {

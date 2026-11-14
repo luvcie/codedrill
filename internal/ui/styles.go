@@ -10,17 +10,17 @@ import (
 )
 
 var (
-	ColorSecondary lipgloss.Color
-	ColorSuccess   lipgloss.Color
-	ColorDanger    lipgloss.Color
-	ColorMuted     lipgloss.Color
-	ColorBorder    lipgloss.Color
-	ColorBg        lipgloss.Color
-	ColorText      lipgloss.Color
+	ColorSecondary    lipgloss.Color
+	ColorSuccess      lipgloss.Color
+	ColorDanger       lipgloss.Color
+	ColorMuted        lipgloss.Color
+	ColorBorder       lipgloss.Color
+	ColorBg           lipgloss.Color
+	ColorText         lipgloss.Color
 	ColorDescSelected lipgloss.Color
-	ColorListTitle lipgloss.Color
-	ColorListDesc  lipgloss.Color
-	ColorCroc      lipgloss.Color
+	ColorListTitle    lipgloss.Color
+	ColorListDesc     lipgloss.Color
+	ColorCroc         lipgloss.Color
 
 	AccentStyle  lipgloss.Style
 	SuccessStyle lipgloss.Style

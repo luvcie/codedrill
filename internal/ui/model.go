@@ -31,6 +31,7 @@ const (
 	StateResults
 	StateSetupError
 	StateSettings
+	StateTypingSounds
 )
 
 type countdownTickMsg struct{ id uint64 }
@@ -123,6 +124,15 @@ type MainModel struct {
 	settingsErr          error
 	settingsThemesClosed bool
 	reset                *factoryResetFlow
+
+	typingCursor  int
+	typingChoices []typingChoice
+	typingOn      bool
+	typingWords   bool
+	typingVolume  int
+	typingPack    string
+	typingNotice  string
+	typingErr     error
 
 	mouseOff bool
 	shell    string
@@ -327,6 +337,13 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case factoryResetFinishedMsg:
 		return m, m.finishFactoryReset(msg)
+	case typingPreviewMsg:
+		if msg.err != nil {
+			m.typingNotice = "Preview unavailable: " + msg.err.Error()
+		} else if msg.name != "" {
+			m.typingNotice = "Previewed " + msg.name + "."
+		}
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.cancelPress()
 		m.width, m.height = msg.Width, msg.Height
@@ -389,6 +406,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateResults(key)
 	case StateSettings:
 		return m, m.updateSettings(key)
+	case StateTypingSounds:
+		return m, m.updateTypingSounds(key)
 	}
 	return m, nil
 }

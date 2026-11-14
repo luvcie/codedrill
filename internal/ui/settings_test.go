@@ -71,6 +71,21 @@ func TestSettingsMarksSavedTheme(t *testing.T) {
 	}
 }
 
+func TestSettingsActiveTabUsesThemeAccent(t *testing.T) {
+	forceTrueColor(t)
+	restoreDefaultTheme(t)
+	m := newMenuTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(runeKey("o"))
+	if view := m.viewSettings(); !strings.Contains(view, bg(CurrentTheme().Accent)) {
+		t.Error("the General tab is not highlighted with the theme accent")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if view := m.viewTypingSounds(); !strings.Contains(view, bg(CurrentTheme().Accent)) {
+		t.Error("the Typing Sounds tab is not highlighted with the theme accent")
+	}
+}
+
 func TestSettingsListsLegacyThenCyanWithLegacyCurrent(t *testing.T) {
 	restoreDefaultTheme(t)
 	m := newMenuTestModel(t)

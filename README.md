@@ -6,7 +6,7 @@ codedrill is a terminal app for timed coding practice. Pick a drill, solve it in
 
 ## Install
 
-You need bash, an editor, and the tools required by your drills, such as a C compiler or Python. [Zellij](https://zellij.dev/) is optional. With Zellij, codedrill opens the editor beside a terminal with sprint commands.
+You need bash, an editor, and the tools your drills use, such as a C compiler or Python. [Zellij](https://zellij.dev/) is optional; with it, codedrill opens the editor beside a terminal with sprint commands. Typing sounds are optional and need a PulseAudio-compatible server such as PipeWire.
 
 With Nix and flakes enabled:
 
@@ -85,4 +85,26 @@ Run `codedrill new` to create a drill, or `codedrill import drill.json` to impor
 
 ## Configuration
 
-Run `codedrill config` to see the current settings and paths. Use `codedrill config` subcommands to set the editor, theme, sound, mouse support, countdown, and Zellij pane shell. The settings screen also controls theme, mouse support, and shell. See [configuration](docs/configuration.md) for defaults and editor selection.
+Run `codedrill config` to see the current settings and paths. You can change the editor, theme, sound, mouse support, countdown, pane shell, and typing sounds from the command line or the settings screen. See [configuration](docs/configuration.md) for defaults and editor selection.
+
+### Typing sounds
+
+Typing sounds are off by default and available on Unix-like systems. Open Settings with `o`, select `[ Typing Sounds ]`, choose a pack, and press Enter. The pack is downloaded on first use, previewed, and saved. Volume is adjusted with Left/Right, and the first row turns sounds on. Silent and Generated tones are included.
+
+Word completion sounds are off by default. When enabled, a Space or Tab after a word of at least two letters plays the piece-lock sound. `{` and Enter play the piece lock, `}` plays the quad, and `;` moves to the next combo sound. The combo resets after 20 seconds without a semicolon.
+
+The same settings are available from the command line:
+
+```
+codedrill config typing-pack sfx-Starcat_JP-8Bit_Puzzler
+codedrill config typing-volume 70
+codedrill config typing on
+codedrill config typing-words on
+codedrill config typing-keys '{,enter' ';' '}'
+```
+
+Packs come from their original hosts and are never bundled. The `.tpse` file and decoded clips are cached under `<cache dir>/codedrill/typing-sounds`. The first uncached download can take a few seconds; the editor opens immediately and sounds start when loading finishes. If the audio server or pack is unavailable, the editor runs without sounds. Bracketed paste is silent, and terminals that send paste as ordinary keys cannot be distinguished from typing. `CODEDRILL_TYPING_SOUNDS=prototype` forces the generated tones for one session.
+
+After the editor closes, the Zellij pane shells keep the configured editor command routed through Codedrill's wrapper. `hx vect2.hpp` then keeps the sounds; an absolute editor path or shell alias bypasses the wrapper.
+
+With sounds on, Helix gets a temporary config with `editor.auto-pairs = false`. Your config and Helix outside Codedrill are unchanged; an explicit `-c`/`--config` is left alone. A project `.helix/config.toml` can re-enable auto-pairs.

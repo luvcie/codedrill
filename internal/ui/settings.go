@@ -16,6 +16,111 @@ const settingsSideWidth = 70
 
 const settingsPreviewHeight = 8
 
+const (
+	settingsTabGeneral = iota
+	settingsTabTyping
+)
+
+var (
+	settingsTabNames    = [2]string{"[ General ]", "[ Typing Sounds ]"}
+	settingsTabCompact  = [2]string{"[General]", "[Sounds]"}
+	settingsTabDividerW = 60
+)
+
+// settingsTab reports the visible tab from the current screen state.
+func (m *MainModel) settingsTab() int {
+	if m.state == StateTypingSounds {
+		return settingsTabTyping
+	}
+	return settingsTabGeneral
+}
+
+// settingsTabLabels returns the tab labels for the current width. Narrow
+// terminals use compact labels so both tabs stay on screen.
+func (m *MainModel) settingsTabLabels() [2]string {
+	w, _ := m.screenSize()
+	if w < 40 {
+		return settingsTabCompact
+	}
+	return settingsTabNames
+}
+
+// settingsTabBar draws both tabs, highlighting the active one with the theme
+// accent. The styles pad each label, so the bar keeps the same width whichever
+// tab is active.
+func (m *MainModel) settingsTabBar() string {
+	labels := m.settingsTabLabels()
+	general, typing := inactiveTabStyle.Render(labels[0]), inactiveTabStyle.Render(labels[1])
+	if m.settingsTab() == settingsTabTyping {
+		typing = activeTabStyle.Render(labels[1])
+	} else {
+		general = activeTabStyle.Render(labels[0])
+	}
+	return general + " " + typing
+}
+
+// settingsHeaderBlock is the header, tab bar and divider drawn above either
+// tab. Short windows keep the wordmark and tabs and give up the divider; very
+// short windows keep only the tabs so they remain visible and the cursor still
+// has a row.
+func (m *MainModel) settingsHeaderBlock(w int) string {
+	_, h := m.screenSize()
+	tabs := "  " + m.settingsTabBar()
+	divider := "  " + lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", max(1, min(w-4, settingsTabDividerW))))
+	var block string
+	switch {
+	case h <= 5:
+		block = tabs
+	case h < 24:
+		// Keep the wordmark and both tabs compact so the body keeps its rows.
+		block = "  " + LogoStyle.Render("codedrill") + "  " + SubtextStyle.Render("settings") + "\n" + tabs
+	default:
+		block = m.screenHeader("settings") + "\n" + tabs + "\n" + divider
+	}
+	return truncateBlock(block, w)
+}
+
+func truncateBlock(block string, w int) string {
+	lines := strings.Split(block, "\n")
+	for i, line := range lines {
+		lines[i] = ansi.Truncate(line, w, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// settingsTabRow is the row of the tab bar in the view.
+func (m *MainModel) settingsTabRow() int {
+	w, _ := m.screenSize()
+	block := m.settingsHeaderBlock(w)
+	for i, line := range strings.Split(block, "\n") {
+		if strings.Contains(ansi.Strip(line), "[") {
+			return i
+		}
+	}
+	return 0
+}
+
+// settingsTabAt returns the tab at cell (x, y), if the cell is on a label.
+func (m *MainModel) settingsTabAt(x, y int) (int, bool) {
+	w, _ := m.screenSize()
+	if x < 0 || x >= w || y != m.settingsTabRow() {
+		return 0, false
+	}
+	bar := ansi.Strip(m.settingsTabBar())
+	labels := m.settingsTabLabels()
+	for tab, label := range labels {
+		at := strings.Index(bar, label)
+		if at < 0 {
+			continue
+		}
+		// The bar is drawn after two columns of indent.
+		if x >= 2+at && x < 2+at+ansi.StringWidth(label) {
+			return tab, true
+		}
+	}
+	return 0, false
+}
+
 // openSettings opens the settings screen from the menu. The Themes section
 // starts folded, with the cursor on its header. The active theme is kept, so
 // Esc can go back to it.
@@ -73,6 +178,10 @@ func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
 			m.reset = nil
 		} else {
 			m.closeSettings()
+		}
+	case "tab", "shift+tab", "t":
+		if m.reset == nil {
+			m.openTypingSounds()
 		}
 	}
 	return nil
@@ -273,15 +382,12 @@ func settingsRows(p settingsParts, h, hh, hp, eh int, side bool, themeRows int, 
 	}
 	if p.err {
 		rest += eh
-		if p.below {
-			rest++
-		}
 	}
 	if p.help {
 		rest += hp
-		if p.below {
-			rest++
-		}
+	}
+	if p.below && (p.err || p.help) {
+		rest++
 	}
 	region := h - rest
 	// Side by side, the preview needs the height of the list and its labels.
@@ -349,7 +455,7 @@ func (m *MainModel) settingsError(w int) string {
 // settingsFit works out the layout of the settings screen in a w x h window.
 // The parts that give way, and the rows left for the list, are decided here.
 func (m *MainModel) settingsFit(w, h int) settingsFit {
-	header := m.screenHeader("settings")
+	header := m.settingsHeaderBlock(w)
 	help := m.renderHelpNow(m.screenHelp(), w)
 	errText := m.settingsError(w)
 
@@ -434,7 +540,7 @@ func settingsWindow(cursor, rows, n int) (start, shown int) {
 // no row left for it. The result is never taller than the window.
 func (m *MainModel) viewSettings() string {
 	w, h := m.screenSize()
-	header := m.screenHeader("settings")
+	header := m.settingsHeaderBlock(w)
 	help := m.renderHelpNow(m.screenHelp(), w)
 	errText := m.settingsError(w)
 
@@ -463,14 +569,16 @@ func (m *MainModel) viewSettings() string {
 		blocks = append(blocks, "")
 	}
 	blocks = append(blocks, body)
+	footer := false
 	if p.err {
 		if p.below {
 			blocks = append(blocks, "")
 		}
 		blocks = append(blocks, errText)
+		footer = true
 	}
 	if p.help {
-		if p.below {
+		if p.below && !footer {
 			blocks = append(blocks, "")
 		}
 		blocks = append(blocks, help)

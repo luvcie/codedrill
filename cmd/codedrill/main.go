@@ -17,6 +17,7 @@ import (
 	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
+	"github.com/luvcie/codedrill/internal/typingsound"
 	"github.com/luvcie/codedrill/internal/ui"
 )
 
@@ -43,7 +44,7 @@ Usage:
   codedrill list [filter]    List all drills, or filter by category, language or difficulty
   codedrill search <query>   Search drills by id, title, language, category, difficulty or description
   codedrill stats            View aggregate sprint statistics & profile
-  codedrill config [opt]     View or set config (e.g. config editor nvim, config shell zsh, config sound off, config countdown 0)
+  codedrill config [opt]     View or set config (e.g. config editor nvim, config shell zsh, config sound off, config countdown 0, config typing-pack <id>)
   codedrill config theme [id] List colour themes, or set one (e.g. config theme gruvbox)
   codedrill reset <id>       Reset stats and Personal Best for a specific drill
   codedrill reset all        Reset all personal bests, attempts, and streaks
@@ -95,6 +96,8 @@ func (c *cli) dispatch(args []string) error {
 	}
 	rest := strings.Join(args[1:], " ")
 	switch args[0] {
+	case "__typing-sound-editor":
+		return runSoundEditor(args[1:])
 	case "list", "ls":
 		return c.list(rest)
 	case "search", "find":
@@ -864,14 +867,119 @@ func (c *cli) config(args []string) error {
 		if n == 0 {
 			msg = "Countdown off; sprints start immediately."
 		}
+	case "typing":
+		if len(args) < 2 {
+			return usage("missing value, e.g. codedrill config typing on")
+		}
+		on, err := onOff(args[1])
+		if err != nil {
+			return usage("typing must be on or off, not %q", args[1])
+		}
+		typing := ensureTyping(&cfg)
+		typing.Enabled = &on
+		if on {
+			msg = fmt.Sprintf("Typing sounds on (%s).", typingsound.PackLabel(cfg.TypingPackID()))
+		} else {
+			msg = "Typing sounds off."
+		}
+	case "typing-pack":
+		if len(args) < 2 {
+			c.printTypingPacks(cfg)
+			return nil
+		}
+		id := strings.TrimSpace(args[1])
+		if id != typingsound.SilentPackID && id != typingsound.PrototypePackID {
+			if _, ok := typingsound.FindPack(id); !ok {
+				return usage("unknown sound pack %q; run 'codedrill config typing-pack' to list packs", id)
+			}
+		}
+		typing := ensureTyping(&cfg)
+		typing.Pack = id
+		msg = fmt.Sprintf("Typing sound pack set to %s.", typingsound.PackLabel(id))
+	case "typing-volume":
+		if len(args) < 2 {
+			return usage("missing value, e.g. codedrill config typing-volume 70")
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 0 || n > 100 {
+			return usage("typing volume must be 0-100, not %q", args[1])
+		}
+		typing := ensureTyping(&cfg)
+		typing.Volume = &n
+		msg = fmt.Sprintf("Typing volume set to %d%%.", n)
+	case "typing-words":
+		if len(args) < 2 {
+			return usage("missing value, e.g. codedrill config typing-words on")
+		}
+		on, err := onOff(args[1])
+		if err != nil {
+			return usage("typing-words must be on or off, not %q", args[1])
+		}
+		typing := ensureTyping(&cfg)
+		typing.WordCompletion = &on
+		if on {
+			msg = "Word completion sounds on."
+		} else {
+			msg = "Word completion sounds off."
+		}
+	case "typing-keys":
+		if len(args) < 4 {
+			return usage("expected lock, combo and quad key lists, e.g. codedrill config typing-keys '{,enter' ';' '}'")
+		}
+		if _, err := typingsound.ParseMapping(args[1], args[2], args[3]); err != nil {
+			return usage("%v", err)
+		}
+		typing := ensureTyping(&cfg)
+		typing.LockKeys, typing.ComboKeys, typing.QuadKeys = args[1], args[2], args[3]
+		msg = "Typing key mapping saved."
 	default:
-		return usage("unknown config option %q; use editor, shell, sound, mouse, countdown or theme", args[0])
+		return usage("unknown config option %q; use editor, shell, sound, mouse, countdown, theme, typing, typing-pack, typing-volume, typing-words or typing-keys", args[0])
 	}
 	if err := storage.SaveConfig(cfg); err != nil {
 		return err
 	}
 	c.println(msg)
 	return nil
+}
+
+// onOff parses the on/off words the config commands share.
+func onOff(value string) (bool, error) {
+	switch strings.ToLower(value) {
+	case "on", "true", "yes", "1", "enable":
+		return true, nil
+	case "off", "false", "no", "0", "disable":
+		return false, nil
+	}
+	return false, errors.New("expected on or off")
+}
+
+func ensureTyping(cfg *storage.Config) *storage.TypingSettings {
+	if cfg.Typing == nil {
+		cfg.Typing = &storage.TypingSettings{}
+	}
+	return cfg.Typing
+}
+
+// printTypingPacks lists the packs the settings screen and config command use.
+func (c *cli) printTypingPacks(cfg storage.Config) {
+	current := cfg.TypingPackID()
+	if current == "" {
+		current = typingsound.SilentPackID
+	}
+	c.println("Typing sound packs:")
+	c.printf("  %s %s\n", mark(current, typingsound.SilentPackID), typingsound.PackLabel(typingsound.SilentPackID))
+	c.printf("  %s %s\n", mark(current, typingsound.PrototypePackID), typingsound.PackLabel(typingsound.PrototypePackID))
+	for _, pack := range typingsound.Catalog {
+		c.printf("  %s %-60s %s\n", mark(current, pack.ID), pack.ID, pack.Name)
+	}
+	c.println("Set with: codedrill config typing-pack <id>")
+}
+
+func mark(current, id string) string {
+	if current == id {
+		return "*"
+	}
+	return " "
 }
 
 func (c *cli) printConfig(cfg storage.Config) error {
@@ -908,6 +1016,15 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	if _, ok := ui.ThemeByID(cfg.Theme); !ok && cfg.Theme != "" {
 		themeText = fmt.Sprintf("%s (unknown, using %s)", cfg.Theme, ui.Themes[0].ID)
 	}
+	typingSound := "off"
+	if cfg.TypingSoundsOn() {
+		typingSound = "on"
+	}
+	typingVolume := int(cfg.TypingVolume()*100 + 0.5)
+	typingWords := "off"
+	if cfg.TypingWordSoundsOn() {
+		typingWords = "on"
+	}
 	const short = "--------------------------------------------------"
 	c.println("Configuration:")
 	c.println(short)
@@ -919,8 +1036,12 @@ func (c *cli) printConfig(cfg storage.Config) error {
 	c.printf("  Countdown:      %s\n", countdown)
 	c.printf("  Mouse:          %s\n", mouse)
 	c.printf("  Theme:          %s\n", themeText)
+	c.printf("  Typing sounds:  %s\n", typingSound)
+	c.printf("  Typing pack:    %s\n", typingsound.PackLabel(cfg.TypingPackID()))
+	c.printf("  Typing volume:  %d%%\n", typingVolume)
+	c.printf("  Typing words:   %s\n", typingWords)
 	c.println(short)
-	c.println("Change with: codedrill config editor <name> | shell <bash|zsh|path> | sound <on|off> | mouse <on|off> | countdown <0-10|off> | theme <id>")
+	c.println("Change with: codedrill config editor <name> | shell <bash|zsh|path> | sound <on|off> | mouse <on|off> | countdown <0-10|off> | theme <id> | typing <on|off> | typing-pack <id> | typing-volume <0-100> | typing-words <on|off>")
 	return nil
 }
 

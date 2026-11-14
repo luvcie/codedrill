@@ -43,6 +43,8 @@ func (m *MainModel) contentView() string {
 		return m.viewResults()
 	case StateSettings:
 		return m.viewSettings()
+	case StateTypingSounds:
+		return m.viewTypingSounds()
 	}
 	return ""
 }

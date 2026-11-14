@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/storage"
+	"github.com/luvcie/codedrill/internal/typingsound"
 )
 
 func TestNewSessionAndWorkspace(t *testing.T) {
@@ -371,6 +373,284 @@ func TestGetSprintCmd(t *testing.T) {
 	} else {
 		if !strings.Contains(cmd.Path, strings.Fields(DetectEditor())[0]) {
 			t.Errorf("expected editor fallback %s, got: %s", DetectEditor(), cmd.Path)
+		}
+	}
+}
+
+func TestTypingSoundEditorFallback(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("CODEDRILL_EDITOR", "editor --flag")
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "prototype")
+	sess, err := NewSession(drill.Drill{ID: "test-sound", EntryFile: "main.c", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+	cmd := sess.GetSprintCmd()
+	if len(cmd.Args) != 5 || cmd.Args[1] != "__typing-sound-editor" || cmd.Args[2] != "editor" || cmd.Args[3] != "--flag" || cmd.Args[4] != filepath.Join(sess.Workspace, "main.c") {
+		t.Fatalf("unexpected editor command: %v", cmd.Args)
+	}
+}
+
+func TestTypingSoundsFromSavedConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "")
+	on := true
+	enabled := storage.Config{Typing: &storage.TypingSettings{Enabled: &on, Pack: "sfx-Starcat_JP-8Bit_Puzzler"}}
+	if err := storage.SaveConfig(enabled); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := NewSession(drill.Drill{ID: "test-sound-config", EntryFile: "main.c", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+	if cmd := sess.GetSprintCmd(); len(cmd.Args) < 2 || cmd.Args[1] != "__typing-sound-editor" {
+		t.Fatalf("saved pack did not use the wrapper: %v", cmd.Args)
+	}
+	if flag := typingSoundsFlag(); flag != "1" {
+		t.Fatalf("typing sounds flag %q, want 1", flag)
+	}
+
+	silent := storage.Config{Typing: &storage.TypingSettings{Enabled: &on, Pack: "silent"}}
+	if err := storage.SaveConfig(silent); err != nil {
+		t.Fatal(err)
+	}
+	if flag := typingSoundsFlag(); flag != "0" {
+		t.Fatalf("silent pack flag %q, want 0", flag)
+	}
+
+	off := false
+	quiet := storage.Config{Typing: &storage.TypingSettings{Enabled: &off, Pack: "sfx-Starcat_JP-8Bit_Puzzler"}}
+	if err := storage.SaveConfig(quiet); err != nil {
+		t.Fatal(err)
+	}
+	if flag := typingSoundsFlag(); flag != "0" {
+		t.Fatalf("disabled flag %q, want 0", flag)
+	}
+
+	prototype := storage.Config{Typing: &storage.TypingSettings{Enabled: &on, Pack: typingsound.PrototypePackID}}
+	if err := storage.SaveConfig(prototype); err != nil {
+		t.Fatal(err)
+	}
+	if flag := typingSoundsFlag(); flag != "1" {
+		t.Fatalf("saved prototype flag %q, want 1", flag)
+	}
+
+	unknown := storage.Config{Typing: &storage.TypingSettings{Enabled: &on, Pack: "missing"}}
+	if err := storage.SaveConfig(unknown); err != nil {
+		t.Fatal(err)
+	}
+	if flag := typingSoundsFlag(); flag != "0" {
+		t.Fatalf("unknown pack flag %q, want 0", flag)
+	}
+}
+
+func TestTypingSoundsOffKeepsNormalEditorLaunch(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "")
+	off := false
+	cfg := storage.Config{Typing: &storage.TypingSettings{Enabled: &off, Pack: "sfx-Starcat_JP-8Bit_Puzzler"}}
+	if err := storage.SaveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := NewSession(drill.Drill{ID: "test-sound-off", EntryFile: "main.c", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+	cmd := sess.GetSprintCmd()
+	want := []string{"hx", filepath.Join(sess.Workspace, "main.c")}
+	if strings.Join(cmd.Args, " ") != strings.Join(want, " ") {
+		t.Fatalf("disabled sounds changed the editor launch: %v", cmd.Args)
+	}
+}
+
+// The editor pane hands the terminal to a shell after the first editor exits.
+// This drives that shell, not just the initial launch: the first editor, a
+// different file, and the original file all have to use the wrapper.
+func TestTypingSoundEditorShimCoversPaneLifecycle(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "")
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+
+	bin := t.TempDir()
+	hx := filepath.Join(bin, "hx")
+	if err := os.WriteFile(hx, []byte("#!/usr/bin/env bash\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+
+	log := filepath.Join(t.TempDir(), "wrapper.log")
+	codedrill := filepath.Join(bin, "codedrill-stub")
+	stub := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> " + shellQuote(log) + "\n"
+	if err := os.WriteFile(codedrill, []byte(stub), 0755); err != nil {
+		t.Fatal(err)
+	}
+	oldExecutable := executablePath
+	executablePath = func() string { return codedrill }
+	defer func() { executablePath = oldExecutable }()
+
+	on := true
+	if err := storage.SaveConfig(storage.Config{
+		Editor: "hx",
+		Typing: &storage.TypingSettings{Enabled: &on, Pack: "sfx-Starcat_JP-8Bit_Puzzler"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := NewSession(drill.Drill{ID: "shim-lifecycle", EntryFile: "vect2.cpp", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+
+	cmd := exec.Command("bash", filepath.Join(sess.Workspace, "start-editor.sh"))
+	cmd.Dir = sess.Workspace
+	cmd.Stdin = strings.NewReader("hx vect2.hpp\nhx vect2.cpp\nexit\n")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pane script: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Editor closed.") {
+		t.Fatalf("pane script did not reach its shell:\n%s", out)
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	want := []string{"vect2.cpp", "vect2.hpp", "vect2.cpp"}
+	if len(lines) != len(want) {
+		t.Fatalf("wrapper ran %d times, want %d:\n%s", len(lines), len(want), data)
+	}
+	for i, file := range want {
+		if !strings.Contains(lines[i], "__typing-sound-editor") || !strings.HasSuffix(lines[i], file) {
+			t.Fatalf("launch %d = %q, want the wrapper for %s", i, lines[i], file)
+		}
+	}
+}
+
+func TestTypingSoundEditorShimInBothPaneShells(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "")
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+	bin := t.TempDir()
+	hx := filepath.Join(bin, "hx")
+	if err := os.WriteFile(hx, []byte("#!/usr/bin/env bash\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+
+	on := true
+	if err := storage.SaveConfig(storage.Config{
+		Typing: &storage.TypingSettings{Enabled: &on, Pack: "sfx-Starcat_JP-8Bit_Puzzler"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	newSession := func(id string) *Session {
+		t.Helper()
+		s, err := NewSession(drill.Drill{ID: id, EntryFile: "main.c", TestCommand: "true"}, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(s.Cleanup)
+		return s
+	}
+	sess := newSession("shim-panes")
+	shim := filepath.Join(sess.Workspace, editorShimDir, "hx")
+	data, err := os.ReadFile(shim)
+	if err != nil {
+		t.Fatalf("editor shim missing: %v", err)
+	}
+	if !strings.Contains(string(data), shellQuote(hx)) || !strings.Contains(string(data), "__typing-sound-editor") {
+		t.Fatalf("shim does not route to the wrapper: %s", data)
+	}
+	info, err := os.Stat(shim)
+	if err != nil || info.Mode()&0111 == 0 {
+		t.Fatalf("shim is not executable: %v", err)
+	}
+
+	editorScript, err := os.ReadFile(filepath.Join(sess.Workspace, "start-editor.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	terminalScript, err := os.ReadFile(filepath.Join(sess.Workspace, "start-terminal.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, script := range map[string][]byte{"start-editor.sh": editorScript, "start-terminal.sh": terminalScript} {
+		if !strings.Contains(string(script), `PATH="$PWD/.codedrill-editor:$PATH"`) {
+			t.Errorf("%s does not put the editor shim on PATH:\n%s", name, script)
+		}
+	}
+	if !strings.Contains(string(editorScript), "Editor closed.") {
+		t.Fatalf("editor script no longer hands over to a shell:\n%s", editorScript)
+	}
+	if strings.Index(string(editorScript), "Editor closed.") > strings.Index(string(editorScript), editorShimDir) {
+		t.Fatalf("editor shim PATH is set before the editor exit message:\n%s", editorScript)
+	}
+
+	off := false
+	if err := storage.SaveConfig(storage.Config{
+		Typing: &storage.TypingSettings{Enabled: &off, Pack: "sfx-Starcat_JP-8Bit_Puzzler"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	quiet := newSession("shim-panes-off")
+	if _, err := os.Stat(filepath.Join(quiet.Workspace, editorShimDir)); !os.IsNotExist(err) {
+		t.Fatalf("disabled typing sounds created an editor shim: %v", err)
+	}
+}
+
+// The generated-tone diagnostic mode uses the same wrapper, so it needs the
+// same later-launch shim even when the saved pack is off or silent.
+func TestPrototypeTypingSoundsCreateEditorShim(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "prototype")
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "hx"), []byte("#!/usr/bin/env bash\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	sess, err := NewSession(drill.Drill{ID: "shim-prototype", EntryFile: "main.c", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+	if _, err := os.Stat(filepath.Join(sess.Workspace, editorShimDir, "hx")); err != nil {
+		t.Fatalf("prototype typing sounds did not create the editor shim: %v", err)
+	}
+}
+
+// The direct (non-Zellij) path has no pane shell. Reopening the editor there
+// goes through GetSprintCmd again, so every launch must wrap the editor.
+func TestTypingSoundsWrapEveryDirectSprintLaunch(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("CODEDRILL_EDITOR", "hx")
+	t.Setenv("CODEDRILL_TYPING_SOUNDS", "")
+	on := true
+	if err := storage.SaveConfig(storage.Config{
+		Typing: &storage.TypingSettings{Enabled: &on, Pack: "sfx-Starcat_JP-8Bit_Puzzler"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := NewSession(drill.Drill{ID: "direct-repeat", EntryFile: "main.c", TestCommand: "true"}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Cleanup()
+	entry := filepath.Join(sess.Workspace, "main.c")
+	for launch := 0; launch < 3; launch++ {
+		cmd := sess.GetSprintCmd()
+		if len(cmd.Args) != 4 || cmd.Args[1] != "__typing-sound-editor" || cmd.Args[2] != "hx" || cmd.Args[3] != entry {
+			t.Fatalf("launch %d did not use the typing-sound wrapper: %v", launch, cmd.Args)
 		}
 	}
 }
