@@ -14,7 +14,7 @@ import (
 )
 
 func TestRenderLeaderboardView(t *testing.T) {
-	strlen := drill.Drill{ID: "ft_strlen", Title: "ft_strlen", Difficulty: "easy"}
+	strlen := drill.Drill{ID: "ft_strlen", Title: "ft_strlen", Difficulty: "easy", IsPreset: true}
 	hist := &storage.HistoryStore{
 		Attempts: []storage.Attempt{},
 		Stats:    make(map[string]*storage.DrillStats),
@@ -95,7 +95,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 // hallOfFameHist returns a drill with several runs, mixed pass and fail, so
 // both modes and every stats item have something to draw.
 func hallOfFameHist() (drill.Drill, *storage.HistoryStore) {
-	d := drill.Drill{ID: "ft_strlen", Title: "ft_strlen", Difficulty: "easy"}
+	d := drill.Drill{ID: "ft_strlen", Title: "ft_strlen", Difficulty: "easy", IsPreset: true}
 	now := time.Now()
 	hist := &storage.HistoryStore{
 		Attempts: []storage.Attempt{

@@ -31,7 +31,7 @@ func (r RankTarget) Reached(d time.Duration) bool {
 // RankTargets lists public ranks from lowest to highest. Hidden ranks never
 // appear in progression hints or live pace, even after they have been earned.
 func RankTargets(d Drill) []RankTarget {
-	if seconds, ok := rankSeconds[d.ID]; ok {
+	if seconds, ok := rankSeconds[d.ID]; d.IsPreset && ok {
 		targets := make([]RankTarget, len(publicRanks))
 		targets[0] = RankTarget{Rank: publicRanks[0]}
 		for i, rank := range publicRanks[1:] {
@@ -53,7 +53,7 @@ func CalculateRank(duration time.Duration, d Drill) string {
 	if duration <= 0 {
 		return ""
 	}
-	if seconds, ok := rankSeconds[d.ID]; ok && duration < time.Duration(seconds[len(seconds)-1])*time.Second {
+	if seconds, ok := rankSeconds[d.ID]; d.IsPreset && ok && duration < time.Duration(seconds[len(seconds)-1])*time.Second {
 		return "X+"
 	}
 	targets := RankTargets(d)

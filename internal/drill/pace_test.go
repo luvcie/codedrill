@@ -7,7 +7,7 @@ import (
 )
 
 func TestVect2RankBoundaries(t *testing.T) {
-	d := Drill{ID: "exam05-vect2", Difficulty: "hard"}
+	d := Drill{ID: "exam05-vect2", Difficulty: "hard", IsPreset: true}
 	boundaries := []struct {
 		rank string
 		time time.Duration
@@ -148,6 +148,39 @@ func TestCustomDrillsKeepDifficultyRanks(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+func TestCustomOverrideUsesDifficultyRanks(t *testing.T) {
+	builtin := Drill{ID: "exam05-vect2", Difficulty: "hard", IsPreset: true}
+	custom := builtin
+	custom.IsPreset = false
+	if targets := RankTargets(builtin); len(targets) != 17 || targets[16].Rank != "X" || targets[16].Time != 150*time.Second {
+		t.Errorf("built-in targets changed: %v", targets)
+	}
+	want := []RankTarget{
+		{Rank: "C"},
+		{Rank: "B", Time: 90 * time.Second, Inclusive: true},
+		{Rank: "A", Time: 50 * time.Second, Inclusive: true},
+		{Rank: "S", Time: 25 * time.Second, Inclusive: true},
+	}
+	if got := RankTargets(custom); !slices.Equal(got, want) {
+		t.Errorf("custom targets = %v, want %v", got, want)
+	}
+	for _, tc := range []struct {
+		duration        time.Duration
+		builtin, custom string
+	}{
+		{time.Second, "X+", "S"},
+		{time.Minute, "X+", "B"},
+		{5 * time.Minute, "S", "C"},
+	} {
+		if got := CalculateRank(tc.duration, builtin); got != tc.builtin {
+			t.Errorf("built-in rank at %v = %s, want %s", tc.duration, got, tc.builtin)
+		}
+		if got := CalculateRank(tc.duration, custom); got != tc.custom {
+			t.Errorf("custom rank at %v = %s, want %s", tc.duration, got, tc.custom)
 		}
 	}
 }
