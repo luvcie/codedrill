@@ -18,6 +18,22 @@ type Config struct {
 	Mouse     *bool           `json:"mouse,omitempty"`
 	Shell     string          `json:"shell,omitempty"`
 	Typing    *TypingSettings `json:"typing,omitempty"`
+	Music     *MusicSettings  `json:"music,omitempty"`
+}
+
+// MusicSettings is independent of countdown cues and typing sounds.
+type MusicSettings struct {
+	Enabled bool     `json:"enabled,omitempty"`
+	Volume  *int     `json:"volume,omitempty"`
+	Folder  string   `json:"folder,omitempty"`
+	Tracks  []string `json:"tracks,omitempty"`
+}
+
+func (c Config) MusicVolume() float64 {
+	if c.Music == nil || c.Music.Volume == nil {
+		return .35
+	}
+	return float64(min(100, max(0, *c.Music.Volume))) / 100
 }
 
 // TypingSettings holds the optional editor typing sounds. They are separate

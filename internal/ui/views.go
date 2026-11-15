@@ -45,6 +45,8 @@ func (m *MainModel) contentView() string {
 		return m.viewSettings()
 	case StateTypingSounds:
 		return m.viewTypingSounds()
+	case StateMusic:
+		return m.viewMusic()
 	}
 	return ""
 }
@@ -149,6 +151,9 @@ func (m *MainModel) viewEvaluating() string {
 		}
 	} else if m.history.CurrentStreak > 0 {
 		body += "\n\n" + DangerStyle.Render(fmt.Sprintf("Forfeiting ends your %d-win streak.", m.history.CurrentStreak))
+	}
+	if m.musicPlaybackErr != nil {
+		body += "\nMusic unavailable: " + m.musicPlaybackErr.Error()
 	}
 	return header + "\n\n" + indentLines(body) + "\n\n" + formatEvalOutput(m.evalOutput, m.width)
 }

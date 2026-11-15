@@ -55,12 +55,20 @@ func TestSettingsShowsBothTabs(t *testing.T) {
 	}
 
 	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.settingsTab() != settingsTabMusic {
+		t.Fatal("tab did not advance to Music")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if m.settingsTab() != settingsTabGeneral {
-		t.Fatal("tab key did not wrap back to General")
+		t.Fatal("tab did not wrap to General")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	if m.settingsTab() != settingsTabMusic {
+		t.Fatal("shift+tab did not wrap to Music")
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
 	if m.settingsTab() != settingsTabTyping {
-		t.Fatal("shift+tab did not wrap to Typing Sounds")
+		t.Fatal("shift+tab did not move to Typing Sounds")
 	}
 }
 

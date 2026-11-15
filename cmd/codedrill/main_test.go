@@ -92,6 +92,7 @@ func TestFailuresGoToStderrWithExitStatus(t *testing.T) {
 		{"config", "sound", "banana"},
 		{"config", "shell"},
 		{"config", "bogus"},
+		{"volume", "extra"},
 		{"start"}, {"info"}, {"top"}, {"recent"}, {"search"}, {"rm"}, {"reset"}, {"export"}, {"import"},
 		{"unknown-command"},
 	} {

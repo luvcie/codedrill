@@ -12,6 +12,7 @@ import (
 	"github.com/luvcie/codedrill/internal/compare"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
+	"github.com/luvcie/codedrill/internal/music"
 	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/storage"
 )
@@ -32,6 +33,7 @@ const (
 	StateSetupError
 	StateSettings
 	StateTypingSounds
+	StateMusic
 )
 
 type countdownTickMsg struct{ id uint64 }
@@ -124,6 +126,12 @@ type MainModel struct {
 	settingsErr          error
 	settingsThemesClosed bool
 	reset                *factoryResetFlow
+
+	musicSettings
+	musicPlayer      *music.Player
+	musicPlaybackErr error
+	download         *audioDownload
+	downloadNotice   string
 
 	typingCursor  int
 	typingChoices []typingChoice
@@ -262,6 +270,10 @@ func (m *MainModel) Init() tea.Cmd {
 }
 
 func (m *MainModel) Cleanup() {
+	m.stopMusic()
+	if m.download != nil {
+		m.download.cancel()
+	}
 	if m.session != nil {
 		m.session.Cleanup()
 		m.session = nil
@@ -337,6 +349,26 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case factoryResetFinishedMsg:
 		return m, m.finishFactoryReset(msg)
+	case downloadTickMsg:
+		if msg.job == m.download {
+			m.download.frame++
+			return m, downloadTick(msg.job)
+		}
+		return m, nil
+	case downloadFinishedMsg:
+		if msg.job != m.download {
+			return m, nil
+		}
+		m.download = nil
+		m.downloadNotice = "Downloaded " + msg.job.name
+		if msg.job.tracks > 1 {
+			m.downloadNotice += fmt.Sprintf(" · %d tracks", msg.job.completed)
+		}
+		if msg.err != nil {
+			m.downloadNotice = "Download failed: " + msg.err.Error()
+			return m, nil
+		}
+		return m, msg.next
 	case typingPreviewMsg:
 		if msg.err != nil {
 			m.typingNotice = "Preview unavailable: " + msg.err.Error()
@@ -408,6 +440,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateSettings(key)
 	case StateTypingSounds:
 		return m, m.updateTypingSounds(key)
+	case StateMusic:
+		return m, m.updateMusic(key)
 	}
 	return m, nil
 }

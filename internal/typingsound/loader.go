@@ -2,18 +2,17 @@ package typingsound
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
-	"time"
-)
 
-const downloadTimeout = 45 * time.Second
+	"github.com/luvcie/codedrill/internal/download"
+)
 
 // CacheDir is where downloaded exports are kept between sessions.
 func CacheDir() (string, error) {
@@ -31,6 +30,10 @@ func CacheDir() (string, error) {
 // DownloadPack returns the local path of a pack's export, downloading it from
 // the community host on first use. The file is validated before it is stored.
 func DownloadPack(info PackInfo) (string, error) {
+	return DownloadPackWithProgress(context.Background(), info, nil)
+}
+
+func DownloadPackWithProgress(ctx context.Context, info PackInfo, report download.Report) (string, error) {
 	dir, err := CacheDir()
 	if err != nil {
 		return "", err
@@ -40,27 +43,11 @@ func DownloadPack(info PackInfo) (string, error) {
 		return path, nil
 	}
 	_ = os.Remove(path)
-	client := &http.Client{Timeout: downloadTimeout}
-	request, err := http.NewRequest(http.MethodGet, info.URL, nil)
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("User-Agent", "codedrill/typing-sounds")
-	response, err := client.Do(request)
+	data, err := download.Fetch(ctx, info.URL, maxExportBytes, report)
 	if err != nil {
 		return "", fmt.Errorf("download %s: %w", info.Name, err)
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download %s: server returned %s", info.Name, response.Status)
-	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxExportBytes+1))
-	if err != nil {
-		return "", fmt.Errorf("download %s: %w", info.Name, err)
-	}
-	if len(data) > maxExportBytes {
-		return "", fmt.Errorf("download %s: pack exceeds 24 MiB", info.Name)
-	}
+
 	switch info.Format {
 	case FormatZIP:
 		err = validateNativePack(data)
@@ -70,22 +57,7 @@ func DownloadPack(info PackInfo) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("download %s: %w", info.Name, err)
 	}
-	temp, err := os.CreateTemp(dir, info.ID+".*.tmp")
-	if err != nil {
-		return "", err
-	}
-	tempPath := temp.Name()
-	if _, err := temp.Write(data); err != nil {
-		temp.Close()
-		_ = os.Remove(tempPath)
-		return "", err
-	}
-	if err := temp.Close(); err != nil {
-		_ = os.Remove(tempPath)
-		return "", err
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		_ = os.Remove(tempPath)
+	if err := download.Save(path, data); err != nil {
 		return "", err
 	}
 	return path, nil

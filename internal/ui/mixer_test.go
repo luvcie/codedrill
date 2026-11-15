@@ -1,0 +1,90 @@
+package ui
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/luvcie/codedrill/internal/storage"
+)
+
+func TestMixerSavesIndependentVolumes(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	on, musicVolume, sfxVolume := true, 30, 90
+	if err := storage.SaveConfig(storage.Config{
+		Editor: "hx", Music: &storage.MusicSettings{Enabled: true, Volume: &musicVolume, Tracks: []string{"chk-016"}},
+		Typing: &storage.TypingSettings{Enabled: &on, Volume: &sfxVolume, Pack: "prototype"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := NewMixerModel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "30%") || !strings.Contains(view, "90%") {
+		t.Fatal(view)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	cfg, err := storage.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MusicVolume() != .35 || cfg.TypingVolume() != .85 || !cfg.Music.Enabled || !cfg.TypingSoundsOn() || cfg.Editor != "hx" || cfg.Music.Tracks[0] != "chk-016" || cfg.Typing.Pack != "prototype" {
+		t.Fatalf("mixer changed unrelated settings: %+v", cfg)
+	}
+	for range 25 {
+		m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	}
+	if m.volumes[1] != 100 {
+		t.Fatal("volume exceeded 100%")
+	}
+	for range 25 {
+		m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	}
+	if m.volumes[1] != 0 {
+		t.Fatal("volume went below mute")
+	}
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc}); cmd == nil {
+		t.Fatal("Esc did not return to the terminal")
+	}
+}
+
+func TestMixerKeepsAudioOffAndReportsSaveErrors(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	m, err := NewMixerModel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.changeVolume(5)
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.changeVolume(5)
+	cfg, err := storage.LoadConfig()
+	if err != nil || cfg.Music.Enabled || cfg.TypingSoundsOn() {
+		t.Fatalf("adjusting volume enabled audio: %+v, %v", cfg, err)
+	}
+	path, _ := storage.GetConfigPath()
+	if err := os.WriteFile(path, []byte("broken config"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := m.volumes
+	m.changeVolume(5)
+	if m.err == nil || m.volumes != before || !strings.Contains(ansi.Strip(m.View()), "Could not save") {
+		t.Fatal("failed save was not reported")
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != "broken config" {
+		t.Fatal("mixer overwrote unreadable settings")
+	}
+	for _, w := range []int{30, 50, 80} {
+		m.Update(tea.WindowSizeMsg{Width: w, Height: 20})
+		for _, line := range strings.Split(m.View(), "\n") {
+			if ansi.StringWidth(line) > w {
+				t.Fatalf("mixer does not fit %d columns: %q", w, line)
+			}
+		}
+	}
+}

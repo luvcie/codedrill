@@ -72,6 +72,8 @@ func (m *MainModel) updateMouse(msg tea.MouseMsg) tea.Cmd {
 		return m.updateSettingsMouse(msg)
 	case StateTypingSounds:
 		return m.updateTypingSoundsMouse(msg)
+	case StateMusic:
+		return m.updateMusicMouse(msg)
 	case StateBriefing:
 		return m.updateBriefingMouse(msg)
 	}
@@ -159,11 +161,7 @@ func (m *MainModel) updateSettingsMouse(msg tea.MouseMsg) tea.Cmd {
 		m.stepSettings(1)
 	case tea.MouseButtonLeft:
 		if tab, ok := m.settingsTabAt(msg.X, msg.Y); ok {
-			if tab == settingsTabTyping {
-				m.openTypingSounds()
-			} else {
-				m.state = StateSettings
-			}
+			m.openSettingsTab(tab)
 			return nil
 		}
 		i, ok := m.settingsRowAt(msg.X, msg.Y)

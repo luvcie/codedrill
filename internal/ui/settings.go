@@ -19,16 +19,20 @@ const settingsPreviewHeight = 8
 const (
 	settingsTabGeneral = iota
 	settingsTabTyping
+	settingsTabMusic
 )
 
 var (
-	settingsTabNames    = [2]string{"[ General ]", "[ Typing Sounds ]"}
-	settingsTabCompact  = [2]string{"[General]", "[Sounds]"}
+	settingsTabNames    = [3]string{"[ General ]", "[ Typing Sounds ]", "[ Music ]"}
+	settingsTabCompact  = [3]string{"[General]", "[Sounds]", "[Music]"}
 	settingsTabDividerW = 60
 )
 
 // settingsTab reports the visible tab from the current screen state.
 func (m *MainModel) settingsTab() int {
+	if m.state == StateMusic {
+		return settingsTabMusic
+	}
 	if m.state == StateTypingSounds {
 		return settingsTabTyping
 	}
@@ -36,30 +40,36 @@ func (m *MainModel) settingsTab() int {
 }
 
 // settingsTabLabels returns the tab labels for the current width. Narrow
-// terminals use compact labels so both tabs stay on screen.
-func (m *MainModel) settingsTabLabels() [2]string {
+// terminals use compact labels so all tabs stay on screen.
+func (m *MainModel) settingsTabLabels() [3]string {
 	w, _ := m.screenSize()
-	if w < 40 {
+	if w < 56 {
 		return settingsTabCompact
 	}
 	return settingsTabNames
 }
 
-// settingsTabBar draws both tabs, highlighting the active one with the theme
+// settingsTabBar draws the tabs, highlighting the active one with the theme
 // accent. The styles pad each label, so the bar keeps the same width whichever
 // tab is active.
 func (m *MainModel) settingsTabBar() string {
 	labels := m.settingsTabLabels()
-	general, typing := inactiveTabStyle.Render(labels[0]), inactiveTabStyle.Render(labels[1])
-	if m.settingsTab() == settingsTabTyping {
-		typing = activeTabStyle.Render(labels[1])
-	} else {
-		general = activeTabStyle.Render(labels[0])
+	w, _ := m.screenSize()
+	var tabs []string
+	for i, label := range labels {
+		style := inactiveTabStyle
+		if i == m.settingsTab() {
+			style = activeTabStyle
+		}
+		if w < 36 {
+			style = style.Padding(0)
+		}
+		tabs = append(tabs, style.Render(label))
 	}
-	return general + " " + typing
+	return strings.Join(tabs, " ")
 }
 
-// settingsHeaderBlock is the header, tab bar and divider drawn above either
+// settingsHeaderBlock is the header, tab bar and divider drawn above each
 // tab. Short windows keep the wordmark and tabs and give up the divider; very
 // short windows keep only the tabs so they remain visible and the cursor still
 // has a row.
@@ -72,7 +82,7 @@ func (m *MainModel) settingsHeaderBlock(w int) string {
 	case h <= 5:
 		block = tabs
 	case h < 24:
-		// Keep the wordmark and both tabs compact so the body keeps its rows.
+		// Keep the wordmark and tabs compact so the body keeps its rows.
 		block = "  " + LogoStyle.Render("codedrill") + "  " + SubtextStyle.Render("settings") + "\n" + tabs
 	default:
 		block = m.screenHeader("settings") + "\n" + tabs + "\n" + divider
@@ -179,7 +189,11 @@ func (m *MainModel) updateSettings(key tea.KeyMsg) tea.Cmd {
 		} else {
 			m.closeSettings()
 		}
-	case "tab", "shift+tab", "t":
+	case "shift+tab":
+		if m.reset == nil {
+			m.openMusic()
+		}
+	case "tab", "t":
 		if m.reset == nil {
 			m.openTypingSounds()
 		}
@@ -704,4 +718,15 @@ func settingsPreview() string {
 		labelValue("streak", "3", lipgloss.NewStyle()),
 		divider,
 	}, "\n")
+}
+
+func (m *MainModel) openSettingsTab(tab int) {
+	switch tab {
+	case settingsTabGeneral:
+		m.state = StateSettings
+	case settingsTabTyping:
+		m.openTypingSounds()
+	case settingsTabMusic:
+		m.openMusic()
+	}
 }

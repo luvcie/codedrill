@@ -3,6 +3,7 @@ package typingsound
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -14,6 +15,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+
+	"github.com/luvcie/codedrill/internal/download"
 )
 
 // makeWAV builds a mono 16-bit PCM WAV from the given samples.
@@ -369,5 +372,34 @@ func TestFindPackAndLabels(t *testing.T) {
 	}
 	if PackLabel("missing") != fmt.Sprintf("Unknown pack (%s)", "missing") {
 		t.Fatalf("unknown label %q", PackLabel("missing"))
+	}
+}
+
+func TestSFXDownloadProgressAndReuse(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	export := makeExport(t)
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write(export)
+	}))
+	defer server.Close()
+	info := PackInfo{ID: "progress", Name: "Progress", URL: server.URL}
+	var last download.Progress
+	path, err := DownloadPackWithProgress(context.Background(), info, func(p download.Progress) { last = p })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last.Bytes != int64(len(export)) {
+		t.Fatalf("progress: %v", last)
+	}
+	if _, err := DownloadPackWithProgress(context.Background(), info, func(p download.Progress) { t.Error("cached pack reported a download") }); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("fetched cached pack %d times", hits.Load())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
 	}
 }

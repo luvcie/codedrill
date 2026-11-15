@@ -49,7 +49,7 @@ const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
 const editorShimDir = ".codedrill-editor"
 
 var helperFiles = []string{
-	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m",
+	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m", "volume", "v",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
 	".sprint_start", ".starter_code", editorShimDir,
 }
@@ -510,6 +510,7 @@ echo 'd  diff   d -r reset'
 echo 'm  match  m -w watch'
 [ -n "$REFERENCE_HELP" ] && echo "$REFERENCE_HELP"
 echo 'i  problem'
+echo 'v  volume (music / SFX)'
 echo -e "\033[1;36ms  submit\033[0m"
 echo "$HINT"
 echo
@@ -573,6 +574,7 @@ func (s *Session) writeHelpers() error {
 		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
+		{"volume", script(`exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath()), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "TOP_RANK", top.Rank, "TOP_TARGET", fmt.Sprintf("%ds", int(top.Time.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
@@ -620,7 +622,7 @@ func (s *Session) writeHelpers() error {
 			return err
 		}
 	}
-	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match"} {
+	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match", "v": "volume"} {
 		if err := os.Symlink(long, filepath.Join(ws, short)); err != nil {
 			if err := os.WriteFile(filepath.Join(ws, short), []byte(bashShebang()+"exec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
 				return err

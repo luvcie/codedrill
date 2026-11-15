@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/luvcie/codedrill/internal/download"
 	"github.com/luvcie/codedrill/internal/storage"
 	"github.com/luvcie/codedrill/internal/typingsound"
 )
@@ -127,13 +129,20 @@ func (m *MainModel) saveTyping() bool {
 func (m *MainModel) previewTyping() tea.Cmd {
 	choice := m.typingCursorChoice()
 	volume := m.typingVolume
-	return func() tea.Msg {
+	preview := func() tea.Msg {
 		if choice.ID == typingsound.SilentPackID {
 			return typingPreviewMsg{name: choice.Label}
 		}
 		err := typingsound.PreviewPack(choice.ID, float64(volume)/100)
 		return typingPreviewMsg{name: choice.Label, err: err}
 	}
+	if info, ok := typingsound.FindPack(choice.ID); ok {
+		return m.startDownload(choice.Label, 1, func(ctx context.Context, report download.Report, completed func()) error {
+			_, err := typingsound.DownloadPackWithProgress(ctx, info, report)
+			return err
+		}, preview)
+	}
+	return preview
 }
 
 func (m *MainModel) toggleTypingWords() {
@@ -203,7 +212,9 @@ func (m *MainModel) updateTypingSounds(key tea.KeyMsg) tea.Cmd {
 		}
 	case "p":
 		return m.previewTyping()
-	case "tab", "shift+tab", "t":
+	case "tab", "t":
+		m.openMusic()
+	case "shift+tab":
 		m.state = StateSettings
 	case "esc", "q":
 		m.closeSettings()
@@ -239,16 +250,22 @@ type typingLayout struct {
 }
 
 func (m *MainModel) typingLayout(w, h int) typingLayout {
-	layout := typingLayout{header: m.settingsHeaderBlock(w)}
-	layout.help = m.renderHelpNow(m.screenHelp(), w)
+	notice := ""
 	switch {
 	case m.typingErr != nil:
-		layout.notice = DangerStyle.Render(ansi.Truncate("  Could not save: "+m.typingErr.Error(), w, ""))
+		notice = "Could not save: " + m.typingErr.Error()
 	case m.typingNotice != "":
-		layout.notice = SubtextStyle.Render(ansi.Truncate("  "+m.typingNotice, w, ""))
+		notice = m.typingNotice
 	}
-	layout.credit = m.typingCredit(w)
-	layout.total = typingRowPackBase + len(m.typingChoices)
+	if m.download != nil || (notice == "" && m.downloadNotice != "") {
+		notice = m.downloadStatus(w)
+	}
+	return m.audioSettingsLayout(w, h, m.typingCursor, typingRowPackBase+len(m.typingChoices), notice, m.typingCredit(w))
+}
+
+func (m *MainModel) audioSettingsLayout(w, h, cursor, total int, notice, credit string) typingLayout {
+	layout := typingLayout{header: m.settingsHeaderBlock(w), notice: truncateBlock(notice, w), credit: credit, total: total}
+	layout.help = m.renderHelpNow(m.screenHelp(), w)
 	layout.blankAbove = h >= 16
 
 	height := func() int {
@@ -278,7 +295,7 @@ func (m *MainModel) typingLayout(w, h int) typingLayout {
 		rows = height()
 	}
 	layout.contentRows = max(1, rows)
-	layout.start = typingWindow(m.typingCursor, layout.contentRows, layout.total)
+	layout.start = typingWindow(cursor, layout.contentRows, layout.total)
 	layout.shown = min(layout.contentRows, layout.total)
 	layout.contentTop = lipgloss.Height(layout.header)
 	if layout.blankAbove {
@@ -322,10 +339,10 @@ func (m *MainModel) viewTypingSounds() string {
 		lines = append(lines, layout.credit)
 	}
 	if layout.notice != "" {
-		lines = append(lines, layout.notice)
+		lines = append(lines, strings.Split(layout.notice, "\n")...)
 	}
 	if layout.help != "" {
-		lines = append(lines, layout.help)
+		lines = append(lines, strings.Split(layout.help, "\n")...)
 	}
 	lines = lines[:min(len(lines), h)]
 	return strings.Join(lines, "\n")
@@ -390,9 +407,7 @@ func (m *MainModel) updateTypingSoundsMouse(msg tea.MouseMsg) tea.Cmd {
 		m.typingCursor = min(last, m.typingCursor+1)
 	case tea.MouseButtonLeft:
 		if tab, ok := m.settingsTabAt(msg.X, msg.Y); ok {
-			if tab == settingsTabGeneral {
-				m.state = StateSettings
-			}
+			m.openSettingsTab(tab)
 			return nil
 		}
 		row, ok := m.typingRowAt(msg.X, msg.Y)

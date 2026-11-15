@@ -44,6 +44,7 @@ Usage:
   codedrill list [filter]    List all drills, or filter by category, language or difficulty
   codedrill search <query>   Search drills by id, title, language, category, difficulty or description
   codedrill stats            View aggregate sprint statistics & profile
+  codedrill volume           Adjust music and SFX volume live
   codedrill config [opt]     View or set config (e.g. config editor nvim, config shell zsh, config sound off, config countdown 0, config typing-pack <id>)
   codedrill config theme [id] List colour themes, or set one (e.g. config theme gruvbox)
   codedrill reset <id>       Reset stats and Personal Best for a specific drill
@@ -96,6 +97,16 @@ func (c *cli) dispatch(args []string) error {
 	}
 	rest := strings.Join(args[1:], " ")
 	switch args[0] {
+	case "volume":
+		if len(args) != 1 {
+			return usage("codedrill volume")
+		}
+		m, err := ui.NewMixerModel()
+		if err != nil {
+			return err
+		}
+		_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
+		return err
 	case "__typing-sound-editor":
 		return runSoundEditor(args[1:])
 	case "list", "ls":

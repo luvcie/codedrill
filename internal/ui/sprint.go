@@ -119,6 +119,7 @@ func (m *MainModel) startOrResumeSprint() tea.Cmd {
 		start := time.Now().Add(-m.accumulatedTime).UnixMilli()
 		_ = os.WriteFile(filepath.Join(m.session.Workspace, ".sprint_start"), []byte(strconv.FormatInt(start, 10)), 0644)
 	}
+	m.startMusic()
 	cmd := m.session.GetSprintCmd()
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return sprintFinishedMsg{err: err, zellij: cmd.Args[0] == "zellij"}
@@ -129,6 +130,7 @@ func (m *MainModel) onSprintFinished(msg sprintFinishedMsg) tea.Cmd {
 	if m.state != StateSprinting {
 		return nil
 	}
+	m.stopMusic()
 	runTime := time.Since(m.sprintStartTime)
 	m.evalID++
 	m.evalPassed = false

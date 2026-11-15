@@ -1,10 +1,12 @@
 package typingsound
 
 import (
+	"context"
 	"os"
 	"time"
 
 	"github.com/jfreymuth/pulse"
+	"github.com/luvcie/codedrill/internal/storage"
 )
 
 // Engine plays preloaded mono clips through one persistent PulseAudio stream.
@@ -16,6 +18,8 @@ type Engine struct {
 	clips  []Clip
 	voices []engineVoice
 	mix    []int32
+	volume *storage.LiveVolume
+	cancel context.CancelFunc
 }
 
 type engineVoice struct {
@@ -26,26 +30,13 @@ type engineVoice struct {
 const engineQueue = 32
 const maxVoices = 8
 
-// NewEngine connects to the audio server and starts a silent stream. The
-// volume is applied to the clips once, so playback costs no scaling per read.
+// NewEngine connects to the audio server and starts a silent stream.
 func NewEngine(clips []Clip, volume float64) (*Engine, error) {
-	volume = max(0, min(1, volume))
-	scaled := make([]Clip, len(clips))
-	for i, clip := range clips {
-		if len(clip) == 0 {
-			continue
-		}
-		copyClip := make(Clip, len(clip))
-		for j, sample := range clip {
-			copyClip[j] = int16(float64(sample) * volume)
-		}
-		scaled[i] = copyClip
-	}
 	client, err := pulse.NewClient(pulse.ClientApplicationName("codedrill typing sounds"), pulse.ClientTimeout(2*time.Second))
 	if err != nil {
 		return nil, err
 	}
-	engine := &Engine{client: client, events: make(chan int, engineQueue), clips: scaled}
+	engine := &Engine{client: client, events: make(chan int, engineQueue), clips: clips}
 	opts := []pulse.PlaybackOption{
 		pulse.PlaybackMono,
 		pulse.PlaybackSampleRate(sampleRate),
@@ -65,6 +56,9 @@ func NewEngine(clips []Clip, volume float64) (*Engine, error) {
 		client.Close()
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	engine.cancel = cancel
+	engine.volume = storage.FollowVolume(ctx, volume, storage.Config.TypingVolume)
 	engine.stream.Start()
 	return engine, nil
 }
@@ -110,8 +104,9 @@ mix:
 		}
 	}
 	e.voices = live
+	gain := e.volume.Gain()
 	for i, sum := range mix {
-		buf[i] = int16(max(-32768, min(32767, sum)))
+		buf[i] = int16(max(-32768, min(32767, float64(sum)*gain)))
 	}
 	return len(buf), nil
 }
@@ -126,6 +121,9 @@ func copySamples(dst []int32, src Clip) int {
 }
 
 func (e *Engine) Close() {
+	if e.cancel != nil {
+		e.cancel()
+	}
 	if e.stream != nil {
 		e.stream.Close()
 	}
