@@ -248,13 +248,15 @@ now_ms() {
 pace_line() {
   [ -f .sprint_start ] || return 1
   local elapsed=$(( $(now_ms) - $(cat .sprint_start) ))
-  local rank=C
-  if [ "$elapsed" -le "$S_MS" ]; then rank=S
-  elif [ "$elapsed" -le "$A_MS" ]; then rank=A
-  elif [ "$elapsed" -le "$B_MS" ]; then rank=B
-  fi
+  local rank candidate cutoff comparison
+  for target in $RANK_TARGETS; do
+    IFS=: read -r candidate cutoff comparison <<< "$target"
+    if [ "$cutoff" -eq 0 ] || [ "$elapsed" "$comparison" "$cutoff" ]; then
+      rank=$candidate
+    fi
+  done
   local ref=$PB_MS label=PB
-  if [ "$ref" -le 0 ]; then ref=$S_MS label="S pace"; fi
+  if [ "$ref" -le 0 ]; then ref=$TOP_MS label="$TOP_RANK pace"; fi
   local color='\033[1;32m' delta
   if [ "$elapsed" -lt "$ref" ]; then
     delta="-$(fmt_ms $((ref - elapsed))) vs $label"
@@ -500,7 +502,7 @@ columns=$(tput cols 2>/dev/null || echo 40)
 if [ "${#TITLE}" -gt "$columns" ]; then TITLE="${TITLE:0:$((columns-1))}…"; fi
 printf '\033[38;2;%sm%s\n\033[1mcodedrill\033[0m\n' "$LOGO_RGB" "$CROC"
 echo "$TITLE"
-echo -e "\033[0;37mS rank <$S_TARGET\nPB: $PB\033[0m"
+echo -e "\033[0;37m$TOP_RANK rank <$TOP_TARGET\nPB: $PB\033[0m"
 echo
 echo -e "\033[1;32mr  run tests\033[0m"
 echo 'p  pace   p -w watch'
@@ -527,7 +529,16 @@ func (s *Session) writeHelpers() error {
 		return err
 	}
 	studentFiles := shellArray("STUDENT_FILES", required) + shellArray("OPTIONAL_STUDENT_FILES", optional)
-	sMax, aMax, bMax := drill.PaceTargets(d.Difficulty)
+	targets := drill.RankTargets(d)
+	var paceTargets []string
+	for _, target := range targets {
+		comparison := "-lt"
+		if target.Inclusive {
+			comparison = "-le"
+		}
+		paceTargets = append(paceTargets, target.Rank+":"+ms(target.Time)+":"+comparison)
+	}
+	top := targets[len(targets)-1]
 
 	title := d.Title
 	if title == "" {
@@ -557,13 +568,13 @@ func (s *Session) writeHelpers() error {
 	files := []helperFile{
 		{".sprint_start", []byte(strconv.FormatInt(s.StartTime.UnixMilli(), 10)), 0644},
 		{".starter_code", nil, 0644},
-		{"pace", script(paceBody, "S_MS", ms(sMax), "A_MS", ms(aMax), "B_MS", ms(bMax), "PB_MS", ms(s.pb)), 0755},
+		{"pace", script(paceBody, "RANK_TARGETS", strings.Join(paceTargets, " "), "TOP_MS", ms(top.Time), "TOP_RANK", top.Rank, "PB_MS", ms(s.pb)), 0755},
 		{"run", script(runBody, "TEST_CMD", s.resolveRunCommand()), 0755},
 		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", s.EntryFile, "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
-		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "S_TARGET", fmt.Sprintf("%ds", int(sMax.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
+		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "TOP_RANK", top.Rank, "TOP_TARGET", fmt.Sprintf("%ds", int(top.Time.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
         pane command="bash" {

@@ -58,7 +58,7 @@ func hallStats(hist *storage.HistoryStore, d drill.Drill, width int) []string {
 		labelValue("passed", fmt.Sprintf("%d (%d%%)", stats.Successful, stats.Successful*100/stats.TotalRuns), hallValueStyle),
 	}
 	best := labelValue("best", storage.FormatDuration(stats.PersonalBest), hallValueStyle)
-	if grade, _ := CalculateGrade(stats.PersonalBest, d.Difficulty); grade != "" {
+	if grade, _ := CalculateGrade(stats.PersonalBest, d); grade != "" {
 		best += " " + lipgloss.NewStyle().Bold(true).Foreground(gradeColor(grade)).Render("["+string(grade)+"]")
 	}
 	items = append(items, best)
@@ -84,7 +84,7 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 	}
 	rows := [][]string{}
 	for i, att := range attempts {
-		grade, _ := CalculateGrade(att.Duration, d.Difficulty)
+		grade, _ := CalculateGrade(att.Duration, d)
 		gradeText := string(grade)
 		rank := fmt.Sprintf("#%d", i+1)
 		if i == 0 {

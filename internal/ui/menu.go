@@ -50,7 +50,7 @@ func (i drillItem) Title() string {
 		return arrow + " " + strings.ToUpper(i.group)
 	}
 	title := langTag(i.drill) + i.drill.Title
-	if grade, _ := CalculateGrade(i.pb, i.drill.Difficulty); grade != "" {
+	if grade, _ := CalculateGrade(i.pb, i.drill); grade != "" {
 		title += fmt.Sprintf("  [%s-RANK]", grade)
 	}
 	return title
@@ -71,7 +71,7 @@ func (i drillItem) Description() string {
 		difficulty = "EASY"
 	}
 	pb := "PB --"
-	if grade, _ := CalculateGrade(i.pb, i.drill.Difficulty); grade != "" {
+	if grade, _ := CalculateGrade(i.pb, i.drill); grade != "" {
 		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(i.pb), grade)
 	}
 	desc := fmt.Sprintf("[%s • %s] • %s • %s", drill.CategoryOf(i.drill), difficulty, pb, CleanSummary(i.drill.Description))

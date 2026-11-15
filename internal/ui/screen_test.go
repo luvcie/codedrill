@@ -465,7 +465,7 @@ func TestBriefingPBLineFitsAt80x24(t *testing.T) {
 	m.state = StateBriefing
 	m.history.Stats[m.activeDrill.ID] = &storage.DrillStats{PersonalBest: 1560 * time.Millisecond}
 	m.activeDrill.AutoSubmit = true
-	want := "ft_strlen · C · easy · PB " + storage.FormatDuration(1560*time.Millisecond) + " (S) · auto-submit on"
+	want := "ft_strlen · C · easy · PB " + storage.FormatDuration(1560*time.Millisecond) + " (X+) · auto-submit on"
 	plain := ansi.Strip(m.View())
 	if !strings.Contains(plain, want) {
 		t.Fatalf("briefing context is cut, want %q in:\n%s", want, plain)

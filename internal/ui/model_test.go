@@ -415,7 +415,7 @@ func TestRenderScreensVisual(t *testing.T) {
 	m = updated.(*MainModel)
 
 	briefingView := m.View()
-	if !strings.Contains(ansi.Strip(briefingView), "ft_strlen · C · easy") || !strings.Contains(briefingView, "S ≤ 4s") {
+	if !strings.Contains(ansi.Strip(briefingView), "ft_strlen · C · easy") || !strings.Contains(briefingView, "S < 30s") {
 		t.Errorf("briefing view missing expected markers: %s", briefingView)
 	}
 

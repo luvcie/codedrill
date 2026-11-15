@@ -59,8 +59,8 @@ func TestRenderLeaderboardView(t *testing.T) {
 	if !strings.Contains(viewPop, "#1") {
 		t.Errorf("expected rank #1, got: %s", viewPop)
 	}
-	if !strings.Contains(viewPop, "[S]") {
-		t.Errorf("expected S grade badge, got: %s", viewPop)
+	if !strings.Contains(viewPop, "[X+]") {
+		t.Errorf("expected earned X+ grade badge, got: %s", viewPop)
 	}
 	if !strings.Contains(viewPop, "runs 2") {
 		t.Errorf("expected stats summary box, got: %s", viewPop)
@@ -221,7 +221,7 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 			}
 			header := lines[divider-1]
 			for i, att := range attempts {
-				grade, _ := CalculateGrade(att.Duration, d.Difficulty)
+				grade, _ := CalculateGrade(att.Duration, d)
 				gradeCell := "[" + string(grade) + "]"
 				if recent && !att.Passed {
 					gradeCell = "[-]"

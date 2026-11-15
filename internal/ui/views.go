@@ -107,7 +107,7 @@ func (m *MainModel) viewBriefing() string {
 	d := m.activeDrill
 	pb := "PB --"
 	if best := m.history.GetPB(d.ID); best > 0 {
-		grade, _ := CalculateGrade(best, d.Difficulty)
+		grade, _ := CalculateGrade(best, *d)
 		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(best), grade)
 	}
 	context := []string{d.Title, strings.ToUpper(d.Language), strings.ToLower(d.Difficulty), pb}
@@ -121,7 +121,7 @@ func (m *MainModel) viewBriefing() string {
 		m.briefingKey, m.briefingCache = key, RenderMarkdown(desc, width)
 	}
 
-	return m.screenHeader(joinContext(context...)) + "\n\n" + indentLines(m.briefingModePanel()) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(d.Difficulty)
+	return m.screenHeader(joinContext(context...)) + "\n\n" + indentLines(m.briefingModePanel()) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(*d)
 }
 
 func (m *MainModel) viewEvaluating() string {
@@ -215,7 +215,7 @@ func (m *MainModel) viewResults() string {
 	}
 	add(labelValue("final time", storage.FormatDuration(m.lastDuration), timeStyle))
 
-	grade, title := CalculateGrade(m.lastDuration, d.Difficulty)
+	grade, title := CalculateGrade(m.lastDuration, d)
 	if banner := RenderGradeBanner(grade, title); banner != "" {
 		lines = append(lines, "", banner, "")
 	}
@@ -227,7 +227,7 @@ func (m *MainModel) viewResults() string {
 			add(DangerStyle.Render(fmt.Sprintf("+%s behind PB (%s)", storage.FormatDuration(m.lastDuration-pb), storage.FormatDuration(pb))))
 		}
 	}
-	if goal, top := NextPaceGoal(m.lastDuration, d.Difficulty); top {
+	if goal, top := NextPaceGoal(m.lastDuration, d); top {
 		add(SuccessStyle.Render(goal))
 	} else {
 		add(lipgloss.NewStyle().Foreground(ColorSecondary).Render(goal))

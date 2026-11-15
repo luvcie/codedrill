@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -16,6 +18,7 @@ const (
 	GradeA Grade = "A"
 	GradeB Grade = "B"
 	GradeC Grade = "C"
+	GradeD Grade = "D"
 )
 
 var gradeTitles = map[Grade]string{
@@ -23,28 +26,20 @@ var gradeTitles = map[Grade]string{
 	GradeA: "MASTER",
 	GradeB: "SKILLED",
 	GradeC: "CLEARED",
+	GradeD: "CLEARED",
+	"SS":   "GODSPEED",
+	"U":    "GODSPEED",
+	"X":    "GODSPEED",
 }
 
-func CalculateGrade(d time.Duration, difficulty string) (Grade, string) {
-	if d <= 0 {
-		return "", ""
-	}
-	s, a, b := drill.PaceTargets(difficulty)
-	g := GradeC
-	switch {
-	case d <= s:
-		g = GradeS
-	case d <= a:
-		g = GradeA
-	case d <= b:
-		g = GradeB
-	}
-	return g, gradeTitles[g]
+func CalculateGrade(duration time.Duration, d drill.Drill) (Grade, string) {
+	g := Grade(drill.CalculateRank(duration, d))
+	return g, gradeTitles[Grade(strings.TrimRight(string(g), "+-"))]
 }
 
 func gradeColor(g Grade) lipgloss.Color {
-	switch g {
-	case GradeS:
+	switch Grade(strings.TrimRight(string(g), "+-")) {
+	case GradeS, "SS", "U", "X":
 		return ColorSuccess
 	case GradeA:
 		return ColorSecondary
@@ -54,24 +49,33 @@ func gradeColor(g Grade) lipgloss.Color {
 	return ColorMuted
 }
 
-func NextPaceGoal(d time.Duration, difficulty string) (goal string, top bool) {
-	if d <= 0 {
+func isSpeedGrade(g Grade) bool {
+	switch Grade(strings.TrimRight(string(g), "+-")) {
+	case GradeS, "SS", "U", "X":
+		return true
+	}
+	return false
+}
+
+func NextPaceGoal(duration time.Duration, d drill.Drill) (goal string, top bool) {
+	if duration <= 0 {
 		return "", false
 	}
-	s, a, b := drill.PaceTargets(difficulty)
-	var target time.Duration
-	var rank Grade
-	switch {
-	case d <= s:
-		return "Top rank reached.", true
-	case d <= a:
-		target, rank = s, GradeS
-	case d <= b:
-		target, rank = a, GradeA
-	default:
-		target, rank = b, GradeB
+	targets := drill.RankTargets(d)
+	for i := len(targets) - 1; i >= 0; i-- {
+		if !targets[i].Reached(duration) {
+			continue
+		}
+		if i == len(targets)-1 {
+			return "Top rank reached.", true
+		}
+		next := targets[i+1]
+		if !next.Inclusive {
+			return fmt.Sprintf("next %s-RANK under %s", next.Rank, storage.FormatDuration(next.Time)), false
+		}
+		return fmt.Sprintf("next %s-RANK at %s (%s to cut)", next.Rank, storage.FormatDuration(next.Time), storage.FormatDuration(duration-next.Time)), false
 	}
-	return fmt.Sprintf("next %s-RANK at %s (%s to cut)", rank, storage.FormatDuration(target), storage.FormatDuration(d-target)), false
+	return "", false
 }
 
 func RenderGradeBanner(g Grade, title string) string {
@@ -79,18 +83,41 @@ func RenderGradeBanner(g Grade, title string) string {
 		return ""
 	}
 	text := fmt.Sprintf("%s-RANK · %s", g, title)
-	if g == GradeS {
+	if isSpeedGrade(g) {
 		text = "★ " + text
 	}
 	return lipgloss.NewStyle().Bold(true).Foreground(gradeColor(g)).Render(text)
 }
 
-func RenderPaceHints(difficulty string) string {
-	s, a, b := drill.PaceTargets(difficulty)
-	pace := func(g Grade, d time.Duration) string {
-		letter := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(g)).Render(string(g))
-		return letter + SubtextStyle.Render(fmt.Sprintf(" ≤ %ds", int(d.Seconds())))
+func RenderPaceHints(d drill.Drill) string {
+	targets := drill.RankTargets(d)
+	if targets[0].Rank == "C" {
+		targets = targets[1:]
+		slices.Reverse(targets)
 	}
-	return "  " + SubtextStyle.Render("paces") + "  " +
-		pace(GradeS, s) + "   " + pace(GradeA, a) + "   " + pace(GradeB, b)
+	var paces []string
+	for _, target := range targets {
+		letter := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(Grade(target.Rank))).Render(target.Rank)
+		text := " clear"
+		if target.Time > 0 {
+			op := "<"
+			if target.Inclusive {
+				op = "≤"
+			}
+			elapsed := fmt.Sprintf("%ds", int(target.Time.Seconds()))
+			if !target.Inclusive && target.Time >= time.Minute {
+				elapsed = fmt.Sprintf("%d:%02d", int(target.Time.Minutes()), int(target.Time.Seconds())%60)
+			}
+			text = fmt.Sprintf(" %s %s", op, elapsed)
+		}
+		paces = append(paces, letter+SubtextStyle.Render(text))
+	}
+	if len(paces) == 3 {
+		return "  " + SubtextStyle.Render("paces") + "  " + strings.Join(paces, "   ")
+	}
+	var rows []string
+	for i := 0; i < len(paces); i += 4 {
+		rows = append(rows, "  "+strings.Join(paces[i:min(i+4, len(paces))], "   "))
+	}
+	return "  " + SubtextStyle.Render("paces") + "\n" + strings.Join(rows, "\n")
 }

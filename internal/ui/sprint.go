@@ -273,7 +273,7 @@ func (m *MainModel) recordPass() tea.Cmd {
 	m.leveledUp = m.levelInfo.Level > oldLevel
 	m.resultReview = m.evalReview
 
-	if grade, _ := CalculateGrade(m.lastDuration, d.Difficulty); isPB || m.leveledUp || firstDailyClear || grade == GradeS {
+	if grade, _ := CalculateGrade(m.lastDuration, d); isPB || m.leveledUp || firstDailyClear || isSpeedGrade(grade) {
 		storage.RingChime()
 	}
 	m.endSession()

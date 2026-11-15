@@ -78,4 +78,4 @@ Other screens show their keys at the bottom.
 
 ## Ranks and XP
 
-A passed run gets an S, A, B or C rank from its time, against cut-offs that depend on the drill's difficulty (defined in `internal/drill/pace.go`; `codedrill info <id>` shows them). XP comes from passing, from speed, from passing on the first test run, and from the first clear of the daily drill. Forfeited runs earn a little XP too. Levels run from Syntax Novice to Grandmaster.
+A passed built-in drill progresses through D, D+, C-, C, C+, B-, B, B+, A-, A, A+, S-, S, S+, SS, U and X. D rewards any successful completion; higher ranks require a time strictly under the exercise's individual cutoff. See [rank thresholds](rank-thresholds.md) or `codedrill info <id>` for targets. Custom drills retain the difficulty-based S, A, B and C cutoffs. XP comes from passing, from speed, from passing on the first test run, and from the first clear of the daily drill. Forfeited runs earn a little XP too. Levels run from Syntax Novice to Grandmaster.

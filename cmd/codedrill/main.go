@@ -256,7 +256,7 @@ func pbText(hist *storage.HistoryStore, d drill.Drill) string {
 	if pb <= 0 {
 		return "-"
 	}
-	grade, _ := ui.CalculateGrade(pb, d.Difficulty)
+	grade, _ := ui.CalculateGrade(pb, d)
 	return fmt.Sprintf("%s (%s)", storage.FormatDuration(pb), grade)
 }
 
@@ -337,10 +337,18 @@ func (c *cli) info(idOrTitle string) error {
 	if difficulty == "" {
 		difficulty = "easy"
 	}
-	s, a, b := drill.PaceTargets(difficulty)
+	targets := drill.RankTargets(*d)
+	var paces []string
+	for _, target := range targets[1:] {
+		op := "<"
+		if target.Inclusive {
+			op = "≤"
+		}
+		paces = append(paces, fmt.Sprintf("%s %s %v", target.Rank, op, target.Time))
+	}
 	pb := "None yet"
 	if p := hist.GetPB(d.ID); p > 0 {
-		grade, _ := ui.CalculateGrade(p, d.Difficulty)
+		grade, _ := ui.CalculateGrade(p, *d)
 		pb = fmt.Sprintf("%s (%s-RANK)", storage.FormatDuration(p), grade)
 	}
 
@@ -349,7 +357,15 @@ func (c *cli) info(idOrTitle string) error {
 	c.printf("Category:      %s\n", drill.CategoryOf(*d))
 	c.printf("Language:      %s\n", strings.ToUpper(d.Language))
 	c.printf("Difficulty:    %s\n", strings.ToUpper(difficulty))
-	c.printf("Target paces:  S ≤ %v · A ≤ %v · B ≤ %v\n", s, a, b)
+	if targets[0].Rank == "D" {
+		c.println("Target paces:  D on any successful completion")
+		for _, pace := range paces {
+			c.printf("               %s\n", pace)
+		}
+	} else {
+		slices.Reverse(paces)
+		c.printf("Target paces:  %s\n", strings.Join(paces, " · "))
+	}
 	c.printf("Personal best: %s\n", pb)
 	c.printf("Entry file:    %s\n", d.EntryFile)
 	c.println(rule)
@@ -396,7 +412,7 @@ func (c *cli) runs(idOrTitle string, recent bool) error {
 			label := "#" + strconv.Itoa(i+1)
 			grade := "-"
 			if att.Passed {
-				g, _ := ui.CalculateGrade(att.Duration, d.Difficulty)
+				g, _ := ui.CalculateGrade(att.Duration, *d)
 				grade = "[" + string(g) + "]"
 			}
 			if recent {
@@ -463,7 +479,7 @@ func (c *cli) stats() error {
 		st := hist.Stats[id]
 		pb := storage.FormatDuration(st.PersonalBest)
 		if d, ok := byID[id]; ok {
-			grade, _ := ui.CalculateGrade(st.PersonalBest, d.Difficulty)
+			grade, _ := ui.CalculateGrade(st.PersonalBest, d)
 			pb += " [" + string(grade) + "]"
 		}
 		streak := ""

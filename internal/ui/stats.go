@@ -153,7 +153,7 @@ func renderDrillTable(hist *storage.HistoryStore, drills []drill.Drill, width in
 		}
 		best := SubtextStyle.Render("--")
 		if st.PersonalBest > 0 {
-			grade, _ := CalculateGrade(st.PersonalBest, d.Difficulty)
+			grade, _ := CalculateGrade(st.PersonalBest, d)
 			gradeText := lipgloss.NewStyle().Foreground(gradeColor(grade)).Render(string(grade))
 			best = lipgloss.NewStyle().Bold(true).Render(storage.FormatDuration(st.PersonalBest)) + " " + gradeText
 		}

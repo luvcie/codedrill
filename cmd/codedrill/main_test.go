@@ -40,11 +40,11 @@ func TestCommands(t *testing.T) {
 	}{
 		{[]string{"--help"}, []string{"Usage:"}},
 		{[]string{"version"}, []string{"v" + Version}},
-		{[]string{"list"}, []string{"ft_strlen", "two_sum", "3.200s (S)"}},
+		{[]string{"list"}, []string{"ft_strlen", "two_sum", "3.200s (X+)"}},
 		{[]string{"list", "42"}, []string{"ft_strlen", "[42"}},
 		{[]string{"list", "python"}, []string{"binary_search"}},
 		{[]string{"search", "palindrome"}, []string{"palindrome"}},
-		{[]string{"info", "FT_STRLEN"}, []string{"Drill:", "ft_strlen", "S ≤ 4s"}},
+		{[]string{"info", "FT_STRLEN"}, []string{"Drill:", "ft_strlen", "S < 30s"}},
 		{[]string{"top", "ft_strlen"}, []string{"Hall of fame", "#1", "3.200s"}},
 		{[]string{"recent", "ft_strlen"}, []string{"FAIL", "PASS"}},
 		{[]string{"daily", "info"}, []string{"Drill:"}},
