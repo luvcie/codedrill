@@ -2,9 +2,6 @@
 
 ## Original subject
 
-The supplied local `vect2.subject.txt` is reproduced verbatim below, including
-its provided main and notes.
-
 ```text
 ================================================================================
 Assignment name  : vect2
@@ -95,13 +92,10 @@ int main()
 - The original postfix comments describe the updated object, not the printed
   return value. The four increment/decrement lines print `{1, 2}`, `{3, 4}`,
   `{3, 4}`, and `{1, 2}`. Postfix returns the previous value; prefix returns the
-  updated object by reference. The original comments are preserved unchanged.
+  updated object by reference.
 - Compound assignments return the object by reference, so `v2 += v2 += v3`
   produces `{20, 40}`. Const indexing permits reading; mutable indexing returns
   a reference so `v1[1] = 12` works.
 - Compiler-generated copy construction, copy assignment, and destruction are
   sufficient for a class that stores two ints. No handwritten canonical-form
   members or vector-by-vector multiplication are required by this subject.
-
-Passing these practice tests does not certify compliance with a particular
-school exam instance or private grader.
