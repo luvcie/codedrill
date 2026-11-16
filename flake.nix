@@ -15,7 +15,7 @@
             pname = "codedrill";
             version = "0-unstable";
             src = ./.;
-            vendorHash = "sha256-XlWdVg367vx3edpQ3y1tK+EZ34dKgjbWlf9TGdR0L3o=";
+            vendorHash = "sha256-CCnBUJFuyqpZO+RH7rwVyv3QIX9XKTDlVkT0BcTFvoA=";
             subPackages = [ "cmd/codedrill" ];
             nativeBuildInputs = [ pkgs.makeWrapper ];
             nativeCheckInputs = [ pkgs.bash pkgs.stdenv.cc pkgs.python3 ];
@@ -25,7 +25,7 @@
               runHook postCheck
             '';
             postPatch = ''
-              substituteInPlace internal/runner/{runner.go,match_test.go,reference_test.go} \
+              substituteInPlace internal/runner/{runner.go,runner_test.go,editor_file_test.go,match_test.go,reference_test.go} \
                 cmd/codedrill/{reference_pane_test.go,reference_view_test.go} \
                 --replace-fail '#!/usr/bin/env bash' '#!${pkgs.runtimeShell}'
               substituteInPlace internal/ui/reference_diff_test.go \
