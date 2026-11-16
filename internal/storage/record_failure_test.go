@@ -13,7 +13,7 @@ func TestRecordAttemptSaveFailureCanRetry(t *testing.T) {
 		for _, id := range []string{"existing", "new"} {
 			t.Run(id+map[bool]string{true: "/pass", false: "/forfeit"}[passed], func(t *testing.T) {
 				s, path := newTestStore(t)
-				if _, _, err := s.RecordAttempt("existing", 10*time.Second, true, 1, false); err != nil {
+				if _, _, err := s.RecordAttempt("existing", ExamMode, 10*time.Second, true, 1, false); err != nil {
 					t.Fatal(err)
 				}
 				before, _ := json.Marshal(s)
@@ -26,7 +26,7 @@ func TestRecordAttemptSaveFailureCanRetry(t *testing.T) {
 					t.Fatal(err)
 				}
 				for range 2 {
-					pb, delta, err := s.RecordAttempt(id, 5*time.Second, passed, 2, true)
+					pb, delta, err := s.RecordAttempt(id, ExamMode, 5*time.Second, passed, 2, true)
 					if err == nil || pb || delta != 0 {
 						t.Fatal("failed write reported a recorded result")
 					}
@@ -45,7 +45,7 @@ func TestRecordAttemptSaveFailureCanRetry(t *testing.T) {
 				if err := os.Rename(backup, path); err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := s.RecordAttempt(id, 5*time.Second, passed, 2, true); err != nil {
+				if _, _, err := s.RecordAttempt(id, ExamMode, 5*time.Second, passed, 2, true); err != nil {
 					t.Fatal(err)
 				}
 				data, err := os.ReadFile(path)
@@ -56,7 +56,7 @@ func TestRecordAttemptSaveFailureCanRetry(t *testing.T) {
 				if err := json.Unmarshal(data, &disk); err != nil {
 					t.Fatal(err)
 				}
-				if len(disk.Attempts) != 2 || disk.GetTotalXP() != s.GetTotalXP() || disk.GetPB(id) != s.GetPB(id) {
+				if len(disk.Attempts) != 2 || disk.GetTotalXP() != s.GetTotalXP() || disk.GetPB(id, ExamMode) != s.GetPB(id, ExamMode) {
 					t.Fatal("retry did not persist exactly one new attempt")
 				}
 			})

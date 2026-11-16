@@ -331,7 +331,7 @@ func newThemeTestModel(t *testing.T) *MainModel {
 	m := newEvaluationTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 200})
 	m.activeDrill.Description = "# ft_strlen\n\nWrite a function that returns the length of a string.\n\n## Constraints\n\n- Reproduce standard behavior."
-	if _, _, err := m.history.RecordAttempt("ft_strlen", 3200*time.Millisecond, true, 1, false); err != nil {
+	if _, _, err := m.history.RecordAttempt("ft_strlen", storage.ExamMode, 3200*time.Millisecond, true, 1, false); err != nil {
 		t.Fatal(err)
 	}
 	m.lastDuration = 6 * time.Second

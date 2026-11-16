@@ -12,6 +12,7 @@ import (
 
 type Attempt struct {
 	DrillID   string        `json:"drill_id"`
+	Mode      RecordMode    `json:"mode,omitempty"`
 	Duration  time.Duration `json:"duration"`
 	Timestamp time.Time     `json:"timestamp"`
 	Passed    bool          `json:"passed"`
@@ -20,21 +21,22 @@ type Attempt struct {
 }
 
 type DrillStats struct {
-	DrillID       string        `json:"drill_id"`
-	PersonalBest  time.Duration `json:"personal_best"`
-	TotalRuns     int           `json:"total_runs"`
-	Successful    int           `json:"successful"`
-	CurrentStreak int           `json:"current_streak,omitempty"`
-	BestStreak    int           `json:"best_streak,omitempty"`
-	LastAttempt   time.Time     `json:"last_attempt"`
+	DrillID       string    `json:"drill_id"`
+	TotalRuns     int       `json:"total_runs"`
+	Successful    int       `json:"successful"`
+	CurrentStreak int       `json:"current_streak,omitempty"`
+	BestStreak    int       `json:"best_streak,omitempty"`
+	LastAttempt   time.Time `json:"last_attempt"`
 }
 
 type HistoryStore struct {
-	filePath      string
-	Attempts      []Attempt              `json:"attempts"`
-	Stats         map[string]*DrillStats `json:"stats"`
-	CurrentStreak int                    `json:"current_streak,omitempty"`
-	BestStreak    int                    `json:"best_streak,omitempty"`
+	filePath        string
+	modeStats       map[string]map[RecordMode]*ModeStats
+	indexedAttempts int
+	Attempts        []Attempt              `json:"attempts"`
+	Stats           map[string]*DrillStats `json:"stats"`
+	CurrentStreak   int                    `json:"current_streak,omitempty"`
+	BestStreak      int                    `json:"best_streak,omitempty"`
 }
 
 func GetHistoryPath() (string, error) {
@@ -125,15 +127,21 @@ func (s *HistoryStore) recomputeStreaks() {
 
 // RecordAttempt saves a finished sprint. isDaily marks the first clear of the
 // day's daily drill, which earns bonus XP.
-func (s *HistoryStore) RecordAttempt(drillID string, duration time.Duration, passed bool, submitCount int, isDaily bool) (isPB bool, delta time.Duration, err error) {
+func (s *HistoryStore) RecordAttempt(drillID string, category RecordMode, duration time.Duration, passed bool, submitCount int, isDaily bool) (isPB bool, delta time.Duration, err error) {
+	if category == "" {
+		return false, 0, fmt.Errorf("new runs must specify their practice mode")
+	}
+	previousPB := s.GetPB(drillID, category)
 	// Publish progress only after saving, so a failed write can be retried.
 	original := s
 	next := *s
 	next.Attempts = slices.Clone(s.Attempts)
 	next.Stats = maps.Clone(s.Stats)
+	next.modeStats = nil
 	s = &next
 	att := Attempt{
 		DrillID:   drillID,
+		Mode:      category,
 		Duration:  duration,
 		Timestamp: time.Now(),
 		Passed:    passed,
@@ -167,14 +175,13 @@ func (s *HistoryStore) RecordAttempt(drillID string, duration time.Duration, pas
 			stat.BestStreak = stat.CurrentStreak
 		}
 		stat.Successful++
-		if stat.PersonalBest == 0 || duration < stat.PersonalBest {
+		if previousPB == 0 || duration < previousPB {
 			isPB = true
-			if stat.PersonalBest != 0 {
-				delta = stat.PersonalBest - duration
+			if previousPB != 0 {
+				delta = previousPB - duration
 			}
-			stat.PersonalBest = duration
 		} else {
-			delta = stat.PersonalBest - duration
+			delta = previousPB - duration
 		}
 	} else {
 		s.CurrentStreak = 0
@@ -201,8 +208,8 @@ func (s *HistoryStore) IsDailyDrillPassedToday(drillID string, t time.Time) bool
 	return false
 }
 
-func (s *HistoryStore) GetPB(drillID string) time.Duration {
-	if stat, exists := s.Stats[drillID]; exists {
+func (s *HistoryStore) GetPB(drillID string, category RecordMode) time.Duration {
+	if stat := s.GetModeStats(drillID, category); stat != nil {
 		return stat.PersonalBest
 	}
 	return 0
@@ -215,10 +222,10 @@ func (s *HistoryStore) GetStats(drillID string) *DrillStats {
 	return nil
 }
 
-func (s *HistoryStore) GetTopAttempts(drillID string, limit int) []Attempt {
+func (s *HistoryStore) GetTopAttempts(drillID string, category RecordMode, limit int) []Attempt {
 	var passed []Attempt
 	for _, a := range s.Attempts {
-		if a.DrillID == drillID && a.Passed {
+		if a.DrillID == drillID && a.Mode == category && a.Passed {
 			passed = append(passed, a)
 		}
 	}
@@ -231,10 +238,10 @@ func (s *HistoryStore) GetTopAttempts(drillID string, limit int) []Attempt {
 	return passed
 }
 
-func (s *HistoryStore) GetRecentAttempts(drillID string, limit int) []Attempt {
+func (s *HistoryStore) GetRecentAttempts(drillID string, category RecordMode, limit int) []Attempt {
 	var list []Attempt
 	for i := len(s.Attempts) - 1; i >= 0; i-- {
-		if s.Attempts[i].DrillID == drillID {
+		if s.Attempts[i].DrillID == drillID && s.Attempts[i].Mode == category {
 			list = append(list, s.Attempts[i])
 			if len(list) >= limit {
 				break
@@ -380,6 +387,7 @@ func (s *HistoryStore) GetBestDailyStreak() int {
 // the store once the save succeeded.
 func (s *HistoryStore) ResetDrillStats(drillID string) error {
 	next := *s
+	next.modeStats = nil
 	next.Stats = maps.Clone(s.Stats)
 	delete(next.Stats, drillID)
 	next.Attempts = slices.DeleteFunc(slices.Clone(s.Attempts), func(a Attempt) bool { return a.DrillID == drillID })

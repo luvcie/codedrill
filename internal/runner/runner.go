@@ -29,6 +29,7 @@ type Session struct {
 
 	drill           drill.Drill
 	pb              time.Duration
+	recordLabel     string
 	logoRGB         string
 	referenceDir    string
 	referencePolicy string
@@ -136,6 +137,7 @@ func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts
 		}
 	}()
 	if opts.ReferenceOptions != nil {
+		sess.recordLabel = mode.RecordLabel(opts.ReferenceOptions.RecordMode()) + " PB"
 		if err := sess.writeReferenceSession(opts.ReferenceOptions); err != nil {
 			return nil, fmt.Errorf("write reference session policy: %w", err)
 		}
@@ -502,7 +504,7 @@ columns=$(tput cols 2>/dev/null || echo 40)
 if [ "${#TITLE}" -gt "$columns" ]; then TITLE="${TITLE:0:$((columns-1))}…"; fi
 printf '\033[38;2;%sm%s\n\033[1mcodedrill\033[0m\n' "$LOGO_RGB" "$CROC"
 echo "$TITLE"
-echo -e "\033[0;37mPB: $PB\033[0m"
+echo -e "\033[0;37m$PB_LABEL: $PB\033[0m"
 echo
 echo -e "\033[1;32mr  run tests\033[0m"
 echo 'p  pace   p -w watch'
@@ -546,6 +548,10 @@ func (s *Session) writeHelpers() error {
 		title = d.ID
 	}
 	pb := "None yet"
+	pbLabel := s.recordLabel
+	if pbLabel == "" {
+		pbLabel = "PB"
+	}
 	if s.pb > 0 {
 		pb = storage.FormatDuration(s.pb)
 	}
@@ -576,7 +582,7 @@ func (s *Session) writeHelpers() error {
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"volume", script(`exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath()), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
-		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
+		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "PB_LABEL", pbLabel, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
         pane command="bash" {

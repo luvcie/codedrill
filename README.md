@@ -49,6 +49,10 @@ The executable is built in the current directory. Add it to your `PATH` to run `
 
 You can change the four options in the briefing: check the reference, show it, require an exact match, and require tests. Tests run on submission even when they are not required to pass. Copy and Recall need a C or C++ drill with a reference solution.
 
+Personal bests are separate for Exam, Recall, Copy, and Study. The drill menu and profile highlight Exam records. Sprint pace and results compare against the selected mode's PB. Each custom option combination also has its own records.
+
+In a drill's history, Left/Right switches record categories and Tab switches between fastest and recent runs. Runs saved without a mode do not count toward personal bests. Practice totals and XP include all modes.
+
 ## Common commands
 
 ```sh

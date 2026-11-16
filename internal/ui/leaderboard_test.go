@@ -20,7 +20,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 		Stats:    make(map[string]*storage.DrillStats),
 	}
 
-	view := RenderLeaderboardView(strlen, hist, false, 80)
+	view := RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 80)
 	if !strings.Contains(view, "fastest runs") {
 		t.Errorf("expected fastest runs mode indicator, got: %s", view)
 	}
@@ -28,19 +28,19 @@ func TestRenderLeaderboardView(t *testing.T) {
 		t.Errorf("expected empty notice, got: %s", view)
 	}
 
-	viewRecentEmpty := RenderLeaderboardView(strlen, hist, true, 80)
+	viewRecentEmpty := RenderLeaderboardView(strlen, hist, true, storage.ExamMode, 80)
 	if !strings.Contains(viewRecentEmpty, "recent runs") {
 		t.Errorf("expected recent runs mode indicator, got: %s", viewRecentEmpty)
 	}
 
-	hist.Attempts = append(hist.Attempts, storage.Attempt{
+	hist.Attempts = append(hist.Attempts, storage.Attempt{Mode: storage.ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  1500 * time.Millisecond,
 		Timestamp: time.Now(),
 		Passed:    true,
 		Attempts:  1,
 	})
-	hist.Attempts = append(hist.Attempts, storage.Attempt{
+	hist.Attempts = append(hist.Attempts, storage.Attempt{Mode: storage.ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  3500 * time.Millisecond,
 		Timestamp: time.Now(),
@@ -48,14 +48,14 @@ func TestRenderLeaderboardView(t *testing.T) {
 		Attempts:  2,
 	})
 	hist.Stats["ft_strlen"] = &storage.DrillStats{
-		DrillID:      "ft_strlen",
-		PersonalBest: 1500 * time.Millisecond,
-		TotalRuns:    2,
-		Successful:   1,
-		LastAttempt:  time.Now(),
+		DrillID: "ft_strlen",
+
+		TotalRuns:   2,
+		Successful:  1,
+		LastAttempt: time.Now(),
 	}
 
-	viewPop := RenderLeaderboardView(strlen, hist, false, 80)
+	viewPop := RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 80)
 	if !strings.Contains(viewPop, "#1") {
 		t.Errorf("expected rank #1, got: %s", viewPop)
 	}
@@ -65,7 +65,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 	if !strings.Contains(viewPop, "runs 2") {
 		t.Errorf("expected stats summary box, got: %s", viewPop)
 	}
-	viewPopRecent := RenderLeaderboardView(strlen, hist, true, 80)
+	viewPopRecent := RenderLeaderboardView(strlen, hist, true, storage.ExamMode, 80)
 	if !strings.Contains(viewPopRecent, "status") {
 		t.Errorf("expected STATUS column header, got: %s", viewPopRecent)
 	}
@@ -76,7 +76,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 		t.Errorf("expected FAIL badge in recent runs, got: %s", viewPopRecent)
 	}
 
-	viewNarrow := RenderLeaderboardView(strlen, hist, false, 55)
+	viewNarrow := RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 55)
 	if !strings.Contains(viewNarrow, "rank") || !strings.Contains(viewNarrow, "time") {
 		t.Errorf("expected essential columns in narrow view, got: %s", viewNarrow)
 	}
@@ -85,7 +85,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 	}
 
 	hist.Stats["ft_strlen"].CurrentStreak = 3
-	for _, line := range strings.Split(RenderLeaderboardView(strlen, hist, false, 60), "\n") {
+	for _, line := range strings.Split(RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 60), "\n") {
 		if w := lipgloss.Width(line); w > 60 {
 			t.Fatalf("line is %d cols wide at width 60: %q", w, line)
 		}
@@ -99,15 +99,15 @@ func hallOfFameHist() (drill.Drill, *storage.HistoryStore) {
 	now := time.Now()
 	hist := &storage.HistoryStore{
 		Attempts: []storage.Attempt{
-			{DrillID: d.ID, Duration: 1500 * time.Millisecond, Timestamp: now, Passed: true, Attempts: 1},
-			{DrillID: d.ID, Duration: 3500 * time.Millisecond, Timestamp: now.Add(-time.Hour), Passed: false, Attempts: 2},
-			{DrillID: d.ID, Duration: 12 * time.Second, Timestamp: now.Add(-2 * time.Hour), Passed: true, Attempts: 1},
-			{DrillID: d.ID, Duration: 95 * time.Second, Timestamp: now.Add(-3 * time.Hour), Passed: true, Attempts: 4},
+			{Mode: storage.ExamMode, DrillID: d.ID, Duration: 1500 * time.Millisecond, Timestamp: now, Passed: true, Attempts: 1},
+			{Mode: storage.ExamMode, DrillID: d.ID, Duration: 3500 * time.Millisecond, Timestamp: now.Add(-time.Hour), Passed: false, Attempts: 2},
+			{Mode: storage.ExamMode, DrillID: d.ID, Duration: 12 * time.Second, Timestamp: now.Add(-2 * time.Hour), Passed: true, Attempts: 1},
+			{Mode: storage.ExamMode, DrillID: d.ID, Duration: 95 * time.Second, Timestamp: now.Add(-3 * time.Hour), Passed: true, Attempts: 4},
 		},
 		Stats: map[string]*storage.DrillStats{
 			d.ID: {
-				DrillID:       d.ID,
-				PersonalBest:  1500 * time.Millisecond,
+				DrillID: d.ID,
+
 				TotalRuns:     4,
 				Successful:    3,
 				CurrentStreak: 2,
@@ -131,7 +131,7 @@ func TestHallOfFameLeftAligned(t *testing.T) {
 	d, hist := hallOfFameHist()
 	for _, recent := range []bool{false, true} {
 		for _, width := range []int{60, 80, 120} {
-			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, width))
+			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.ExamMode, width))
 			for _, line := range strings.Split(view, "\n") {
 				if line == "" {
 					continue
@@ -148,8 +148,8 @@ func TestHallOfFameNoFillOrPurple(t *testing.T) {
 	forceTrueColor(t)
 	d, hist := hallOfFameHist()
 	out := []string{
-		RenderLeaderboardView(d, hist, false, 80),
-		RenderLeaderboardView(d, hist, true, 80),
+		RenderLeaderboardView(d, hist, false, storage.ExamMode, 80),
+		RenderLeaderboardView(d, hist, true, storage.ExamMode, 80),
 		renderCountdown(3, 80, 24),
 		renderCountdown(0, 80, 24),
 	}
@@ -167,7 +167,7 @@ func TestHallOfFameRowsDoNotWrap(t *testing.T) {
 	d, hist := hallOfFameHist()
 	for _, width := range []int{60, 72, 80} {
 		for _, recent := range []bool{false, true} {
-			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, width))
+			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.ExamMode, width))
 			lines := strings.Split(view, "\n")
 			divider := -1
 			for i, line := range lines {
@@ -179,9 +179,9 @@ func TestHallOfFameRowsDoNotWrap(t *testing.T) {
 				t.Fatalf("width %d recent=%v: no table divider:\n%s", width, recent, view)
 			}
 			// One line per run after the divider. A wrapped cell would add a line.
-			want := len(hist.GetTopAttempts(d.ID, 8))
+			want := len(hist.GetTopAttempts(d.ID, storage.ExamMode, 8))
 			if recent {
-				want = len(hist.GetRecentAttempts(d.ID, 8))
+				want = len(hist.GetRecentAttempts(d.ID, storage.ExamMode, 8))
 			}
 			rows := lines[divider+1:]
 			if len(rows) != want {
@@ -195,7 +195,7 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 	d, hist := hallOfFameHist()
 	for _, width := range []int{30, 40, 60, 80} {
 		for _, recent := range []bool{false, true} {
-			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, width))
+			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.ExamMode, width))
 			lines := strings.Split(view, "\n")
 			for _, line := range lines {
 				if w := lipgloss.Width(line); w > width {
@@ -211,9 +211,9 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 			if divider < 0 {
 				t.Fatalf("recent=%v width %d: no table divider:\n%s", recent, width, view)
 			}
-			attempts := hist.GetTopAttempts(d.ID, 8)
+			attempts := hist.GetTopAttempts(d.ID, storage.ExamMode, 8)
 			if recent {
-				attempts = hist.GetRecentAttempts(d.ID, 8)
+				attempts = hist.GetRecentAttempts(d.ID, storage.ExamMode, 8)
 			}
 			rows := lines[divider+1:]
 			if len(rows) != len(attempts) {
@@ -241,7 +241,7 @@ func TestHallOfFameOnlyTopRankIsStyled(t *testing.T) {
 	forceTrueColor(t)
 	useTheme(t, "cyan")
 	d, hist := hallOfFameHist()
-	view := RenderLeaderboardView(d, hist, false, 80)
+	view := RenderLeaderboardView(d, hist, false, storage.ExamMode, 80)
 
 	top := AccentStyle.Render("★ #1")
 	var first, second string

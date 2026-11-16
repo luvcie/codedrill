@@ -50,7 +50,7 @@ func TestBuiltinRanksInCommands(t *testing.T) {
 				{time.Second, true, "X+"},
 				{a, true, "X+"},
 			} {
-				if _, _, err := history.RecordAttempt(d.ID, tc.duration, tc.passed, 1, false); err != nil {
+				if _, _, err := history.RecordAttempt(d.ID, storage.ExamMode, tc.duration, tc.passed, 1, false); err != nil {
 					t.Fatal(err)
 				}
 				for _, args := range [][]string{

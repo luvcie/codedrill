@@ -49,7 +49,7 @@ func (m *MainModel) screenKeys() string {
 	case StateResults:
 		return "[Enter/q] menu  [r] retry  [n/p] next/prev\n[b] briefing  [l] history"
 	case StateLeaderboard:
-		return "[Enter] sprint  [n/p] next/prev  [Tab] toggle\n[Esc/q] back"
+		return "[←/→] category  [Tab] toggle\n[Enter] sprint  [n/p] next/prev  [Esc/q] back"
 	case StateStats:
 		return "[Esc/q/Enter] menu"
 	case StateSettings:

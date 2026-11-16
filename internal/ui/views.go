@@ -28,7 +28,9 @@ func (m *MainModel) contentView() string {
 		return header + "\n" + RenderStatsDashboard(m.history, m.drills, m.width)
 	case StateLeaderboard:
 		header := m.screenHeader(joinContext(m.activeTitle(), "hall of fame"))
-		return header + "\n" + RenderLeaderboardView(*m.activeDrill, m.history, m.leaderboardRecent, m.width)
+		categories := m.history.RecordModes(m.activeDrill.ID)
+		category := categories[m.leaderboardMode%len(categories)]
+		return header + "\n" + RenderLeaderboardView(*m.activeDrill, m.history, m.leaderboardRecent, category, m.width)
 	case StateBriefing:
 		return m.viewBriefing()
 	case StateCountdown:
@@ -107,8 +109,9 @@ func (m *MainModel) viewSetupError() string {
 
 func (m *MainModel) viewBriefing() string {
 	d := m.activeDrill
+	category := m.briefingMode.RecordMode()
 	pb := "PB --"
-	if best := m.history.GetPB(d.ID); best > 0 {
+	if best := m.history.GetPB(d.ID, category); best > 0 {
 		grade, _ := CalculateGrade(best, *d)
 		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(best), grade)
 	}
@@ -209,7 +212,7 @@ func (m *MainModel) viewResults() string {
 		add(AccentStyle.Render(fmt.Sprintf("daily cleared (+%d XP)", storage.DailyBonusXP)))
 	}
 	if m.isPB {
-		add(SuccessStyle.Render("new personal best"))
+		add(SuccessStyle.Render("new personal best · " + mode.RecordLabel(m.runMode.RecordMode())))
 	}
 	if streak := m.history.CurrentStreak; streak > 1 {
 		if m.newBestStreak {
@@ -228,7 +231,7 @@ func (m *MainModel) viewResults() string {
 	case m.isPB && m.pbDelta > 0:
 		add(SuccessStyle.Render(fmt.Sprintf("-%s faster than your previous PB", storage.FormatDuration(m.pbDelta))))
 	case !m.isPB:
-		if pb := m.history.GetPB(d.ID); pb > 0 && m.lastDuration > pb {
+		if pb := m.history.GetPB(d.ID, m.runMode.RecordMode()); pb > 0 && m.lastDuration > pb {
 			add(DangerStyle.Render(fmt.Sprintf("+%s behind PB (%s)", storage.FormatDuration(m.lastDuration-pb), storage.FormatDuration(pb))))
 		}
 	}
@@ -253,7 +256,7 @@ func (m *MainModel) viewResults() string {
 			SubtextStyle.Render(fmt.Sprintf("  %d/%d XP (%d to level %d)", lvl.TotalXP, lvl.NextLevelXP, lvl.NextLevelXP-lvl.TotalXP, lvl.Level+1)))
 	}
 
-	return m.screenHeader(joinContext(d.Title, "finished")) + "\n\n" + indentLines(strings.Join(lines, "\n"))
+	return m.screenHeader(joinContext(d.Title, "finished", mode.RecordLabel(m.runMode.RecordMode()))) + "\n\n" + indentLines(strings.Join(lines, "\n"))
 }
 
 func formatEvalOutput(output string, width int) string {

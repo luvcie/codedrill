@@ -25,7 +25,7 @@ func resetTestModel(t *testing.T) (*MainModel, string) {
 	if err := drill.SaveDrill(drill.Drill{ID: "private-reset-test", Title: "Private", EntryFile: "answer.c"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := m.history.RecordAttempt("private-reset-test", time.Second, true, 1, false); err != nil {
+	if _, _, err := m.history.RecordAttempt("private-reset-test", storage.ExamMode, time.Second, true, 1, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := storage.SaveConfig(storage.Config{Theme: "nord", Shell: "zsh"}); err != nil {

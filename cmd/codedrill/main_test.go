@@ -27,10 +27,10 @@ func TestCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := hist.RecordAttempt("ft_strlen", 3200*time.Millisecond, true, 1, false); err != nil {
+	if _, _, err := hist.RecordAttempt("ft_strlen", storage.ExamMode, 3200*time.Millisecond, true, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := hist.RecordAttempt("ft_strlen", 5500*time.Millisecond, false, 2, false); err != nil {
+	if _, _, err := hist.RecordAttempt("ft_strlen", storage.ExamMode, 5500*time.Millisecond, false, 2, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -132,14 +132,14 @@ func TestCorruptConfigIsNotOverwritten(t *testing.T) {
 func TestResetResolvesNames(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	hist, _ := storage.LoadHistory()
-	if _, _, err := hist.RecordAttempt("ft_strlen", time.Second, true, 1, false); err != nil {
+	if _, _, err := hist.RecordAttempt("ft_strlen", storage.ExamMode, time.Second, true, 1, false); err != nil {
 		t.Fatal(err)
 	}
 	if code, _, errOut := runCLI(t, "reset", "FT_STRLEN"); code != 0 {
 		t.Fatalf("reset by name: %s", errOut)
 	}
 	hist, _ = storage.LoadHistory()
-	if hist.GetPB("ft_strlen") != 0 {
+	if hist.GetPB("ft_strlen", storage.ExamMode) != 0 {
 		t.Fatal("reset by name left the PB in place")
 	}
 	if code, _, _ := runCLI(t, "reset", "all"); code != 0 {

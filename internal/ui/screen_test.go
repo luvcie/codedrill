@@ -463,7 +463,9 @@ func TestBriefingPBLineFitsAt80x24(t *testing.T) {
 	m := newEvaluationTestModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.state = StateBriefing
-	m.history.Stats[m.activeDrill.ID] = &storage.DrillStats{PersonalBest: 1560 * time.Millisecond}
+	if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, m.briefingMode.RecordMode(), 1560*time.Millisecond, true, 1, false); err != nil {
+		t.Fatal(err)
+	}
 	m.activeDrill.AutoSubmit = true
 	want := "ft_strlen · C · easy · PB " + storage.FormatDuration(1560*time.Millisecond) + " (X+) · auto-submit on"
 	plain := ansi.Strip(m.View())

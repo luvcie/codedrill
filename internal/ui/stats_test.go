@@ -47,7 +47,7 @@ func TestRenderStatsDashboard(t *testing.T) {
 		t.Errorf("expected notice in empty stats dashboard")
 	}
 
-	hist.Attempts = append(hist.Attempts, storage.Attempt{
+	hist.Attempts = append(hist.Attempts, storage.Attempt{Mode: storage.ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  2 * time.Second,
 		Passed:    true,
@@ -55,11 +55,11 @@ func TestRenderStatsDashboard(t *testing.T) {
 		Attempts:  1,
 	})
 	hist.Stats["ft_strlen"] = &storage.DrillStats{
-		DrillID:      "ft_strlen",
-		PersonalBest: 2 * time.Second,
-		TotalRuns:    1,
-		Successful:   1,
-		LastAttempt:  time.Now(),
+		DrillID: "ft_strlen",
+
+		TotalRuns:   1,
+		Successful:  1,
+		LastAttempt: time.Now(),
 	}
 
 	title := storage.GetLevelInfo(hist.GetTotalXP()).Title
@@ -109,16 +109,16 @@ func statsTestHistory() (*storage.HistoryStore, []drill.Drill) {
 	}
 	now := time.Now()
 	hist.Stats["long"] = &storage.DrillStats{
-		DrillID:       "long",
-		PersonalBest:  95 * time.Second,
+		DrillID: "long",
+
 		TotalRuns:     12,
 		Successful:    12,
 		CurrentStreak: 12,
 		LastAttempt:   now,
 	}
 	hist.Stats["short"] = &storage.DrillStats{
-		DrillID:       "short",
-		PersonalBest:  1560 * time.Millisecond,
+		DrillID: "short",
+
 		TotalRuns:     3,
 		Successful:    3,
 		CurrentStreak: 3,
@@ -130,9 +130,9 @@ func statsTestHistory() (*storage.HistoryStore, []drill.Drill) {
 		LastAttempt: now,
 	}
 	hist.Attempts = append(hist.Attempts,
-		storage.Attempt{DrillID: "long", Duration: 95 * time.Second, Passed: true, Timestamp: now, Attempts: 1},
-		storage.Attempt{DrillID: "short", Duration: 1560 * time.Millisecond, Passed: true, Timestamp: now, Attempts: 1},
-		storage.Attempt{DrillID: "failed", Duration: 4 * time.Second, Passed: false, Timestamp: now, Attempts: 1},
+		storage.Attempt{Mode: storage.ExamMode, DrillID: "long", Duration: 95 * time.Second, Passed: true, Timestamp: now, Attempts: 1},
+		storage.Attempt{Mode: storage.ExamMode, DrillID: "short", Duration: 1560 * time.Millisecond, Passed: true, Timestamp: now, Attempts: 1},
+		storage.Attempt{Mode: storage.ExamMode, DrillID: "failed", Duration: 4 * time.Second, Passed: false, Timestamp: now, Attempts: 1},
 	)
 	hist.CurrentStreak = 3
 	hist.BestStreak = 12

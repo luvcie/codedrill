@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -16,24 +17,25 @@ var hallValueStyle = lipgloss.NewStyle().Bold(true)
 
 const hallGap = 3
 
-func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent bool, width int) string {
+func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent bool, category storage.RecordMode, width int) string {
 	if width <= 0 {
 		width = 80
 	}
 	var attempts []storage.Attempt
 	if showRecent {
-		attempts = hist.GetRecentAttempts(d.ID, 8)
+		attempts = hist.GetRecentAttempts(d.ID, category, 8)
 	} else {
-		attempts = hist.GetTopAttempts(d.ID, 8)
+		attempts = hist.GetTopAttempts(d.ID, category, 8)
 	}
 
-	mode := "fastest runs   [Tab] recent"
+	viewMode := "fastest runs   [Tab] recent"
 	if showRecent {
-		mode = "recent runs   [Tab] fastest"
+		viewMode = "recent runs   [Tab] fastest"
 	}
-	lines := []string{"", "  " + styleHelpRow(mode, ""), ""}
+	categoryLine := mode.RecordLabel(category) + "   [←/→] category"
+	lines := []string{"", "  " + ansi.Truncate(categoryLine, max(0, width-2), ""), "  " + styleHelpRow(viewMode, ""), ""}
 
-	if stat := hallStats(hist, d, width); len(stat) > 0 {
+	if stat := hallStats(hist, d, category, width); len(stat) > 0 {
 		lines = append(lines, stat...)
 		lines = append(lines, "")
 	}
@@ -48,8 +50,8 @@ func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent
 	return strings.Join(lines, "\n")
 }
 
-func hallStats(hist *storage.HistoryStore, d drill.Drill, width int) []string {
-	stats := hist.GetStats(d.ID)
+func hallStats(hist *storage.HistoryStore, d drill.Drill, category storage.RecordMode, width int) []string {
+	stats := hist.GetModeStats(d.ID, category)
 	if stats == nil || stats.TotalRuns == 0 {
 		return nil
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -29,6 +30,8 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+			m.runMode = mode.Exam()
+			m.briefingMode = mode.Exam()
 			d := *m.activeDrill
 			targets := drill.RankTargets(d)
 			a, aPlus, x := targets[9].Time, targets[10].Time, targets[16].Time
@@ -71,7 +74,7 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := history.GetPB(d.ID); got != tc.pb {
+				if got := history.GetPB(d.ID, storage.ExamMode); got != tc.pb {
 					t.Fatalf("saved PB = %v, want %v", got, tc.pb)
 				}
 				m.history = history
@@ -90,8 +93,8 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 					"menu PB":    {item.Description(), "(" + tc.pbRank + ")"},
 					"briefing":   {m.viewBriefing(), "PB " + storage.FormatDuration(tc.pb) + " (" + tc.pbRank + ")"},
 					"stats":      {RenderStatsDashboard(history, []drill.Drill{d}, 100), storage.FormatDuration(tc.pb) + " " + tc.pbRank},
-					"top":        {RenderLeaderboardView(d, history, false, 100), "[" + tc.pbRank + "]"},
-					"recent":     {RenderLeaderboardView(d, history, true, 100), "[" + tc.pbRank + "]"},
+					"top":        {RenderLeaderboardView(d, history, false, storage.ExamMode, 100), "[" + tc.pbRank + "]"},
+					"recent":     {RenderLeaderboardView(d, history, true, storage.ExamMode, 100), "[" + tc.pbRank + "]"},
 				}
 				for name, rendered := range views {
 					view := ansi.Strip(rendered.view)

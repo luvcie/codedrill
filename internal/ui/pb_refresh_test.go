@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -17,6 +18,7 @@ func TestFinishRefreshesMenuPB(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			m := newEvaluationTestModel(t)
+			m.runMode = mode.Exam()
 			m.categoryIndex = categoryNamed(t, m, "42")
 			m.categoryFilter = "42"
 			m.refreshList()
@@ -51,7 +53,7 @@ func TestFinishRefreshesMenuPB(t *testing.T) {
 					t.Fatal("finish did not show results")
 				}
 				m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-				want := m.history.GetPB(selected.drill.ID)
+				want := m.history.GetPB(selected.drill.ID, storage.ExamMode)
 				item := m.list.SelectedItem().(drillItem)
 				if item.drill.ID != selected.drill.ID || item.pb != want || !strings.Contains(item.Description(), storage.FormatDuration(want)) {
 					t.Fatalf("selected menu item disagrees with history: %+v; PB %v", item, want)
@@ -63,7 +65,7 @@ func TestFinishRefreshesMenuPB(t *testing.T) {
 					t.Fatal("finish reset search")
 				}
 				reloaded, err := storage.LoadHistory()
-				if err != nil || reloaded.GetPB(selected.drill.ID) != want {
+				if err != nil || reloaded.GetPB(selected.drill.ID, storage.ExamMode) != want {
 					t.Fatalf("disk PB differs from menu: %v", err)
 				}
 			}

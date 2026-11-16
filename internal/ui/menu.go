@@ -70,9 +70,9 @@ func (i drillItem) Description() string {
 	if difficulty == "" {
 		difficulty = "EASY"
 	}
-	pb := "PB --"
+	pb := "Exam PB --"
 	if grade, _ := CalculateGrade(i.pb, i.drill); grade != "" {
-		pb = fmt.Sprintf("PB %s (%s)", storage.FormatDuration(i.pb), grade)
+		pb = fmt.Sprintf("Exam PB %s (%s)", storage.FormatDuration(i.pb), grade)
 	}
 	desc := fmt.Sprintf("[%s • %s] • %s • %s", drill.CategoryOf(i.drill), difficulty, pb, CleanSummary(i.drill.Description))
 	return desc
@@ -165,14 +165,14 @@ func (m *MainModel) menuItemsFor(category string) []list.Item {
 	var items []list.Item
 	if !m.reorderableCategory(category) {
 		for _, d := range m.menuDrills(category) {
-			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
+			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode)})
 		}
 		return append(items, drillItem{isAdd: true})
 	}
 
 	for _, block := range m.menuBlocks(category) {
 		if !block.isGroup() {
-			items = append(items, drillItem{drill: block.drill, pb: m.history.GetPB(block.drill.ID)})
+			items = append(items, drillItem{drill: block.drill, pb: m.history.GetPB(block.drill.ID, storage.ExamMode)})
 			continue
 		}
 		key := groupKey(category, block.group)
@@ -187,7 +187,7 @@ func (m *MainModel) menuItemsFor(category string) []list.Item {
 			continue
 		}
 		for _, d := range block.drills {
-			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID)})
+			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode)})
 		}
 	}
 	return append(items, drillItem{isAdd: true})
@@ -213,7 +213,7 @@ func (m *MainModel) toggleGroup(it drillItem) {
 func (m *MainModel) refreshPB(d drill.Drill) tea.Cmd {
 	for i, item := range m.list.Items() {
 		if it, ok := item.(drillItem); ok && !it.isAdd && it.drill.ID == d.ID {
-			it.pb = m.history.GetPB(it.drill.ID)
+			it.pb = m.history.GetPB(it.drill.ID, storage.ExamMode)
 			return m.list.SetItem(i, it)
 		}
 	}

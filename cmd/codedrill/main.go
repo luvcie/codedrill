@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/luvcie/codedrill/internal/compare"
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/runner"
 	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
@@ -262,8 +263,8 @@ func (c *cli) findDrill(idOrTitle string) (*drill.Drill, error) {
 	return d, nil
 }
 
-func pbText(hist *storage.HistoryStore, d drill.Drill) string {
-	pb := hist.GetPB(d.ID)
+func pbText(hist *storage.HistoryStore, d drill.Drill, category storage.RecordMode) string {
+	pb := hist.GetPB(d.ID, category)
 	if pb <= 0 {
 		return "-"
 	}
@@ -282,8 +283,8 @@ func (c *cli) drillTable(header string, drills []drill.Drill, hist *storage.Hist
 		case "MEDIUM":
 			difficulty = "MED"
 		}
-		c.printf("  %-18s [%-6s] [%-10s] [%-4s]  PB: %-14s  %s\n",
-			d.ID, strings.ToUpper(d.Language), drill.CategoryOf(d), difficulty, pbText(hist, d), d.Title)
+		c.printf("  %-18s [%-6s] [%-10s] [%-4s]  Exam PB: %-14s  %s\n",
+			d.ID, strings.ToUpper(d.Language), drill.CategoryOf(d), difficulty, pbText(hist, d, storage.ExamMode), d.Title)
 	}
 	c.println(rule)
 	c.println(footer)
@@ -358,7 +359,7 @@ func (c *cli) info(idOrTitle string) error {
 		paces = append(paces, fmt.Sprintf("%s %s %v", target.Rank, op, target.Time))
 	}
 	pb := "None yet"
-	if p := hist.GetPB(d.ID); p > 0 {
+	if p := hist.GetPB(d.ID, storage.ExamMode); p > 0 {
 		grade, _ := ui.CalculateGrade(p, *d)
 		pb = fmt.Sprintf("%s (%s-RANK)", storage.FormatDuration(p), grade)
 	}
@@ -377,7 +378,12 @@ func (c *cli) info(idOrTitle string) error {
 		slices.Reverse(paces)
 		c.printf("Target paces:  %s\n", strings.Join(paces, " · "))
 	}
-	c.printf("Personal best: %s\n", pb)
+	c.printf("Personal best: %s (Exam)\n", pb)
+	for _, category := range hist.RecordModes(d.ID)[1:] {
+		if hist.GetPB(d.ID, category) > 0 {
+			c.printf("%s PB: %s\n", mode.RecordLabel(category), pbText(hist, *d, category))
+		}
+	}
 	c.printf("Entry file:    %s\n", d.EntryFile)
 	c.println(rule)
 	c.println(d.Description)
@@ -396,24 +402,30 @@ func (c *cli) runs(idOrTitle string, recent bool) error {
 		return err
 	}
 
-	title, attempts := "Hall of fame", hist.GetTopAttempts(d.ID, 10)
+	title := "Hall of fame"
 	if recent {
-		title, attempts = "Recent runs", hist.GetRecentAttempts(d.ID, 10)
+		title = "Recent runs"
 	}
 	c.println(rule)
 	c.printf("%s: %s (%s)\n", title, d.Title, strings.ToUpper(d.Language))
-	if st := hist.GetStats(d.ID); st != nil && st.TotalRuns > 0 {
-		streak := ""
-		if st.CurrentStreak > 0 {
-			streak = fmt.Sprintf(" · Streak: %d (best %d)", st.CurrentStreak, st.BestStreak)
+	for _, category := range hist.RecordModes(d.ID) {
+		st := hist.GetModeStats(d.ID, category)
+		if category != storage.ExamMode && st == nil {
+			continue
 		}
-		c.printf("Runs: %d · Passed: %d (%d%%) · PB: %s%s\n",
-			st.TotalRuns, st.Successful, st.Successful*100/st.TotalRuns, pbText(hist, *d), streak)
-	}
-	c.println(rule)
-	if len(attempts) == 0 {
-		c.println("  No runs yet.")
-	} else {
+		c.printf("\n%s\n", mode.RecordLabel(category))
+		if st != nil && st.TotalRuns > 0 {
+			c.printf("Runs: %d · Passed: %d (%d%%) · PB: %s\n", st.TotalRuns, st.Successful,
+				st.Successful*100/st.TotalRuns, pbText(hist, *d, category))
+		}
+		attempts := hist.GetTopAttempts(d.ID, category, 10)
+		if recent {
+			attempts = hist.GetRecentAttempts(d.ID, category, 10)
+		}
+		if len(attempts) == 0 {
+			c.println("  No runs yet.")
+			continue
+		}
 		first := "RANK"
 		if recent {
 			first = "STATUS"
@@ -485,19 +497,30 @@ func (c *cli) stats() error {
 		return nil
 	}
 	slices.Sort(cleared)
-	c.println("Personal bests:")
-	for _, id := range cleared {
-		st := hist.Stats[id]
-		pb := storage.FormatDuration(st.PersonalBest)
-		if d, ok := byID[id]; ok {
-			grade, _ := ui.CalculateGrade(st.PersonalBest, d)
-			pb += " [" + string(grade) + "]"
+	for _, category := range hist.RecordModes("") {
+		var rows []string
+		for _, id := range cleared {
+			pb := hist.GetPB(id, category)
+			if pb <= 0 {
+				continue
+			}
+			best := storage.FormatDuration(pb)
+			if d, ok := byID[id]; ok {
+				grade, _ := ui.CalculateGrade(pb, d)
+				best += " [" + string(grade) + "]"
+			}
+			rows = append(rows, fmt.Sprintf("  %-18s  PB: %s", id, best))
 		}
-		streak := ""
-		if st.CurrentStreak > 1 {
-			streak = fmt.Sprintf(", streak: %d", st.CurrentStreak)
+		if category != storage.ExamMode && len(rows) == 0 {
+			continue
 		}
-		c.printf("  %-18s  PB: %-14s (runs: %d, passed: %d%s)\n", id, pb, st.TotalRuns, st.Successful, streak)
+		c.printf("%s personal bests:\n", mode.RecordLabel(category))
+		if len(rows) == 0 {
+			c.println("  No Exam records yet.")
+		}
+		for _, row := range rows {
+			c.println(row)
+		}
 	}
 	c.println(short)
 	return nil

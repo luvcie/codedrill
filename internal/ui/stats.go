@@ -152,10 +152,10 @@ func renderDrillTable(hist *storage.HistoryStore, drills []drill.Drill, width in
 			continue
 		}
 		best := SubtextStyle.Render("--")
-		if st.PersonalBest > 0 {
-			grade, _ := CalculateGrade(st.PersonalBest, d)
+		if pb := hist.GetPB(d.ID, storage.ExamMode); pb > 0 {
+			grade, _ := CalculateGrade(pb, d)
 			gradeText := lipgloss.NewStyle().Foreground(gradeColor(grade)).Render(string(grade))
-			best = lipgloss.NewStyle().Bold(true).Render(storage.FormatDuration(st.PersonalBest)) + " " + gradeText
+			best = lipgloss.NewStyle().Bold(true).Render(storage.FormatDuration(pb)) + " " + gradeText
 		}
 		runs := strconv.Itoa(st.TotalRuns)
 		if st.CurrentStreak > 1 {
@@ -174,7 +174,7 @@ func renderDrillTable(hist *storage.HistoryStore, drills []drill.Drill, width in
 		})
 	}
 
-	headers := []string{"drill", "lang", "best", "sprints", "last run"}
+	headers := []string{"drill", "lang", "exam best", "sprints", "last run"}
 	content := make([]int, len(headers))
 	for i, h := range headers {
 		content[i] = lipgloss.Width(h)

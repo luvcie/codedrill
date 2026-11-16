@@ -24,7 +24,7 @@ func newTestStore(t *testing.T) (*HistoryStore, string) {
 func TestStorageRecordAttempt(t *testing.T) {
 	store, path := newTestStore(t)
 
-	isPB, delta, err := store.RecordAttempt("drill-1", 5*time.Second, true, 1, false)
+	isPB, delta, err := store.RecordAttempt("drill-1", ExamMode, 5*time.Second, true, 1, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -34,11 +34,11 @@ func TestStorageRecordAttempt(t *testing.T) {
 	if delta != 0 {
 		t.Errorf("expected delta 0 on first run, got %v", delta)
 	}
-	if store.GetPB("drill-1") != 5*time.Second {
-		t.Errorf("expected PB to be 5s, got %v", store.GetPB("drill-1"))
+	if store.GetPB("drill-1", ExamMode) != 5*time.Second {
+		t.Errorf("expected PB to be 5s, got %v", store.GetPB("drill-1", ExamMode))
 	}
 
-	isPB, delta, err = store.RecordAttempt("drill-1", 3*time.Second, true, 1, false)
+	isPB, delta, err = store.RecordAttempt("drill-1", ExamMode, 3*time.Second, true, 1, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,11 +48,11 @@ func TestStorageRecordAttempt(t *testing.T) {
 	if delta != 2*time.Second {
 		t.Errorf("expected delta of 2s, got %v", delta)
 	}
-	if store.GetPB("drill-1") != 3*time.Second {
-		t.Errorf("expected PB to be 3s, got %v", store.GetPB("drill-1"))
+	if store.GetPB("drill-1", ExamMode) != 3*time.Second {
+		t.Errorf("expected PB to be 3s, got %v", store.GetPB("drill-1", ExamMode))
 	}
 
-	isPB, delta, err = store.RecordAttempt("drill-1", 4*time.Second, true, 1, false)
+	isPB, delta, err = store.RecordAttempt("drill-1", ExamMode, 4*time.Second, true, 1, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,15 +63,15 @@ func TestStorageRecordAttempt(t *testing.T) {
 		t.Errorf("expected delta -1s, got %v", delta)
 	}
 
-	isPB, _, err = store.RecordAttempt("drill-1", 1*time.Second, false, 2, false)
+	isPB, _, err = store.RecordAttempt("drill-1", ExamMode, 1*time.Second, false, 2, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if isPB {
 		t.Errorf("failed run should not be PB")
 	}
-	if store.GetPB("drill-1") != 3*time.Second {
-		t.Errorf("expected PB to remain 3s, got %v", store.GetPB("drill-1"))
+	if store.GetPB("drill-1", ExamMode) != 3*time.Second {
+		t.Errorf("expected PB to remain 3s, got %v", store.GetPB("drill-1", ExamMode))
 	}
 	if store.CurrentStreak != 0 {
 		t.Errorf("expected current streak 0 after failure, got %d", store.CurrentStreak)
@@ -80,7 +80,7 @@ func TestStorageRecordAttempt(t *testing.T) {
 		t.Errorf("expected best streak 3, got %d", store.BestStreak)
 	}
 
-	_, _, _ = store.RecordAttempt("drill-1", 2*time.Second, true, 1, false)
+	_, _, _ = store.RecordAttempt("drill-1", ExamMode, 2*time.Second, true, 1, false)
 	if store.CurrentStreak != 1 {
 		t.Errorf("expected current streak 1, got %d", store.CurrentStreak)
 	}
@@ -124,9 +124,9 @@ func TestStorageMetricsAndStats(t *testing.T) {
 		t.Errorf("expected 0 cleared")
 	}
 
-	_, _, _ = store.RecordAttempt("d1", 2*time.Second, true, 1, false)
-	_, _, _ = store.RecordAttempt("d1", 3*time.Second, false, 1, false)
-	_, _, _ = store.RecordAttempt("d2", 4*time.Second, true, 1, false)
+	_, _, _ = store.RecordAttempt("d1", ExamMode, 2*time.Second, true, 1, false)
+	_, _, _ = store.RecordAttempt("d1", ExamMode, 3*time.Second, false, 1, false)
+	_, _, _ = store.RecordAttempt("d2", ExamMode, 4*time.Second, true, 1, false)
 
 	if store.GetTotalRuns() != 3 {
 		t.Errorf("expected 3 total runs, got %d", store.GetTotalRuns())
@@ -150,7 +150,7 @@ func TestStorageMetricsAndStats(t *testing.T) {
 		t.Errorf("expected 3 runs and 2 passes today, got %d and %d", runs, passed)
 	}
 
-	top := store.GetTopAttempts("d1", 5)
+	top := store.GetTopAttempts("d1", ExamMode, 5)
 	if len(top) != 1 {
 		t.Fatalf("expected 1 passed attempt for d1, got %d", len(top))
 	}
@@ -158,7 +158,7 @@ func TestStorageMetricsAndStats(t *testing.T) {
 		t.Errorf("expected top attempt duration 2s, got %v", top[0].Duration)
 	}
 
-	recent := store.GetRecentAttempts("d1", 5)
+	recent := store.GetRecentAttempts("d1", ExamMode, 5)
 	if len(recent) != 2 {
 		t.Fatalf("expected 2 attempts for d1, got %d", len(recent))
 	}
@@ -169,8 +169,8 @@ func TestStorageMetricsAndStats(t *testing.T) {
 	if err := store.ResetDrillStats("d1"); err != nil {
 		t.Fatalf("failed to reset drill stats: %v", err)
 	}
-	if store.GetPB("d1") != 0 {
-		t.Errorf("expected d1 PB to be 0 after reset, got %v", store.GetPB("d1"))
+	if store.GetPB("d1", ExamMode) != 0 {
+		t.Errorf("expected d1 PB to be 0 after reset, got %v", store.GetPB("d1", ExamMode))
 	}
 	if store.GetStats("d1") != nil {
 		t.Errorf("expected d1 stats to be nil after reset")
@@ -313,7 +313,7 @@ func TestDailyStreak(t *testing.T) {
 	}
 
 	now := time.Now()
-	store.Attempts = append(store.Attempts, Attempt{
+	store.Attempts = append(store.Attempts, Attempt{Mode: ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  3 * time.Second,
 		Timestamp: now,
@@ -326,7 +326,7 @@ func TestDailyStreak(t *testing.T) {
 		t.Errorf("expected best daily streak 1, got %d", best)
 	}
 
-	store.Attempts = append(store.Attempts, Attempt{
+	store.Attempts = append(store.Attempts, Attempt{Mode: ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  2 * time.Second,
 		Timestamp: now,
@@ -337,7 +337,7 @@ func TestDailyStreak(t *testing.T) {
 	}
 
 	yesterday := now.AddDate(0, 0, -1)
-	store.Attempts = append(store.Attempts, Attempt{
+	store.Attempts = append(store.Attempts, Attempt{Mode: ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  4 * time.Second,
 		Timestamp: yesterday,
@@ -351,7 +351,7 @@ func TestDailyStreak(t *testing.T) {
 	}
 
 	twoDaysAgo := now.AddDate(0, 0, -2)
-	store.Attempts = append(store.Attempts, Attempt{
+	store.Attempts = append(store.Attempts, Attempt{Mode: ExamMode,
 		DrillID:   "ft_strlen",
 		Duration:  5 * time.Second,
 		Timestamp: twoDaysAgo,

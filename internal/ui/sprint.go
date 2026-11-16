@@ -75,7 +75,7 @@ func (m *MainModel) updateCountdown(key tea.KeyMsg) tea.Cmd {
 }
 
 func (m *MainModel) launchSprintSession() tea.Cmd {
-	sess, err := runner.NewSessionWithOptions(*m.activeDrill, m.history.GetPB(m.activeDrill.ID), logoRGB(ColorCroc), runner.Options{
+	sess, err := runner.NewSessionWithOptions(*m.activeDrill, m.history.GetPB(m.activeDrill.ID, m.runMode.RecordMode()), logoRGB(ColorCroc), runner.Options{
 		ReferenceOptions: &m.runMode,
 	})
 	if err != nil {
@@ -258,7 +258,7 @@ func (m *MainModel) recordPass() tea.Cmd {
 	oldLevel := storage.GetLevelInfo(m.history.GetTotalXP()).Level
 	oldBestStreak := m.history.BestStreak
 
-	isPB, delta, err := m.history.RecordAttempt(d.ID, m.accumulatedTime, true, submits, firstDailyClear)
+	isPB, delta, err := m.history.RecordAttempt(d.ID, m.runMode.RecordMode(), m.accumulatedTime, true, submits, firstDailyClear)
 	if err != nil {
 		m.saveErr = err
 		return nil
@@ -288,7 +288,7 @@ func (m *MainModel) recordPass() tea.Cmd {
 func (m *MainModel) recordForfeit() {
 	m.evalReview = nil
 	m.resultReview = nil
-	_, _, err := m.history.RecordAttempt(m.activeDrill.ID, m.accumulatedTime, false, m.submits(), false)
+	_, _, err := m.history.RecordAttempt(m.activeDrill.ID, m.runMode.RecordMode(), m.accumulatedTime, false, m.submits(), false)
 	if err != nil {
 		m.saveErr = err
 		return
