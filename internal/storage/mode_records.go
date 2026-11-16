@@ -6,13 +6,12 @@ import (
 	"time"
 )
 
-// RecordMode identifies comparable runs. Runs without a mode have no records.
+// RecordMode identifies a record category. Runs without a mode have no records.
 type RecordMode string
 
 const (
 	ExamMode   RecordMode = "exam"
 	RecallMode RecordMode = "recall"
-	CopyMode   RecordMode = "copy"
 	StudyMode  RecordMode = "study"
 )
 
@@ -75,7 +74,7 @@ func (s *HistoryStore) RecordModes(drillID string) []RecordMode {
 			}
 		}
 	}
-	modes := []RecordMode{ExamMode, RecallMode, CopyMode, StudyMode}
+	modes := []RecordMode{ExamMode, RecallMode, StudyMode}
 	var custom []RecordMode
 	for category := range records {
 		if strings.HasPrefix(string(category), "custom-") {

@@ -23,6 +23,39 @@ func newBriefingModeModel(t *testing.T, id string) *MainModel {
 	return m
 }
 
+func TestStudyCopyCheckboxKeepsStudySelected(t *testing.T) {
+	m := newBriefingModeModel(t, "ft_strlen")
+	for _, want := range []mode.Options{mode.Copy(), mode.Study()} {
+		m.modeFocus = 2
+		m.Update(tea.KeyMsg{Type: tea.KeySpace})
+		if m.briefingMode != want {
+			t.Fatalf("copy checkbox selected %+v, want %+v", m.briefingMode, want)
+		}
+		view := ansi.Strip(m.View())
+		box := "[ ]"
+		if want.RequireExact {
+			box = "[x]"
+		}
+		if !strings.Contains(view, "< Study >") || !strings.Contains(view, box+" Copy reference exactly") {
+			t.Fatalf("copy checkbox left the Study category:\n%s", view)
+		}
+		m.openBriefing(m.activeDrill)
+		if m.briefingMode != want {
+			t.Fatal("reopening the drill lost its copy checkbox")
+		}
+		m.Update(runeKey("1"))
+		if m.briefingMode != want {
+			t.Fatal("selecting Study cleared its copy checkbox")
+		}
+	}
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if m.briefingMode != mode.Recall() {
+		t.Fatalf("Study with copying advanced to %+v, want Recall", m.briefingMode)
+	}
+}
+
 func TestBriefingPresetsSaveSelection(t *testing.T) {
 	for _, tc := range []struct {
 		key  string
@@ -30,9 +63,8 @@ func TestBriefingPresetsSaveSelection(t *testing.T) {
 		name string
 	}{
 		{"1", mode.Study(), "Study"},
-		{"2", mode.Copy(), "Copy"},
-		{"3", mode.Recall(), "Recall"},
-		{"4", mode.Exam(), "Exam"},
+		{"2", mode.Recall(), "Recall"},
+		{"3", mode.Exam(), "Exam"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newBriefingModeModel(t, "ft_strlen")
@@ -92,7 +124,8 @@ func TestBriefingCheckboxFocusWrapsAndToggles(t *testing.T) {
 
 func TestBriefingInvalidGatesBlockEnter(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("2")) // Copy has tests disabled.
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace}) // Copy has tests disabled.
 	m.modeFocus = 0
 	m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	if m.briefingMode.RequireTests || m.briefingMode.RequireExact {
@@ -116,7 +149,7 @@ func TestBriefingInvalidGatesBlockEnter(t *testing.T) {
 
 func TestBriefingExactCopyValidationAndStudyFallback(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("3")) // Recall, no reference attached.
+	m.Update(runeKey("2")) // Recall, no reference attached.
 	if !strings.Contains(m.briefingProblem(), "attached reference") {
 		t.Fatalf("missing reference was not rejected: %+v", m.briefingMode)
 	}
@@ -150,7 +183,7 @@ func TestBriefingExactCopyChecksReferenceAndLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.Update(runeKey("3")) // Recall with a C reference attached.
+	m.Update(runeKey("2")) // Recall with a C reference attached.
 	if m.briefingProblem() != "" {
 		t.Fatalf("valid Recall was rejected: %s", m.briefingProblem())
 	}
@@ -172,7 +205,7 @@ func TestBriefingExactCopyChecksReferenceAndLanguage(t *testing.T) {
 		t.Skip("no unsupported drill available")
 	}
 	m2.openBriefing(&m2.drills[found])
-	m2.Update(runeKey("3"))
+	m2.Update(runeKey("2"))
 	if !strings.Contains(m2.briefingProblem(), "C and C++ drills") {
 		t.Fatalf("unsupported language was not rejected: %s", m2.briefingProblem())
 	}
@@ -184,7 +217,8 @@ func TestBriefingExactCopyChecksReferenceAndLanguage(t *testing.T) {
 
 func TestBriefingModePersistenceAcrossNavigation(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("2"))
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	m.openBriefing(m.activeDrill)
 	if m.briefingMode != mode.Copy() {
 		t.Fatalf("reopened briefing did not load Copy: %+v", m.briefingMode)
@@ -219,7 +253,7 @@ func TestBriefingModePersistenceAcrossNavigation(t *testing.T) {
 
 func TestResultsPreserveBriefingSelections(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("4"))
+	m.Update(runeKey("3"))
 	d := *m.activeDrill
 	m.runMode = m.briefingMode
 	m.resultDrill = d
@@ -254,14 +288,15 @@ func TestBriefingSaveErrorIsVisibleAndEditingContinues(t *testing.T) {
 	if err := os.Mkdir(path, 0755); err != nil {
 		t.Fatal(err)
 	}
-	m.Update(runeKey("2"))
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	if m.briefingMode != mode.Copy() || m.briefingSaveErr == nil {
 		t.Fatalf("save failure lost the selection: %+v", m.briefingMode)
 	}
 	if view := ansi.Strip(m.View()); !strings.Contains(view, "Preferences not saved") {
 		t.Fatalf("save failure is not visible:\n%s", view)
 	}
-	m.Update(runeKey("4"))
+	m.Update(runeKey("3"))
 	if m.briefingMode != mode.Exam() || m.briefingSaveErr == nil {
 		t.Fatalf("save failure prevented further editing: %+v", m.briefingMode)
 	}
@@ -269,7 +304,7 @@ func TestBriefingSaveErrorIsVisibleAndEditingContinues(t *testing.T) {
 
 func TestBriefingModeLayoutAtSmallSizes(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	labels := []string{"Reference check", "Show reference", "Require exact copy", "Require tests"}
+	labels := []string{"Reference check", "Show reference", "Copy reference exactly", "Require tests"}
 	for _, size := range []tea.WindowSizeMsg{{Width: 60, Height: 20}, {Width: 80, Height: 24}} {
 		m.Update(size)
 		view := ansi.Strip(m.View())
@@ -308,7 +343,7 @@ func TestBriefingModeTwoColumnOrderingAndAlignment(t *testing.T) {
 		if strings.Contains(line, "Reference check") && row0 < 0 {
 			row0 = y
 		}
-		if strings.Contains(line, "Require exact copy") && row1 < 0 {
+		if strings.Contains(line, "Copy reference exactly") && row1 < 0 {
 			row1 = y
 		}
 	}
@@ -324,15 +359,15 @@ func TestBriefingModeTwoColumnOrderingAndAlignment(t *testing.T) {
 	if !strings.Contains(l0, "Reference check") || !strings.Contains(l0, "Show reference") {
 		t.Fatalf("row 0 should hold Reference check + Show reference: %q", l0)
 	}
-	// Row 1: Require exact copy (left), Require tests (right).
+	// Row 1: Copy reference exactly (left), Require tests (right).
 	l1 := lines[row1]
-	if !strings.Contains(l1, "Require exact copy") || !strings.Contains(l1, "Require tests") {
-		t.Fatalf("row 1 should hold Require exact copy + Require tests: %q", l1)
+	if !strings.Contains(l1, "Copy reference exactly") || !strings.Contains(l1, "Require tests") {
+		t.Fatalf("row 1 should hold Copy reference exactly + Require tests: %q", l1)
 	}
 
 	// Columns must align: left-column labels start at the same x on both rows.
 	left0 := strings.Index(l0, "Reference check")
-	left1 := strings.Index(l1, "Require exact copy")
+	left1 := strings.Index(l1, "Copy reference exactly")
 	if left0 != left1 {
 		t.Fatalf("left column misaligned: row0 x=%d row1 x=%d:\n%s", left0, left1, view)
 	}
@@ -365,7 +400,7 @@ func TestBriefingModeTwoColumnOrderingAndAlignment(t *testing.T) {
 	lines30 := strings.Split(view30, "\n")
 	// Each label should be on its own row.
 	counts := map[string]int{}
-	for _, label := range []string{"Reference check", "Show reference", "Require exact copy", "Require tests"} {
+	for _, label := range []string{"Reference check", "Show reference", "Copy reference exactly", "Require tests"} {
 		for _, line := range lines30 {
 			if strings.Contains(line, label) {
 				counts[label]++
@@ -387,12 +422,11 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		t.Fatalf("expected initial Study mode, got %+v", m.briefingMode)
 	}
 
-	// Press Right: cycles to Copy, then Recall, then Exam, then wraps back to Study.
+	// Press Right: cycles to Recall, then Exam, then wraps back to Study.
 	expectedCycle := []struct {
 		want mode.Options
 		name string
 	}{
-		{mode.Copy(), "Copy"},
 		{mode.Recall(), "Recall"},
 		{mode.Exam(), "Exam"},
 		{mode.Study(), "Study"},
@@ -413,14 +447,13 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		}
 	}
 
-	// Press Left: wraps backwards from Study to Exam, then Recall, then Copy, then Study.
+	// Press Left: wraps backwards from Study to Exam, then Recall, then Study.
 	reverseCycle := []struct {
 		want mode.Options
 		name string
 	}{
 		{mode.Exam(), "Exam"},
 		{mode.Recall(), "Recall"},
-		{mode.Copy(), "Copy"},
 		{mode.Study(), "Study"},
 	}
 

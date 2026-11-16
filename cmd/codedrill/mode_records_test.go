@@ -16,7 +16,7 @@ func TestCommandsSeparateModeRecords(t *testing.T) {
 	}
 	for category, duration := range map[storage.RecordMode]time.Duration{
 		storage.ExamMode: 20 * time.Second, storage.RecallMode: 3 * time.Second,
-		storage.CopyMode: 2 * time.Second, storage.StudyMode: time.Second,
+		storage.StudyMode: time.Second,
 	} {
 		if _, _, err := history.RecordAttempt("ft_strlen", category, duration, true, 1, false); err != nil {
 			t.Fatal(err)
@@ -40,12 +40,15 @@ func TestCommandsSeparateModeRecords(t *testing.T) {
 		if code != 0 || errOut != "" {
 			t.Fatalf("%s failed: %d %s", command, code, errOut)
 		}
-		for _, label := range []string{"Exam", "Recall", "Copy", "Study"} {
+		for _, label := range []string{"Exam", "Recall", "Study"} {
 			if !strings.Contains(out, label) {
 				t.Fatalf("%s hides the %s category: %s", command, label, out)
 			}
 		}
-		if strings.Index(out, "Exam") > strings.Index(out, "Copy") {
+		if strings.Contains(out, "Copy") {
+			t.Fatalf("%s still lists Copy as a record category: %s", command, out)
+		}
+		if strings.Index(out, "Exam") > strings.Index(out, "Study") {
 			t.Fatalf("%s did not put Exam first: %s", command, out)
 		}
 	}

@@ -335,7 +335,7 @@ func (m *MainModel) updateBriefingMouse(msg tea.MouseMsg) tea.Cmd {
 var briefingOptionLabels = [briefingOptionCount]string{
 	"Reference check",
 	"Show reference",
-	"Require exact copy",
+	"Copy reference exactly",
 	"Require tests",
 }
 

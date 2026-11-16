@@ -476,10 +476,8 @@ func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
 	case "1":
 		m.applyBriefingPreset(mode.Study())
 	case "2":
-		m.applyBriefingPreset(mode.Copy())
-	case "3":
 		m.applyBriefingPreset(mode.Recall())
-	case "4":
+	case "3":
 		m.applyBriefingPreset(mode.Exam())
 	case "n", "p":
 		delta := 1

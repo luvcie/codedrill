@@ -30,7 +30,7 @@ func TestBriefingMouseTogglingAndFocus(t *testing.T) {
 	labels := []string{
 		"Reference check",
 		"Show reference",
-		"Require exact copy",
+		"Copy reference exactly",
 		"Require tests",
 	}
 
@@ -145,7 +145,7 @@ func TestBriefingMouseNormalizationAndValidation(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	// Switch to Exam preset first (reference checking off, tests required).
-	m.Update(runeKey("4"))
+	m.Update(runeKey("3"))
 	if m.briefingMode != mode.Exam() {
 		t.Fatalf("expected Exam preset: %+v", m.briefingMode)
 	}
@@ -160,7 +160,7 @@ func TestBriefingMouseNormalizationAndValidation(t *testing.T) {
 	}
 
 	// Clicking RequireExact (option 2) turns exact copy on and implies CheckReference.
-	y2 := rowOf(t, m, "Require exact copy")
+	y2 := rowOf(t, m, "Copy reference exactly")
 	m.Update(leftClick(2, y2))
 	if !m.briefingMode.RequireExact || !m.briefingMode.CheckReference {
 		t.Fatalf("clicking RequireExact did not imply CheckReference: %+v", m.briefingMode)
@@ -444,9 +444,9 @@ func TestBriefingMouseDisabled(t *testing.T) {
 	if m.briefingMode.ShowReference {
 		t.Fatalf("Space key with mouseOff did not toggle ShowReference off: %+v", m.briefingMode)
 	}
-	m.Update(runeKey("4"))
+	m.Update(runeKey("3"))
 	if m.briefingMode != mode.Exam() {
-		t.Fatalf("Preset key '4' with mouseOff did not apply Exam: %+v", m.briefingMode)
+		t.Fatalf("Preset key '3' with mouseOff did not apply Exam: %+v", m.briefingMode)
 	}
 }
 
@@ -497,11 +497,11 @@ func TestBriefingMouseThemeStyling(t *testing.T) {
 	}
 
 	// Click option 2: focus moves to option 2 and it gets AccentStyle.
-	y2 := rowOf(t, m, "Require exact copy")
-	x2 := checkboxBoxX(t, m, y2, 2, "Require exact copy")
+	y2 := rowOf(t, m, "Copy reference exactly")
+	x2 := checkboxBoxX(t, m, y2, 2, "Copy reference exactly")
 	m.Update(leftClick(x2, y2))
 	view = m.View()
-	want2 := AccentStyle.Render(padCell("[x] Require exact copy", colWidth))
+	want2 := AccentStyle.Render(padCell("[x] Copy reference exactly", colWidth))
 	if !strings.Contains(view, want2) {
 		t.Fatalf("view does not contain styled option 2:\n%s", view)
 	}

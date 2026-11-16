@@ -33,7 +33,7 @@ The executable is built in the current directory. Add it to your `PATH` to run `
 ## Quick start
 
 1. Choose a drill from the menu and open its briefing.
-2. Choose a practice mode with `1` to `4` or the arrow keys, then press Enter to start.
+2. Choose a practice mode with `1` to `3` or the arrow keys, then press Enter to start.
 3. Write your solution in the editor. The student entry file starts empty.
 4. With Zellij, run `r` in the terminal pane to check your work, then use `s` to submit. Without Zellij, close the editor to return to codedrill.
 5. Read the test and reference results. You can resume the workspace from evaluation or retry with a fresh workspace after a completed run.
@@ -42,14 +42,13 @@ The executable is built in the current directory. Add it to your `PATH` to run `
 
 | Mode | Reference visible | Passing requirement |
 | --- | --- | --- |
-| Study | Yes | Tests |
-| Copy | Yes | Exact reference match |
+| Study | Yes | Tests, or exact reference match with the copy checkbox |
 | Recall | No | Exact reference match |
 | Exam | No | Tests |
 
-You can change the four options in the briefing: check the reference, show it, require an exact match, and require tests. Tests run on submission even when they are not required to pass. Copy and Recall need a C or C++ drill with a reference solution.
+In Study, the **Copy reference exactly** checkbox switches to exact reference matching instead of requiring tests. The choice is saved per drill. You can also change the four options in the briefing: check the reference, show it, require an exact match, and require tests. Tests run on submission even when they are not required to pass. Exact copying and Recall need a C or C++ drill with a reference solution.
 
-Personal bests are separate for Exam, Recall, Copy, and Study. The drill menu and profile highlight Exam records. Sprint pace and results compare against the selected mode's PB. Each custom option combination also has its own records.
+Personal bests are separate for Exam, Recall, and Study. Both Study variants share one PB and history category. The drill menu and profile highlight Exam records. Sprint pace and results compare against the selected mode's PB. Each custom option combination also has its own records.
 
 In a drill's history, Left/Right switches record categories and Tab switches between fastest and recent runs. Runs saved without a mode do not count toward personal bests. Practice totals and XP include all modes.
 

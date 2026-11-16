@@ -20,7 +20,7 @@ func TestModePersonalBestsAreIndependent(t *testing.T) {
 		time     time.Duration
 	}{
 		{ExamMode, 20 * time.Second}, {RecallMode, 10 * time.Second},
-		{CopyMode, 5 * time.Second}, {StudyMode, time.Second},
+		{StudyMode, time.Second},
 	} {
 		pb, delta, err := s.RecordAttempt("drill", tc.category, tc.time, true, 1, false)
 		if err != nil || !pb || delta != 0 {
@@ -40,7 +40,7 @@ func TestModePersonalBestsAreIndependent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for category, want := range map[RecordMode]time.Duration{ExamMode: 15 * time.Second, RecallMode: 10 * time.Second, CopyMode: 5 * time.Second, StudyMode: time.Second} {
+	for category, want := range map[RecordMode]time.Duration{ExamMode: 15 * time.Second, RecallMode: 10 * time.Second, StudyMode: time.Second} {
 		if got := reloaded.GetPB("drill", category); got != want {
 			t.Fatalf("reloaded %s PB = %v, want %v", category, got, want)
 		}
@@ -49,6 +49,38 @@ func TestModePersonalBestsAreIndependent(t *testing.T) {
 				t.Fatalf("%s leaderboard includes %+v", category, attempt)
 			}
 		}
+	}
+}
+
+func TestSavedCopyRunsJoinStudyRecords(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path, err := GetHistoryPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const saved = `{"attempts":[{"drill_id":"drill","mode":"study","duration":10000000000,"passed":true},{"drill_id":"drill","mode":"copy","duration":5000000000,"passed":true}],"stats":{"drill":{"drill_id":"drill","total_runs":2,"successful":2}}}`
+	if err := os.WriteFile(path, []byte(saved), 0644); err != nil {
+		t.Fatal(err)
+	}
+	history, err := LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history.GetPB("drill", StudyMode) != 5*time.Second || len(history.GetTopAttempts("drill", StudyMode, 10)) != 2 {
+		t.Fatal("saved Copy and Study records did not merge")
+	}
+	if categories := history.RecordModes("drill"); !slices.Equal(categories, []RecordMode{ExamMode, RecallMode, StudyMode}) {
+		t.Fatalf("Copy is still a separate category: %v", categories)
+	}
+	if pb, delta, err := history.RecordAttempt("drill", StudyMode, 4*time.Second, true, 1, false); err != nil || !pb || delta != time.Second {
+		t.Fatalf("new Study record ignored the saved Study PB: %v %v %v", pb, delta, err)
+	}
+	history, err = LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history.GetPB("drill", StudyMode) != 4*time.Second || history.GetStats("drill").TotalRuns != 3 {
+		t.Fatal("merged records or practice totals changed after saving")
 	}
 }
 
@@ -66,7 +98,7 @@ func TestOldHistoryDoesNotSetModeRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantModes := []RecordMode{ExamMode, RecallMode, CopyMode, StudyMode}
+	wantModes := []RecordMode{ExamMode, RecallMode, StudyMode}
 	if got := s.RecordModes("old"); !slices.Equal(got, wantModes) {
 		t.Fatalf("old runs added a record category: %v", got)
 	}
@@ -115,7 +147,7 @@ func TestOldSummaryDoesNotSetModeRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := s.RecordModes("old"); len(got) != 4 || s.GetModeStats("old", "") != nil {
+	if got := s.RecordModes("old"); len(got) != 3 || s.GetModeStats("old", "") != nil {
 		t.Fatalf("old summary added a record category: %v", got)
 	}
 	if pb, delta, err := s.RecordAttempt("old", ExamMode, 5*time.Second, true, 1, false); err != nil || !pb || delta != 0 {
@@ -142,10 +174,10 @@ func TestModeSaveFailureDoesNotPublishRecord(t *testing.T) {
 	if err := os.Mkdir(path, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if pb, _, err := s.RecordAttempt("drill", CopyMode, time.Second, true, 1, false); err == nil || pb {
-		t.Fatal("failed save published a Copy PB")
+	if pb, _, err := s.RecordAttempt("drill", StudyMode, time.Second, true, 1, false); err == nil || pb {
+		t.Fatal("failed save published a Study PB")
 	}
-	if s.GetPB("drill", CopyMode) != 0 || s.GetPB("drill", ExamMode) != 20*time.Second || len(s.Attempts) != 1 {
+	if s.GetPB("drill", StudyMode) != 0 || s.GetPB("drill", ExamMode) != 20*time.Second || len(s.Attempts) != 1 {
 		t.Fatal("failed save changed mode records")
 	}
 	if err := os.Remove(path); err != nil {
@@ -154,7 +186,7 @@ func TestModeSaveFailureDoesNotPublishRecord(t *testing.T) {
 	if err := os.Rename(backup, path); err != nil {
 		t.Fatal(err)
 	}
-	if pb, delta, err := s.RecordAttempt("drill", CopyMode, time.Second, true, 1, false); err != nil || !pb || delta != 0 || len(s.Attempts) != 2 {
-		t.Fatalf("retry did not record exactly one first Copy PB: %v %v %v", pb, delta, err)
+	if pb, delta, err := s.RecordAttempt("drill", StudyMode, time.Second, true, 1, false); err != nil || !pb || delta != 0 || len(s.Attempts) != 2 {
+		t.Fatalf("retry did not record exactly one first Study PB: %v %v %v", pb, delta, err)
 	}
 }

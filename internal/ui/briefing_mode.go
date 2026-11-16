@@ -16,10 +16,8 @@ const briefingOptionCount = 4
 
 func modePresetName(opts mode.Options) string {
 	switch opts {
-	case mode.Study():
+	case mode.Study(), mode.Copy():
 		return "Study"
-	case mode.Copy():
-		return "Copy"
 	case mode.Recall():
 		return "Recall"
 	case mode.Exam():
@@ -128,9 +126,16 @@ func (m *MainModel) toggleBriefingOption() {
 			m.briefingMode.CheckReference = true
 		}
 	case 2:
-		m.briefingMode.RequireExact = !m.briefingMode.RequireExact
-		if m.briefingMode.RequireExact {
-			m.briefingMode.CheckReference = true
+		switch m.briefingMode {
+		case mode.Study():
+			m.briefingMode = mode.Copy()
+		case mode.Copy():
+			m.briefingMode = mode.Study()
+		default:
+			m.briefingMode.RequireExact = !m.briefingMode.RequireExact
+			if m.briefingMode.RequireExact {
+				m.briefingMode.CheckReference = true
+			}
 		}
 	case 3:
 		m.briefingMode.RequireTests = !m.briefingMode.RequireTests
@@ -144,7 +149,6 @@ func (m *MainModel) toggleBriefingOption() {
 
 var briefingPresets = []mode.Options{
 	mode.Study(),
-	mode.Copy(),
 	mode.Recall(),
 	mode.Exam(),
 }
@@ -155,7 +159,7 @@ func (m *MainModel) cycleBriefingPreset(delta int) {
 	}
 	current := -1
 	for i, p := range briefingPresets {
-		if m.briefingMode == p {
+		if m.briefingMode == p || (p == mode.Study() && m.briefingMode == mode.Copy()) {
 			current = i
 			break
 		}
@@ -177,6 +181,9 @@ func (m *MainModel) applyBriefingPreset(opts mode.Options) {
 	if m.activeDrill == nil {
 		return
 	}
+	if opts == mode.Study() && m.briefingMode == mode.Copy() {
+		opts = mode.Copy()
+	}
 	m.briefingMode = opts
 	m.refreshBriefingReference(m.activeDrill)
 	m.saveBriefingMode()
@@ -190,12 +197,12 @@ func (m *MainModel) saveBriefingMode() {
 }
 
 // briefingColumnLayout sizes the two-column checkbox panel. colWidth fits the
-// widest checkbox cell ("[x] Require exact copy"); gap is the space between
+// widest checkbox cell ("[x] Copy reference exactly"); gap is the space between
 // columns. Returns gap < 0 when the panel is too narrow for two columns.
 func briefingColumnLayout(width int) (colWidth, gap int) {
 	panelW := boxWidth(width, 40) - 4 // indentLines adds two spaces per side
 	const minGap = 3
-	const widestCell = 22 // "[x] Require exact copy"
+	const widestCell = 26 // "[x] Copy reference exactly"
 	if panelW < 2*widestCell+minGap {
 		return panelW, -1
 	}
@@ -217,7 +224,7 @@ func (m *MainModel) briefingModePanel() string {
 	}{
 		{"Reference check", m.briefingMode.CheckReference},
 		{"Show reference", m.briefingMode.ShowReference},
-		{"Require exact copy", m.briefingMode.RequireExact},
+		{"Copy reference exactly", m.briefingMode.RequireExact},
 		{"Require tests", m.briefingMode.RequireTests},
 	}
 

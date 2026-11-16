@@ -15,13 +15,14 @@ import (
 
 func TestFinishedRunSavesItsMode(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		opts mode.Options
+		name     string
+		opts     mode.Options
+		category storage.RecordMode
 	}{
-		{"exam", mode.Exam()},
-		{"recall", mode.Recall()},
-		{"copy", mode.Copy()},
-		{"study", mode.Study()},
+		{"exam", mode.Exam(), storage.ExamMode},
+		{"recall", mode.Recall(), storage.RecallMode},
+		{"study-copy", mode.Copy(), storage.StudyMode},
+		{"study", mode.Study(), storage.StudyMode},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newEvaluationTestModel(t)
@@ -38,8 +39,8 @@ func TestFinishedRunSavesItsMode(t *testing.T) {
 			if err := json.Unmarshal(data, &saved); err != nil {
 				t.Fatal(err)
 			}
-			if len(saved.Attempts) != 1 || saved.Attempts[0].Mode != tc.name {
-				t.Fatalf("saved run has no %s mode: %s", tc.name, data)
+			if len(saved.Attempts) != 1 || saved.Attempts[0].Mode != string(tc.category) {
+				t.Fatalf("saved %s run has no %s category: %s", tc.name, tc.category, data)
 			}
 		})
 	}
@@ -48,17 +49,19 @@ func TestFinishedRunSavesItsMode(t *testing.T) {
 func TestExamRemainsTheMainMenuRecord(t *testing.T) {
 	m := newEvaluationTestModel(t)
 	for _, tc := range []struct {
-		opts mode.Options
-		time time.Duration
+		opts  mode.Options
+		time  time.Duration
+		isPB  bool
+		delta time.Duration
 	}{
-		{mode.Exam(), 20 * time.Second}, {mode.Study(), time.Second},
-		{mode.Copy(), 2 * time.Second}, {mode.Recall(), 3 * time.Second},
+		{mode.Exam(), 20 * time.Second, true, 0}, {mode.Study(), time.Second, true, 0},
+		{mode.Copy(), 2 * time.Second, false, -time.Second}, {mode.Recall(), 3 * time.Second, true, 0},
 	} {
 		m.runMode = tc.opts
 		m.accumulatedTime = tc.time
 		m.recordPass()
-		if !m.isPB || m.pbDelta != 0 {
-			t.Fatalf("first %s run competed against another mode", mode.RecordLabel(tc.opts.RecordMode()))
+		if m.isPB != tc.isPB || m.pbDelta != tc.delta {
+			t.Fatalf("%s record: PB=%v delta=%v, want %v %v", mode.RecordLabel(tc.opts.RecordMode()), m.isPB, m.pbDelta, tc.isPB, tc.delta)
 		}
 		for _, item := range m.list.Items() {
 			if row, ok := item.(drillItem); ok && row.drill.ID == m.activeDrill.ID {
@@ -77,14 +80,14 @@ func TestExamRemainsTheMainMenuRecord(t *testing.T) {
 	}
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
-	if view := m.View(); !strings.Contains(view, "Copy") || !strings.Contains(view, "2.000s") || strings.Contains(view, "20.000s") {
-		t.Fatalf("Copy leaderboard mixes modes: %s", view)
+	if view := m.View(); !strings.Contains(view, "Study") || !strings.Contains(view, "1.000s") || !strings.Contains(view, "2.000s") || strings.Contains(view, "20.000s") {
+		t.Fatalf("Study leaderboard did not group both variants: %s", view)
 	}
 }
 
 func TestSprintAndBriefingUseSelectedModePB(t *testing.T) {
 	m := newEvaluationTestModel(t)
-	for category, duration := range map[storage.RecordMode]time.Duration{storage.ExamMode: 20 * time.Second, storage.CopyMode: 5 * time.Second} {
+	for category, duration := range map[storage.RecordMode]time.Duration{storage.ExamMode: 20 * time.Second, storage.StudyMode: 5 * time.Second} {
 		if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, category, duration, true, 1, false); err != nil {
 			t.Fatal(err)
 		}
@@ -101,10 +104,10 @@ func TestSprintAndBriefingUseSelectedModePB(t *testing.T) {
 	t.Cleanup(m.session.Cleanup)
 	pace, err := os.ReadFile(filepath.Join(m.session.Workspace, "pace"))
 	if err != nil || !strings.Contains(string(pace), "PB_MS='5000'") {
-		t.Fatalf("sprint pace does not use Copy PB: %s %v", pace, err)
+		t.Fatalf("sprint pace does not use the shared Study PB: %s %v", pace, err)
 	}
 	banner, err := os.ReadFile(filepath.Join(m.session.Workspace, "start-terminal.sh"))
-	if err != nil || !strings.Contains(string(banner), "PB_LABEL='Copy PB'") {
+	if err != nil || !strings.Contains(string(banner), "PB_LABEL='Study PB'") {
 		t.Fatalf("sprint does not identify the PB category: %s %v", banner, err)
 	}
 }
@@ -137,10 +140,10 @@ func TestForfeitKeepsTheRunsCapturedMode(t *testing.T) {
 	}
 	m.accumulatedTime = 10 * time.Second
 	m.recordForfeit()
-	if len(m.history.Attempts) != 1 || m.history.Attempts[0].Mode != storage.CopyMode || m.history.Attempts[0].Passed {
+	if len(m.history.Attempts) != 1 || m.history.Attempts[0].Mode != storage.StudyMode || m.history.Attempts[0].Passed {
 		t.Fatalf("forfeit lost the run's mode: %+v", m.history.Attempts)
 	}
-	if m.history.GetPB(m.activeDrill.ID, storage.CopyMode) != 0 || m.history.GetModeStats(m.activeDrill.ID, storage.ExamMode) != nil {
+	if m.history.GetPB(m.activeDrill.ID, storage.StudyMode) != 0 || m.history.GetModeStats(m.activeDrill.ID, storage.ExamMode) != nil {
 		t.Fatal("failed run changed a PB or used the newly saved preferences")
 	}
 }
