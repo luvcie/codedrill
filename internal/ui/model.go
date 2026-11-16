@@ -295,13 +295,6 @@ func (m *MainModel) openLeaderboard(from AppState) {
 	m.previousState = from
 	m.leaderboardRecent = false
 	m.leaderboardMode = 0
-	if from == StateResults {
-		for i, category := range m.history.RecordModes(m.activeDrill.ID) {
-			if category == m.runMode.RecordMode() {
-				m.leaderboardMode = i
-			}
-		}
-	}
 	m.state = StateLeaderboard
 }
 
@@ -509,7 +502,7 @@ func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
 func (m *MainModel) updateLeaderboard(key tea.KeyMsg) tea.Cmd {
 	switch key.String() {
 	case "left", "right":
-		categories := m.history.RecordModes(m.activeDrill.ID)
+		categories := m.leaderboardCategories()
 		delta := 1
 		if key.String() == "left" {
 			delta = -1

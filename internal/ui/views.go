@@ -28,7 +28,7 @@ func (m *MainModel) contentView() string {
 		return header + "\n" + RenderStatsDashboard(m.history, m.drills, m.width)
 	case StateLeaderboard:
 		header := m.screenHeader(joinContext(m.activeTitle(), "hall of fame"))
-		categories := m.history.RecordModes(m.activeDrill.ID)
+		categories := m.leaderboardCategories()
 		category := categories[m.leaderboardMode%len(categories)]
 		return header + "\n" + RenderLeaderboardView(*m.activeDrill, m.history, m.leaderboardRecent, category, m.width)
 	case StateBriefing:

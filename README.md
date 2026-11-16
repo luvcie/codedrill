@@ -50,7 +50,7 @@ In Study, the **Copy reference exactly** checkbox switches to exact reference ma
 
 Personal bests are separate for Exam, Recall, and Study. Both Study variants share one PB and history category. The drill menu and profile highlight Exam records. Sprint pace and results compare against the selected mode's PB. Each custom option combination also has its own records.
 
-In a drill's history, Left/Right switches record categories and Tab switches between fastest and recent runs. Runs saved without a mode do not count toward personal bests. Practice totals and XP include all modes.
+In a drill's history, **All** is the default view and shows every category and its PB together. Left/Right switches record categories and Tab switches between fastest and recent runs. Runs saved without a mode do not count toward personal bests. Practice totals and XP include all modes.
 
 ## Common commands
 
@@ -72,7 +72,7 @@ C and C++ drills can use reference solutions for scoring, exact-match checks, vi
 
 The built-in `42/Exam 05` group includes `bigint`, `bsq`, `life`, `polyset`, and
 `vect2`. Statements, tests, and reference solutions are embedded in the executable;
-no import or existing config is needed. All four practice modes work immediately.
+no import or existing config is needed. All three practice modes work immediately.
 
 These are independently written practice materials, not official school files.
 Existing local drills and reference attachments keep precedence.

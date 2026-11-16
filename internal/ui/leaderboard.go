@@ -17,35 +17,58 @@ var hallValueStyle = lipgloss.NewStyle().Bold(true)
 
 const hallGap = 3
 
+// All is a history view, never a saved practice mode.
+const allHistoryCategory storage.RecordMode = "all"
+
+func (m *MainModel) leaderboardCategories() []storage.RecordMode {
+	return append([]storage.RecordMode{allHistoryCategory}, m.history.RecordModes(m.activeDrill.ID)...)
+}
+
 func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent bool, category storage.RecordMode, width int) string {
 	if width <= 0 {
 		width = 80
 	}
-	var attempts []storage.Attempt
-	if showRecent {
-		attempts = hist.GetRecentAttempts(d.ID, category, 8)
-	} else {
-		attempts = hist.GetTopAttempts(d.ID, category, 8)
+	all := category == allHistoryCategory
+	categories := []storage.RecordMode{category}
+	label := mode.RecordLabel(category)
+	if all {
+		categories = hist.RecordModes(d.ID)
+		label = "All"
 	}
 
 	viewMode := "fastest runs   [Tab] recent"
 	if showRecent {
 		viewMode = "recent runs   [Tab] fastest"
 	}
-	categoryLine := mode.RecordLabel(category) + "   [←/→] category"
+	categoryLine := label + "   [←/→] category"
 	lines := []string{"", "  " + ansi.Truncate(categoryLine, max(0, width-2), ""), "  " + styleHelpRow(viewMode, ""), ""}
 
-	if stat := hallStats(hist, d, category, width); len(stat) > 0 {
-		lines = append(lines, stat...)
-		lines = append(lines, "")
-	}
+	for i, category := range categories {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		if all {
+			lines = append(lines, "  "+hallValueStyle.Render(ansi.Truncate(mode.RecordLabel(category), max(0, width-2), "")))
+		}
+		if stat := hallStats(hist, d, category, width); len(stat) > 0 {
+			lines = append(lines, stat...)
+			lines = append(lines, "")
+		}
 
-	table := hallTable(d, attempts, showRecent, width)
-	for _, line := range table {
-		lines = append(lines, "  "+line)
-	}
-	if len(attempts) == 0 {
-		lines = append(lines, "  "+SubtextStyle.Render("No runs yet."))
+		var attempts []storage.Attempt
+		if showRecent {
+			attempts = hist.GetRecentAttempts(d.ID, category, 8)
+		} else {
+			attempts = hist.GetTopAttempts(d.ID, category, 8)
+		}
+		if len(attempts) > 0 || !all {
+			for _, line := range hallTable(d, attempts, showRecent, width) {
+				lines = append(lines, "  "+line)
+			}
+		}
+		if len(attempts) == 0 {
+			lines = append(lines, "  "+SubtextStyle.Render("No runs yet."))
+		}
 	}
 	return strings.Join(lines, "\n")
 }

@@ -9,9 +9,41 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/storage"
 )
+
+func TestHistoryCategorySelectorIncludesAll(t *testing.T) {
+	m := newBriefingModeModel(t, "ft_strlen")
+	for category, duration := range map[storage.RecordMode]time.Duration{
+		storage.ExamMode: 20 * time.Second, storage.RecallMode: 10 * time.Second, storage.StudyMode: time.Second,
+	} {
+		if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, category, duration, true, 1, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, from := range []AppState{StateMenu, StateBriefing, StateResults} {
+		m.leaderboardMode = 2
+		m.runMode = mode.Copy()
+		m.openLeaderboard(from)
+		if view := ansi.Strip(m.contentView()); !strings.Contains(view, "All   [") || !strings.Contains(view, "20.000s") || !strings.Contains(view, "10.000s") || !strings.Contains(view, "1.000s") {
+			t.Fatalf("history opened from %v did not start in All:\n%s", from, view)
+		}
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if view := ansi.Strip(m.contentView()); !strings.Contains(view, "All   [") || !strings.Contains(view, "recent runs") {
+		t.Fatalf("Tab left the All category:\n%s", view)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if view := ansi.Strip(m.contentView()); !strings.Contains(view, "Exam   [") || strings.Contains(view, "10.000s") || strings.Contains(view, "1.000s") {
+		t.Fatalf("right from All did not select Exam:\n%s", view)
+	}
+	m.Update(runeKey("n"))
+	if view := ansi.Strip(m.contentView()); !strings.Contains(view, "All   [") {
+		t.Fatalf("switching drills did not default to All:\n%s", view)
+	}
+}
 
 func TestFinishedRunSavesItsMode(t *testing.T) {
 	for _, tc := range []struct {
@@ -75,9 +107,10 @@ func TestExamRemainsTheMainMenuRecord(t *testing.T) {
 		t.Fatalf("Exam PB = %v after faster practice runs", got)
 	}
 	m.openLeaderboard(StateMenu)
-	if !strings.Contains(m.View(), "Exam") {
-		t.Fatal("history did not start in Exam")
+	if !strings.Contains(m.View(), "All   [") {
+		t.Fatal("history did not start in All")
 	}
+	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	if view := m.View(); !strings.Contains(view, "Study") || !strings.Contains(view, "1.000s") || !strings.Contains(view, "2.000s") || strings.Contains(view, "20.000s") {
