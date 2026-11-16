@@ -17,3 +17,6 @@ dist/
 bin/
 .scratch/
 __pycache__/
+
+# Local documentation
+/docs/**/*.md

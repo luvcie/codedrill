@@ -4,15 +4,15 @@ import "time"
 
 // Event is one typing-sound trigger observed in the editor input. The key is
 // reported only for triggers; the wrapper forwards the original bytes to the
-// editor independently. Word marks a space or tab that finishes a word.
+// editor independently. Word marks an optional word or punctuation completion.
 type Event struct {
 	Key  byte
 	Word bool
 }
 
 // Input recognizes plain key bytes while ignoring terminal control sequences
-// and bracketed paste. It retains only protocol state and a word length, never
-// entered text.
+// and bracketed paste. It retains only protocol state and completion counters,
+// never entered text.
 type Input struct {
 	state          byte
 	seq            [8]byte
@@ -22,18 +22,20 @@ type Input struct {
 	escapeAt       time.Time
 	wordCompletion bool
 	wordLen        int
+	colonCount     int
+	colonSeparated bool
 	mapping        Mapping
 }
 
-// NewInput returns an observer with the default key mapping. Word completion
-// reports a space or tab after at least two word bytes; it is off otherwise.
+// NewInput returns an observer with the default key mapping. When enabled,
+// word completion reports words, closing parentheses and separate colon tokens.
 func NewInput(wordCompletion bool) *Input {
 	return NewInputWithMapping(wordCompletion, DefaultMapping())
 }
 
 // NewInputWithMapping returns an observer that reports the configured trigger keys.
 func NewInputWithMapping(wordCompletion bool, mapping Mapping) *Input {
-	return &Input{wordCompletion: wordCompletion, mapping: mapping}
+	return &Input{wordCompletion: wordCompletion, colonSeparated: true, mapping: mapping}
 }
 
 // Observe reports sound-triggering events. The caller must forward the original
@@ -58,6 +60,8 @@ func (p *Input) observe(data []byte, emit func(Event), now time.Time) {
 				p.escapeAt = now
 				// A control sequence is navigation, not typing.
 				p.wordLen = 0
+				p.colonCount = 0
+				p.colonSeparated = false
 			} else if !p.paste {
 				p.track(b, emit)
 			}
@@ -110,9 +114,23 @@ func (p *Input) observe(data []byte, emit func(Event), now time.Time) {
 
 // track updates the word heuristic for one plain byte and emits its trigger.
 // A word needs at least two word bytes so a single normal-mode command before
-// Space or Tab stays silent. Any punctuation, whitespace, newline, backspace or
-// escape ends the word, which also suppresses repeated spaces.
+// Space or Tab stays silent. Reference and pointer suffixes preserve the word;
+// other punctuation, whitespace, backspace or escape ends it.
 func (p *Input) track(b byte, emit func(Event)) {
+	// Wait for another key to distinguish separate colon tokens from scope resolution.
+	if b != ':' {
+		whitespace := b == ' ' || b == '\t' || b == '\r' || b == '\n'
+		singleColon := p.colonCount == 1 && (b >= ' ' && b != 0x7f || whitespace)
+		spacedScope := p.colonCount == 2 && p.colonSeparated && whitespace
+		if p.wordCompletion && (singleColon || spacedScope) && p.mapping.Action(':') == ActionSilent {
+			emit(Event{Key: ':', Word: true})
+		}
+		p.colonCount = 0
+		p.colonSeparated = whitespace
+	} else if p.colonCount < 3 {
+		p.colonCount++
+	}
+
 	action := p.mapping.Action(b)
 	if isWordByte(b) {
 		p.wordLen++
@@ -121,12 +139,11 @@ func (p *Input) track(b byte, emit func(Event)) {
 		}
 		return
 	}
-	if b == ' ' || b == '\t' {
-		// An explicitly mapped whitespace key plays its action. Word completion
-		// stays the default for unmapped space and tab, and never emits twice.
+	if b == ' ' || b == '\t' || b == ')' {
+		// Explicit mappings take priority over optional completion sounds.
 		if action != ActionSilent {
 			emit(Event{Key: b})
-		} else if p.wordCompletion && p.wordLen >= 2 {
+		} else if p.wordCompletion && (b == ')' || p.wordLen >= 2) {
 			emit(Event{Key: b, Word: true})
 		}
 		p.wordLen = 0
@@ -135,7 +152,9 @@ func (p *Input) track(b byte, emit func(Event)) {
 	if action != ActionSilent {
 		emit(Event{Key: b})
 	}
-	p.wordLen = 0
+	if b != '&' && b != '*' {
+		p.wordLen = 0
+	}
 }
 
 func isWordByte(b byte) bool {

@@ -192,8 +192,8 @@ func TestWordCompletionEmitsOneLockPerWordBoundary(t *testing.T) {
 			played = append(played, i)
 		}
 	}
-	input.Observe([]byte("value  other\t"), emit)
-	if want := []int{2, 2}; !reflect.DeepEqual(played, want) {
+	input.Observe([]byte("value  other\tWidget::Widget() : member{0,0} :: "), emit)
+	if want := []int{2, 2, 2, 2, 2, 5, 2}; !reflect.DeepEqual(played, want) {
 		t.Fatalf("played %v, want one lock per word boundary %v", played, want)
 	}
 	if player.combo.count != 0 {

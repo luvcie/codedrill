@@ -70,8 +70,8 @@ func (c Config) TypingVolume() float64 {
 	return float64(min(max(*c.Typing.Volume, 0), 100)) / 100
 }
 
-// TypingWordSoundsOn reports whether a space or tab that finishes a word
-// plays a piece-lock sound. It is off until the user turns it on.
+// TypingWordSoundsOn reports whether word and punctuation completions play a
+// piece-lock sound. It is off until the user turns it on.
 func (c Config) TypingWordSoundsOn() bool {
 	return c.Typing != nil && c.Typing.WordCompletion != nil && *c.Typing.WordCompletion
 }
