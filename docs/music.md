@@ -3,7 +3,8 @@
 Run `go run ./cmd/codedrill`, press `o` for Settings, then Tab twice to Music
 (or click the Music tab).
 
-1. Open **TETR.IO Sprint / Zen** to browse the 26 Calm tracks from the
+1. Open **Calm (Sprint / Zen)** for its 26 tracks, or **Battle (Tetra League)**
+   for the 13 tracks labelled Battle in the
    [source spreadsheet](https://docs.google.com/spreadsheets/d/1R_tpfLo_qUfNG2vQG3uqQ5fbjT01VefZVgB7RH2lOzM/edit).
    Space/Enter toggles a song. Use **Download selected** or **Download all**.
    Opening a playlist does not download or enable anything.
@@ -16,7 +17,7 @@ Run `go run ./cmd/codedrill`, press `o` for Settings, then Tab twice to Music
 
 Press Esc to return to the Music page. Turn **Music** on and adjust its own
 volume with Left/Right (35% initially). Music stays off until enabled.
-Selections from all three sources play in catalog order and repeat during the
+Selections from all sources play in catalog order and repeat during the
 drill. Uncached songs are skipped; playback never downloads music.
 
 Start a drill. Switch files in Helix, quit Helix and run `hx` again in the same

@@ -34,10 +34,10 @@ func TestDownloadsCacheAndComplete(t *testing.T) {
 	}))
 	defer server.Close()
 	tracks := []Track{{ID: "one", Name: "One", URL: server.URL}, {ID: "two", Name: "Two", URL: server.URL}}
-	for range 2 {
+	for _, source := range []string{SprintZen, TetraLeague} {
 		completed := 0
 		var progress download.Progress
-		if err := Download(context.Background(), SprintZen, tracks, func(p download.Progress) { progress = p }, func() { completed++ }); err != nil {
+		if err := Download(context.Background(), source, tracks, func(p download.Progress) { progress = p }, func() { completed++ }); err != nil {
 			t.Fatal(err)
 		}
 		if completed != 2 {
@@ -52,6 +52,48 @@ func TestDownloadsCacheAndComplete(t *testing.T) {
 		if progress.Bytes != 0 && progress.Bytes != 2*int64(len(silentMP3())) {
 			t.Fatalf("progress %v", progress)
 		}
+	}
+}
+
+func TestBattleCatalogAndCachedPlayback(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", root)
+	wantIDs := []string{
+		"kmk-033", "kmk-024", "kmk-038", "kmk-047", "tmk-060", "mkk-033", "kmk-036",
+		"kmk-017", "kmk-032", "kmk-004", "kmk-041", "kmk-039", "kmk-051",
+	}
+	var ids []string
+	for _, track := range Tracks(TetraLeague) {
+		ids = append(ids, track.ID)
+		if track.Name == "" || track.Artist == "" || track.URL == "" || track.Size <= 0 {
+			t.Fatalf("incomplete Battle track: %+v", track)
+		}
+	}
+	if !reflect.DeepEqual(ids, wantIDs) {
+		t.Fatalf("Battle track IDs = %v, want %v", ids, wantIDs)
+	}
+	seen := make(map[string]bool)
+	for _, source := range []string{SprintZen, TetraLeague, Holidays} {
+		for _, track := range Tracks(source) {
+			if seen[track.ID] {
+				t.Fatalf("playlists share cache ID %q", track.ID)
+			}
+			seen[track.ID] = true
+		}
+	}
+	for _, track := range []Track{Calm[0], Battle[0], HolidayTracks[0]} {
+		if err := saveMP3(track, silentMP3()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := SelectedPaths([]string{"kvx-016", "kmk-033", "kmk-024", "christmas-city"}, "")
+	wantPaths := []string{
+		filepath.Join(root, "codedrill", "music", "kvx-016.mp3"),
+		filepath.Join(root, "codedrill", "music", "kmk-033.mp3"),
+		filepath.Join(root, "codedrill", "music", "christmas-city.mp3"),
+	}
+	if !reflect.DeepEqual(paths, wantPaths) {
+		t.Fatalf("cached playback = %v, want %v", paths, wantPaths)
 	}
 }
 

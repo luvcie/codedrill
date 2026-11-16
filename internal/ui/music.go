@@ -67,7 +67,7 @@ func (m *MainModel) musicTrackBase() int {
 
 func (m *MainModel) musicRowCount() int {
 	if m.musicSource == "" {
-		return 5
+		return 6
 	}
 	return m.musicTrackBase() + len(m.musicTracks)
 }
@@ -81,7 +81,7 @@ func (m *MainModel) musicLayout(w, h int) typingLayout {
 		notice = m.downloadStatus(w)
 	}
 	credit := ""
-	if m.musicSource == music.SprintZen {
+	if m.musicSource == music.SprintZen || m.musicSource == music.TetraLeague {
 		credit = "  HURT RECORD"
 	}
 	return m.audioSettingsLayout(w, h, m.musicCursor, m.musicRowCount(), notice, credit)
@@ -111,7 +111,7 @@ func (m *MainModel) musicRowLabel(row int) string {
 		if m.musicPrefs.Enabled {
 			enabled = "on"
 		}
-		return []string{"Music  " + enabled, fmt.Sprintf("Volume  %d%%", m.musicVolume), "TETR.IO Sprint / Zen  →", "TETR.IO Holidays 2023  →", "Local MP3 folder  →"}[row]
+		return []string{"Music  " + enabled, fmt.Sprintf("Volume  %d%%", m.musicVolume), "Calm (Sprint / Zen)  →", "Battle (Tetra League)  →", "TETR.IO Holidays 2023  →", "Local MP3 folder  →"}[row]
 	}
 	if row == 0 {
 		return "← Music"
@@ -163,7 +163,7 @@ func (m *MainModel) musicRowLabel(row int) string {
 	}
 	if music.Cached(track) {
 		label += " · cached"
-	} else if m.musicSource == music.SprintZen && track.Size > 0 {
+	} else if (m.musicSource == music.SprintZen || m.musicSource == music.TetraLeague) && track.Size > 0 {
 		label += " · " + byteSize(track.Size)
 	}
 	return label
@@ -203,8 +203,10 @@ func (m *MainModel) activateMusicRow() tea.Cmd {
 		case 2:
 			m.openMusicSource(music.SprintZen)
 		case 3:
-			m.openMusicSource(music.Holidays)
+			m.openMusicSource(music.TetraLeague)
 		case 4:
+			m.openMusicSource(music.Holidays)
+		case 5:
 			m.openMusicSource(music.Local)
 		}
 		return nil
@@ -243,7 +245,7 @@ func (m *MainModel) activateMusicRow() tea.Cmd {
 			m.toggleMusicTrack(track, row == selectAll)
 		}
 		m.saveMusic()
-	} else if m.musicSource == music.SprintZen && (row == 3 || row == 4) {
+	} else if (m.musicSource == music.SprintZen || m.musicSource == music.TetraLeague) && (row == 3 || row == 4) {
 		var tracks []music.Track
 		for _, track := range m.musicTracks {
 			if row == 4 || slices.Contains(m.musicPrefs.Tracks, track.ID) {
@@ -254,8 +256,12 @@ func (m *MainModel) activateMusicRow() tea.Cmd {
 			m.musicNotice = "No tracks selected."
 			return nil
 		}
-		return m.startDownload("Sprint / Zen", len(tracks), func(ctx context.Context, report download.Report, completed func()) error {
-			return music.Download(ctx, music.SprintZen, tracks, report, completed)
+		source, name := m.musicSource, "Calm (Sprint / Zen)"
+		if source == music.TetraLeague {
+			name = "Battle (Tetra League)"
+		}
+		return m.startDownload(name, len(tracks), func(ctx context.Context, report download.Report, completed func()) error {
+			return music.Download(ctx, source, tracks, report, completed)
 		}, nil)
 	}
 	return nil

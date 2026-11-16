@@ -2,9 +2,10 @@
 package music
 
 const (
-	SprintZen = "sprint-zen"
-	Holidays  = "holidays-2023"
-	Local     = "local"
+	SprintZen   = "sprint-zen"
+	TetraLeague = "tetra-league"
+	Holidays    = "holidays-2023"
+	Local       = "local"
 )
 
 type Track struct {
@@ -12,7 +13,7 @@ type Track struct {
 	Size                  int64
 }
 
-// Calm entries follow the source sheet; sizes are HTTP lengths checked in November 2026.
+// HURT RECORD entries follow the source sheet; sizes are HTTP lengths checked in November 2026.
 var Calm = []Track{
 	{"kvx-016", "Piercing Wind", "KVK", "https://www.hurtrecord.com/bgm/16/honemi-ni-shimiiru-karasukaze.mp3", 3497357},
 	{"chk-016", "Inorimichite", "Chika", "https://www.hurtrecord.com/bgm/16/inorimichite.mp3", 4106465},
@@ -42,6 +43,22 @@ var Calm = []Track{
 	{"chk-014", "Entrance Wreath", "Chika", "https://www.hurtrecord.com/bgm/14/freshherb-wreath-wo-genkan-ni.mp3", 2684305},
 }
 
+var Battle = []Track{
+	{"kmk-033", "Backwater", "Kamoking", "https://www.hurtrecord.com/bgm/33/back-water.mp3", 3237928},
+	{"kmk-024", "Burning Heart", "Kamoking", "https://www.hurtrecord.com/bgm/24/burning-heart.mp3", 2947654},
+	{"kmk-038", "Storm Spirit", "Kamoking", "https://www.hurtrecord.com/bgm/38/hayate-no-sei.mp3", 3428572},
+	{"kmk-047", "Ice Eyes", "Kamoking", "https://www.hurtrecord.com/bgm/47/ice-eyes.mp3", 3101695},
+	{"tmk-060", "The Time is Now", "Tomoki", "https://www.hurtrecord.com/bgm/60/ima-koso.mp3", 3132375},
+	{"mkk-033", "Risky Area", "Mikiya Komaba", "https://www.hurtrecord.com/bgm/33/risky-area.mp3", 6847064},
+	{"kmk-036", "Over The Horizon", "Kamoking", "https://www.hurtrecord.com/bgm/36/chiheisen-wo-koete.mp3", 2504317},
+	{"kmk-017", "Burning Spirit, Awakening Soul", "Kamoking", "https://www.hurtrecord.com/bgm/17/moyase-toushi-yobisamase-tamashii.mp3", 2741890},
+	{"kmk-032", "Maze of the Abyss", "Kamoking", "https://www.hurtrecord.com/bgm/32/naraku-heno-abyssmaze.mp3", 3612504},
+	{"kmk-004", "Samurai Sword", "Kamoking", "https://www.hurtrecord.com/bgm/04/samurai-sword.mp3", 3186126},
+	{"kmk-041", "Super Machine Soul", "Kamoking", "https://www.hurtrecord.com/bgm/41/super-machine-soul.mp3", 3640987},
+	{"kmk-039", "Universe 5239", "Kamoking", "https://www.hurtrecord.com/bgm/39/uchuu-5239.mp3", 3029886},
+	{"kmk-051", "Ultra Super Heroes", "Kamoking", "https://www.hurtrecord.com/bgm/51/ultra-super-heros.mp3", 3128949},
+}
+
 var HolidayTracks = []Track{
 	{ID: "christmas-city", Name: "クリスマス都市 (Christmas City)", Artist: "Dr Ocelot", Size: 3252061},
 	{ID: "carol-of-the-blocks", Name: "Carol of the Blocks", Artist: "Dr Ocelot", Size: 4621841},
@@ -51,6 +68,8 @@ func Tracks(source string) []Track {
 	switch source {
 	case SprintZen:
 		return Calm
+	case TetraLeague:
+		return Battle
 	case Holidays:
 		return HolidayTracks
 	}

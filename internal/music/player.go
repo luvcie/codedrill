@@ -24,7 +24,7 @@ type Player struct {
 
 func SelectedPaths(ids []string, folder string) []string {
 	var paths []string
-	for _, source := range []string{SprintZen, Holidays} {
+	for _, source := range []string{SprintZen, TetraLeague, Holidays} {
 		for _, track := range Tracks(source) {
 			if slices.Contains(ids, track.ID) && Cached(track) {
 				paths = append(paths, Path(track))

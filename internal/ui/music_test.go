@@ -60,6 +60,86 @@ func TestMusicSelectionDoesNotDownloadOrEnable(t *testing.T) {
 	}
 }
 
+func TestBattlePlaylistReusesMusicControls(t *testing.T) {
+	m := openMusicTestModel(t)
+	t.Cleanup(m.Cleanup)
+	for _, source := range []struct {
+		row       int
+		id, label string
+	}{
+		{2, music.SprintZen, "Calm (Sprint / Zen)"},
+		{3, music.TetraLeague, "Battle (Tetra League)"},
+		{4, music.Holidays, "TETR.IO Holidays 2023"},
+		{5, music.Local, "Local MP3 folder"},
+	} {
+		m.openMusic()
+		if !strings.Contains(m.musicRowLabel(source.row), source.label) {
+			t.Fatalf("playlist label: %s", m.musicRowLabel(source.row))
+		}
+		m.musicCursor = source.row
+		if cmd := m.activateMusicRow(); cmd != nil || m.download != nil || m.musicPrefs.Enabled || m.musicSource != source.id {
+			t.Fatalf("opening %s changed playback or started a download", source.label)
+		}
+	}
+	m.musicPrefs.Tracks = []string{music.Calm[0].ID}
+	m.saveMusic()
+	m.openMusicSource(music.TetraLeague)
+	if len(m.musicTracks) != 13 || m.musicTracks[0].ID != music.Battle[0].ID {
+		t.Fatalf("wrong Battle track list: %v", m.musicTracks)
+	}
+	view := ansi.Strip(m.viewMusic())
+	for _, label := range []string{"Backwater — Kamoking", "Download selected", "Download all", "HURT RECORD", "3.1 MiB"} {
+		if !strings.Contains(view, label) {
+			t.Fatalf("Battle is missing %q:\n%s", label, view)
+		}
+	}
+	for _, track := range append([]music.Track{music.Calm[0], music.Battle[0]}, music.HolidayTracks...) {
+		if err := os.MkdirAll(filepath.Dir(music.Path(track)), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(music.Path(track), []byte("cached"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !strings.Contains(m.musicRowLabel(m.musicTrackBase()), "cached") {
+		t.Fatal("cached Battle track is not marked")
+	}
+	w, h := m.screenSize()
+	layout := m.musicLayout(w, h)
+	m.updateMusicMouse(leftClick(4, layout.contentTop+m.musicTrackBase()-layout.start))
+	cfg, _ := storage.LoadConfig()
+	if len(cfg.Music.Tracks) != 2 || cfg.Music.Tracks[0] != music.Calm[0].ID || cfg.Music.Tracks[1] != music.Battle[0].ID || cfg.Music.Enabled {
+		t.Fatalf("Battle selection changed Calm or enabled playback: %+v", cfg.Music)
+	}
+	m.musicCursor = 3
+	cmd := m.activateMusicRow()
+	if cmd == nil || m.download == nil || m.download.tracks != 1 || m.download.name != "Battle (Tetra League)" {
+		t.Fatal("Download selected did not use only the Battle selection")
+	}
+	job := m.download
+	m.openMusicSource(music.Holidays)
+	m.Update(cmd().(tea.BatchMsg)[0]())
+	if m.download != nil || job.completed != 1 {
+		t.Fatal("changing playlists changed the queued download")
+	}
+	m.openMusicSource(music.TetraLeague)
+	for _, row := range []int{1, 2} {
+		m.musicCursor = row
+		m.activateMusicRow()
+	}
+	cfg, _ = storage.LoadConfig()
+	if len(cfg.Music.Tracks) != 1 || cfg.Music.Tracks[0] != music.Calm[0].ID {
+		t.Fatal("Battle bulk selection changed Calm selections")
+	}
+	m.musicCursor = 4
+	if cmd := m.activateMusicRow(); cmd == nil || m.download == nil || m.download.tracks != 13 {
+		t.Fatal("Download all did not include the whole Battle playlist")
+	}
+	if m.musicPrefs.Enabled || len(m.musicPrefs.Tracks) != 1 {
+		t.Fatal("Download all changed playback settings")
+	}
+}
+
 func TestMusicLocalFolderAndMouse(t *testing.T) {
 	m := openMusicTestModel(t)
 	folder := t.TempDir()
