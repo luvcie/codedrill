@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -26,7 +27,7 @@ type Model struct {
 	wrap     bool
 }
 
-func New(files map[string][]byte, score string) Model {
+func New(files map[string][]byte, score, initialFile string) Model {
 	m := Model{source: make(map[string]string), viewport: viewport.New(80, 20), score: score, width: 80, height: 24}
 	m.viewport.SetHorizontalStep(4)
 	for path, data := range files {
@@ -44,6 +45,9 @@ func New(files map[string][]byte, score string) Model {
 		m.source[path] = text
 	}
 	sort.Strings(m.paths)
+	if i := slices.Index(m.paths, initialFile); i >= 0 {
+		m.current = i
+	}
 	m.selectFile()
 	return m
 }

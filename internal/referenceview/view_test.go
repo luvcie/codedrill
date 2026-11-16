@@ -12,7 +12,7 @@ func TestFilesScrollAndClose(t *testing.T) {
 	m := New(map[string][]byte{
 		"life.c": []byte(strings.Repeat("int line;\n", 50) + "int last_line;"),
 		"life.h": []byte("#define HEADER_MARKER 1\n"),
-	}, "42.5%")
+	}, "42.5%", "life.c")
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	m = next.(Model)
 	view := ansi.Strip(m.View())
@@ -45,8 +45,31 @@ func TestFilesScrollAndClose(t *testing.T) {
 	}
 }
 
+func TestInitialFileAndFallback(t *testing.T) {
+	files := map[string][]byte{
+		"answer.cpp": []byte("int implementation_marker;\n"),
+		"answer.hpp": []byte("struct header_marker {};\n"),
+	}
+	for _, tc := range []struct{ initial, want, next string }{
+		{"answer.hpp", "answer.hpp", "answer.cpp"},
+		{"missing.hpp", "answer.cpp", "answer.hpp"},
+		{"", "answer.cpp", "answer.hpp"},
+	} {
+		t.Run(tc.initial, func(t *testing.T) {
+			m := New(files, "", tc.initial)
+			if m.CurrentFile() != tc.want {
+				t.Fatalf("opened %q, want %q", m.CurrentFile(), tc.want)
+			}
+			next, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if next.(Model).CurrentFile() != tc.next {
+				t.Fatalf("Tab opened %q, want %q", next.(Model).CurrentFile(), tc.next)
+			}
+		})
+	}
+}
+
 func TestSmallSizesAndControlCharacters(t *testing.T) {
-	m := New(map[string][]byte{"very/long/life.c": []byte("int main(void) {\x1b]52;c;bad\a return 0; }\n")}, "100.0%")
+	m := New(map[string][]byte{"very/long/life.c": []byte("int main(void) {\x1b]52;c;bad\a return 0; }\n")}, "100.0%", "very/long/life.c")
 	if strings.Contains(ansi.Strip(m.source[m.paths[0]]), "\x1b") {
 		t.Fatal("source terminal escape was not sanitized")
 	}
@@ -69,7 +92,7 @@ func TestMultiFileNavigationInSidePane(t *testing.T) {
 	m := New(map[string][]byte{
 		"main.c": []byte(strings.Repeat("int line;\n", 40)),
 		"main.h": []byte("#define SIDE_HEADER 1\n"),
-	}, "50.0%")
+	}, "50.0%", "main.c")
 	update := func(msg tea.Msg) {
 		t.Helper()
 		next, _ := m.Update(msg)

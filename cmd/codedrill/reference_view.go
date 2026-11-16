@@ -114,7 +114,7 @@ func (c *cli) referenceView(args []string) error {
 			score = fmt.Sprintf("%.1f%%", result.Percent())
 		}
 	}
-	_, err = tea.NewProgram(referenceview.New(files, score), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithOutput(c.out)).Run()
+	_, err = tea.NewProgram(referenceview.New(files, score, session.Drill().InitialFile()), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithOutput(c.out)).Run()
 	if err != nil {
 		return errors.New("reference viewer could not start")
 	}

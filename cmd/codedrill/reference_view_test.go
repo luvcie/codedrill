@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
+	"github.com/luvcie/codedrill/internal/referenceview"
 	"github.com/luvcie/codedrill/internal/runner"
 )
 
@@ -113,6 +115,36 @@ func TestViewerFilesAndMissingReferences(t *testing.T) {
 	code, out, errOut := runCLI(t, "reference-view", "--session", path, "--open")
 	if code == 0 || out != "" || !strings.Contains(errOut, "reference files are unavailable") || strings.Contains(errOut, viewerSource) {
 		t.Fatalf("missing reference: %d %q %q", code, out, errOut)
+	}
+}
+
+func TestViewerStartsOnEditorFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	drills, err := drill.LoadBuiltins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ id, want string }{
+		{"exam05-vect2", "vect2.hpp"},
+		{"exam05-bigint", "bigint.hpp"},
+		{"exam05-polyset", "searchable_array_bag.hpp"},
+		{"exam05-life", "life.c"},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			d := drill.Find(drills, tc.id)
+			if d == nil {
+				t.Fatalf("missing built-in drill %s", tc.id)
+			}
+			session := runner.ReferenceSession{DrillID: d.ID, EntryFile: d.EntryFile, Language: d.Language, StudentFiles: d.StudentFiles}
+			files, err := loadViewerFiles(session)
+			if err != nil {
+				t.Fatal(err)
+			}
+			viewer := referenceview.New(files, "", session.Drill().InitialFile())
+			if viewer.CurrentFile() != tc.want {
+				t.Fatalf("opened %q, want %q", viewer.CurrentFile(), tc.want)
+			}
+		})
 	}
 }
 

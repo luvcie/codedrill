@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
@@ -104,9 +105,14 @@ func TestCPPDiffAndViewerPolicies(t *testing.T) {
 		if err != nil || string(files["vect2.cpp"]) != cppReference || len(files["vect2.hpp"]) == 0 {
 			t.Fatalf("C++ viewer files: %v, %v", files, err)
 		}
-		view = ansi.Strip(referenceview.New(files, "91%").View())
-		if !strings.Contains(view, "main.cpp") {
-			t.Fatalf("existing viewer did not retain source file navigation: %s", view)
+		viewer := referenceview.New(files, "91%", session.Drill().InitialFile())
+		view = ansi.Strip(viewer.View())
+		if viewer.CurrentFile() != "vect2.hpp" || !strings.Contains(view, "struct vect2") {
+			t.Fatalf("reference did not open the header first: %s", view)
+		}
+		next, _ := viewer.Update(tea.KeyMsg{Type: tea.KeyTab})
+		if next.(referenceview.Model).CurrentFile() != "main.cpp" {
+			t.Fatal("reference viewer did not retain source file navigation")
 		}
 		writeDiffFile(t, session.Workspace, "vect2.cpp", cppReference)
 		code, out, errOut := runCLI(t, "reference-diff", "--session", policy)

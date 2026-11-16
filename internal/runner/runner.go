@@ -575,7 +575,7 @@ func (s *Session) writeHelpers() error {
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"volume", script(`exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath()), 0755},
-		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", s.editorFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
+		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
@@ -736,26 +736,6 @@ func typingSoundsFlag() string {
 	return "0"
 }
 
-func (s *Session) editorFile() string {
-	matchingHeader := strings.TrimSuffix(filepath.Base(s.EntryFile), filepath.Ext(s.EntryFile)) + ".hpp"
-	firstHeader := ""
-	for _, file := range s.drill.StudentFiles {
-		if filepath.Ext(file) != ".hpp" {
-			continue
-		}
-		if filepath.Base(file) == matchingHeader {
-			return file
-		}
-		if firstHeader == "" {
-			firstHeader = file
-		}
-	}
-	if firstHeader != "" {
-		return firstHeader
-	}
-	return s.EntryFile
-}
-
 func (s *Session) GetSprintCmd() *exec.Cmd {
 	if _, err := exec.LookPath("zellij"); err == nil {
 		layoutPath := filepath.Join(s.Workspace, "layout.kdl")
@@ -765,7 +745,7 @@ func (s *Session) GetSprintCmd() *exec.Cmd {
 	}
 
 	args := strings.Fields(DetectEditor())
-	file := filepath.Join(s.Workspace, s.editorFile())
+	file := filepath.Join(s.Workspace, s.drill.InitialFile())
 	if typingSoundsFlag() == "1" {
 		cmd := exec.Command(executablePath(), append([]string{"__typing-sound-editor"}, append(args, file)...)...)
 		cmd.Dir = s.Workspace

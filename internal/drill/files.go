@@ -6,6 +6,28 @@ import (
 	"strings"
 )
 
+// InitialFile prefers the required .hpp matching the entry file, then the first
+// required .hpp, and otherwise the entry file.
+func (d Drill) InitialFile() string {
+	matchingHeader := strings.TrimSuffix(filepath.Base(d.EntryFile), filepath.Ext(d.EntryFile)) + ".hpp"
+	firstHeader := ""
+	for _, file := range d.StudentFiles {
+		if filepath.Ext(file) != ".hpp" {
+			continue
+		}
+		if filepath.Base(file) == matchingHeader {
+			return file
+		}
+		if firstHeader == "" {
+			firstHeader = file
+		}
+	}
+	if firstHeader != "" {
+		return firstHeader
+	}
+	return d.EntryFile
+}
+
 // StudentPaths includes the entry even for manifests written before ownership
 // metadata existed. Unlisted attachments remain exercise-provided resources.
 func (d Drill) StudentPaths() (required, optional []string, err error) {
