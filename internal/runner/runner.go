@@ -502,7 +502,7 @@ columns=$(tput cols 2>/dev/null || echo 40)
 if [ "${#TITLE}" -gt "$columns" ]; then TITLE="${TITLE:0:$((columns-1))}…"; fi
 printf '\033[38;2;%sm%s\n\033[1mcodedrill\033[0m\n' "$LOGO_RGB" "$CROC"
 echo "$TITLE"
-echo -e "\033[0;37m$TOP_RANK rank <$TOP_TARGET\nPB: $PB\033[0m"
+echo -e "\033[0;37mPB: $PB\033[0m"
 echo
 echo -e "\033[1;32mr  run tests\033[0m"
 echo 'p  pace   p -w watch'
@@ -576,7 +576,7 @@ func (s *Session) writeHelpers() error {
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"volume", script(`exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath()), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", s.editorFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
-		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "TOP_RANK", top.Rank, "TOP_TARGET", fmt.Sprintf("%ds", int(top.Time.Seconds())), "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
+		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
         pane command="bash" {
