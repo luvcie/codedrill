@@ -9,6 +9,7 @@ import (
 
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
+	"github.com/luvcie/codedrill/internal/solutions"
 )
 
 // ReferenceSession contains metadata only. It lives outside the student workspace.
@@ -23,6 +24,7 @@ type ReferenceSession struct {
 	OptionalStudentFiles []string          `json:"optional_student_files,omitempty"`
 	ExtraFiles           map[string]string `json:"extra_files,omitempty"`
 	Options              *mode.Options     `json:"options"`
+	ReferenceVariant     solutions.Variant `json:"reference_variant,omitempty"`
 }
 
 var ErrReferencePolicy = errors.New("reference session policy is missing or invalid")
@@ -39,7 +41,7 @@ func LoadReferenceSession(path string) (ReferenceSession, error) {
 	return session, nil
 }
 
-func (s *Session) writeReferenceSession(options *mode.Options) error {
+func (s *Session) writeReferenceSession(options *mode.Options, variant solutions.Variant) error {
 	dir, err := os.MkdirTemp("", "codedrill-reference-session-*")
 	if err != nil {
 		return err
@@ -55,6 +57,7 @@ func (s *Session) writeReferenceSession(options *mode.Options) error {
 		StudentFiles: s.drill.StudentFiles, OptionalStudentFiles: s.drill.OptionalStudentFiles, ExtraFiles: provided,
 		Version: 1, Workspace: s.Workspace, DrillID: s.drill.ID,
 		DrillDir: s.drill.Dir, EntryFile: s.EntryFile, Language: s.drill.Language, Options: options,
+		ReferenceVariant: variant,
 	})
 	if err != nil {
 		return err

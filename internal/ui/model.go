@@ -14,6 +14,7 @@ import (
 	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/music"
 	"github.com/luvcie/codedrill/internal/runner"
+	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
@@ -84,27 +85,29 @@ type MainModel struct {
 	pendingDelete *drill.Drill
 	menuNotice    string
 
-	briefingMode    mode.Options
-	briefingModeID  string
-	modeFocus       int
-	briefingRefOK   bool
-	briefingRefErr  error
-	briefingSaveErr error
-	runMode         mode.Options
-	evalOutput      string
-	evalPassed      bool
-	evalRef         *compare.Result
-	evalRefErr      error
-	evalPending     bool
-	evalID          uint64
-	evalReadyTime   time.Time
-	evalReview      *referenceReview
-	resultReview    *referenceReview
-	referenceDiff   *referenceDiffView
-	launchFailed    bool
-	saveErr         error
-	setupErr        error
-	prefsErr        error
+	briefingMode      mode.Options
+	briefingModeID    string
+	briefingReference solutions.Variant
+	modeFocus         int
+	briefingRefOK     bool
+	briefingRefErr    error
+	briefingSaveErr   error
+	runMode           mode.Options
+	runReference      solutions.Variant
+	evalOutput        string
+	evalPassed        bool
+	evalRef           *compare.Result
+	evalRefErr        error
+	evalPending       bool
+	evalID            uint64
+	evalReadyTime     time.Time
+	evalReview        *referenceReview
+	resultReview      *referenceReview
+	referenceDiff     *referenceDiffView
+	launchFailed      bool
+	saveErr           error
+	setupErr          error
+	prefsErr          error
 
 	resultDrill       drill.Drill
 	lastDuration      time.Duration
@@ -463,9 +466,17 @@ func (m *MainModel) updateBriefing(key tea.KeyMsg) tea.Cmd {
 	case "shift+tab":
 		m.focusBriefingOption(-1)
 	case "left", "←":
-		m.cycleBriefingPreset(-1)
+		if m.modeFocus == briefingOptionCount && m.hasReferenceChoice() {
+			m.toggleBriefingOption()
+		} else {
+			m.cycleBriefingPreset(-1)
+		}
 	case "right", "→":
-		m.cycleBriefingPreset(1)
+		if m.modeFocus == briefingOptionCount && m.hasReferenceChoice() {
+			m.toggleBriefingOption()
+		} else {
+			m.cycleBriefingPreset(1)
+		}
 	case "1":
 		m.applyBriefingPreset(mode.Study())
 	case "2":

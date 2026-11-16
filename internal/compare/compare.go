@@ -46,6 +46,11 @@ func (r Result) Percent() float64 {
 // The entry file comes first, followed by remaining files in alphabetical order.
 // A reference file without a workspace counterpart always makes the result inexact.
 func Compare(d drill.Drill, workspace string) (Result, error) {
+	return CompareVariant(d, workspace, solutions.HeaderOnly)
+}
+
+// CompareVariant uses the reference selected for this run.
+func CompareVariant(d drill.Drill, workspace string, variant solutions.Variant) (Result, error) {
 	language := strings.ToLower(strings.TrimSpace(d.Language))
 	if !reference.SupportedLanguage(language) {
 		return Result{}, fmt.Errorf("reference comparison is not supported for language %q", d.Language)
@@ -59,7 +64,7 @@ func Compare(d drill.Drill, workspace string) (Result, error) {
 		return Result{}, fmt.Errorf("workspace %s is not a directory", workspace)
 	}
 
-	src, err := solutions.Resolve(d.ID, d.Dir)
+	src, err := solutions.ResolveVariant(d.ID, d.Dir, variant)
 	if err != nil {
 		return Result{}, err
 	}

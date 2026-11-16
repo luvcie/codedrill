@@ -13,7 +13,7 @@ func sprintDiff(policy string) (compare.Result, error) {
 	if err != nil {
 		return compare.Result{}, err
 	}
-	return compare.Compare(session.Drill(), session.Workspace)
+	return compare.CompareVariant(session.Drill(), session.Workspace, session.ReferenceVariant)
 }
 
 func (c *cli) referenceDiff(args []string) error {

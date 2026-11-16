@@ -8,11 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
-// prefsFile maps drill IDs to their options. Preset names are not stored.
-type prefsFile map[string]Options
+type Preferences struct {
+	Options
+	ReferenceVariant solutions.Variant `json:"reference_variant,omitempty"`
+}
+
+// prefsFile maps drill IDs to their preferences. Preset names are not stored.
+type prefsFile map[string]Preferences
 
 // PrefsPath is the drill preferences file in the config directory.
 func PrefsPath() (string, error) {
@@ -27,32 +33,47 @@ func PrefsPath() (string, error) {
 // combinations are normalized; when neither pass gate is usable, only the
 // tests gate is enabled and the other normalized values are kept.
 func Load(drillID string) (Options, error) {
+	prefs, err := LoadPreferences(drillID)
+	return prefs.Options, err
+}
+
+func LoadPreferences(drillID string) (Preferences, error) {
 	path, err := PrefsPath()
 	if err != nil {
-		return Options{}, err
+		return Preferences{}, err
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return Default(), nil
+		return Preferences{Options: Default()}, nil
 	}
 	if err != nil {
-		return Options{}, err
+		return Preferences{}, err
 	}
 	var prefs prefsFile
 	if err := json.Unmarshal(data, &prefs); err != nil {
-		return Options{}, fmt.Errorf("%s is not valid JSON: %w", path, err)
+		return Preferences{}, fmt.Errorf("%s is not valid JSON: %w", path, err)
 	}
 	opts, ok := prefs[drillID]
 	if !ok {
-		return Default(), nil
+		return Preferences{Options: Default()}, nil
 	}
-	return sanitize(opts), nil
+	opts.Options = sanitize(opts.Options)
+	return opts, nil
 }
 
 // Save stores one drill's options and leaves other drills alone. The four
 // booleans are written as given; callers should Validate before saving so an
 // unusable selection can be reported to the user.
 func Save(drillID string, opts Options) error {
+	prefs, err := LoadPreferences(drillID)
+	if err != nil {
+		return err
+	}
+	prefs.Options = opts
+	return SavePreferences(drillID, prefs)
+}
+
+func SavePreferences(drillID string, selection Preferences) error {
 	if strings.TrimSpace(drillID) == "" {
 		return errors.New("missing drill id")
 	}
@@ -74,7 +95,7 @@ func Save(drillID string, opts Options) error {
 	if prefs == nil {
 		prefs = prefsFile{}
 	}
-	prefs[drillID] = opts
+	prefs[drillID] = selection
 	data, err = json.MarshalIndent(prefs, "", "  ")
 	if err != nil {
 		return err

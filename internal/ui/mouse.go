@@ -339,8 +339,8 @@ var briefingOptionLabels = [briefingOptionCount]string{
 	"Require tests",
 }
 
-// briefingCheckboxAt returns the checkbox index (0..3) under cell (x, y) on the
-// briefing screen, and whether cell (x, y) hit a checkbox. The four checkboxes
+// briefingCheckboxAt returns the option index under cell (x, y): checkboxes
+// are 0..3 and the vect2 reference choice is 4. The four checkboxes
 // are arranged two per row (options 0 and 1 on row 0, options 2 and 3 on row 1)
 // when the terminal is wide enough; otherwise they fall back to a vertical
 // layout. x must land on the checkbox box itself ([x] or [ ]), not on the label
@@ -364,6 +364,12 @@ func (m *MainModel) briefingCheckboxAt(x, y int) (int, bool) {
 		return 0, false
 	}
 	stripped := ansi.Strip(lines[lineIdx])
+	if m.hasReferenceChoice() {
+		choice := m.briefingReferenceChoice()
+		if start := strings.Index(stripped, choice); start >= 0 && x >= start && x < start+len(choice) {
+			return briefingOptionCount, true
+		}
+	}
 
 	// Find a checkbox box ([x] or [ ]) immediately followed by a known label.
 	// x must land on the box itself, so clicks in the gap between columns or on

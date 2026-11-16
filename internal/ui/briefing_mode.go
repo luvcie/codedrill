@@ -37,7 +37,7 @@ func (m *MainModel) loadBriefingOptions(d *drill.Drill) bool {
 	if d == nil {
 		return false
 	}
-	opts, err := mode.Load(d.ID)
+	prefs, err := mode.LoadPreferences(d.ID)
 	if err != nil {
 		m.setupErr = nil
 		m.prefsErr = err
@@ -45,7 +45,8 @@ func (m *MainModel) loadBriefingOptions(d *drill.Drill) bool {
 		return false
 	}
 	m.prefsErr = nil
-	m.setBriefingOptions(d, opts)
+	m.briefingReference = prefs.ReferenceVariant
+	m.setBriefingOptions(d, prefs.Options)
 	return true
 }
 
@@ -63,7 +64,7 @@ func (m *MainModel) refreshBriefingReference(d *drill.Drill) {
 	if d == nil {
 		return
 	}
-	src, err := solutions.Resolve(d.ID, d.Dir)
+	src, err := solutions.ResolveVariant(d.ID, d.Dir, m.briefingReference)
 	if err != nil {
 		m.briefingRefErr = err
 		return
@@ -110,7 +111,23 @@ func (m *MainModel) briefingReferenceNotice() string {
 }
 
 func (m *MainModel) focusBriefingOption(delta int) {
-	m.modeFocus = (m.modeFocus + delta + briefingOptionCount) % briefingOptionCount
+	count := briefingOptionCount
+	if m.hasReferenceChoice() {
+		count++
+	}
+	m.modeFocus = (m.modeFocus + delta + count) % count
+}
+
+func (m *MainModel) hasReferenceChoice() bool {
+	return m.activeDrill != nil && m.activeDrill.ID == "exam05-vect2" && m.activeDrill.Dir == ""
+}
+
+func (m *MainModel) briefingReferenceChoice() string {
+	label := "Header-only"
+	if m.briefingReference == solutions.SplitFiles {
+		label = "Split files"
+	}
+	return "Reference: < " + label + " >"
 }
 
 func (m *MainModel) toggleBriefingOption() {
@@ -139,6 +156,15 @@ func (m *MainModel) toggleBriefingOption() {
 		}
 	case 3:
 		m.briefingMode.RequireTests = !m.briefingMode.RequireTests
+	case briefingOptionCount:
+		if !m.hasReferenceChoice() {
+			return
+		}
+		if m.briefingReference == solutions.SplitFiles {
+			m.briefingReference = solutions.HeaderOnly
+		} else {
+			m.briefingReference = solutions.SplitFiles
+		}
 	default:
 		return
 	}
@@ -193,7 +219,9 @@ func (m *MainModel) saveBriefingMode() {
 	if m.activeDrill == nil {
 		return
 	}
-	m.briefingSaveErr = mode.Save(m.activeDrill.ID, m.briefingMode)
+	m.briefingSaveErr = mode.SavePreferences(m.activeDrill.ID, mode.Preferences{
+		Options: m.briefingMode, ReferenceVariant: m.briefingReference,
+	})
 }
 
 // briefingColumnLayout sizes the two-column checkbox panel. colWidth fits the
@@ -266,6 +294,14 @@ func (m *MainModel) briefingModePanel() string {
 			}
 			lines = append(lines, strings.Join(cells, strings.Repeat(" ", gap)))
 		}
+	}
+
+	if m.hasReferenceChoice() {
+		choice := m.briefingReferenceChoice()
+		if m.modeFocus == briefingOptionCount {
+			choice = AccentStyle.Render(choice)
+		}
+		lines = append(lines, choice)
 	}
 
 	if problem := m.briefingProblem(); problem != "" {

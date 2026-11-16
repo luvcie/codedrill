@@ -15,6 +15,7 @@ import (
 
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/mode"
+	"github.com/luvcie/codedrill/internal/solutions"
 	"github.com/luvcie/codedrill/internal/storage"
 	"github.com/luvcie/codedrill/internal/typingsound"
 )
@@ -38,6 +39,7 @@ type Session struct {
 // Options carries the sprint's reference policy. An absent policy denies source access.
 type Options struct {
 	ReferenceOptions *mode.Options
+	ReferenceVariant solutions.Variant
 }
 
 const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
@@ -138,7 +140,7 @@ func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts
 	}()
 	if opts.ReferenceOptions != nil {
 		sess.recordLabel = mode.RecordLabel(opts.ReferenceOptions.RecordMode()) + " PB"
-		if err := sess.writeReferenceSession(opts.ReferenceOptions); err != nil {
+		if err := sess.writeReferenceSession(opts.ReferenceOptions, opts.ReferenceVariant); err != nil {
 			return nil, fmt.Errorf("write reference session policy: %w", err)
 		}
 	}
@@ -389,7 +391,11 @@ exit 0
 // lines are read; reference source never reaches the terminal.
 const matchBody = `match_output() {
   local out status score tokens first line
-  out=$("$CODEDRILL" match "$DRILL" --workspace "$WORKSPACE" 2>&1)
+  local -a session_args=()
+  if [ -n "$POLICY" ]; then
+    session_args=(--session "$POLICY")
+  fi
+  out=$("$CODEDRILL" match "$DRILL" --workspace "$WORKSPACE" "${session_args[@]}" 2>&1)
   status=$?
   if [ "$status" -ne 0 ]; then
     out=${out#codedrill: }

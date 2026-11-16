@@ -634,7 +634,11 @@ func (c *cli) solution(args []string) error {
 }
 
 func (c *cli) listSolutions(d drill.Drill) error {
-	src, err := solutions.Resolve(d.ID, d.Dir)
+	prefs, err := mode.LoadPreferences(d.ID)
+	if err != nil {
+		return err
+	}
+	src, err := solutions.ResolveVariant(d.ID, d.Dir, prefs.ReferenceVariant)
 	if err != nil {
 		return err
 	}
@@ -692,12 +696,22 @@ type matchFileReport struct {
 
 func (c *cli) match(args []string) error {
 	workspace := ""
+	policy := ""
 	asJSON := false
 	var drillArgs []string
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i]; {
 		case arg == "--json":
 			asJSON = true
+		case arg == "--session":
+			if i+1 >= len(args) {
+				return runner.ErrReferencePolicy
+			}
+			i++
+			policy = args[i]
+			if policy == "" {
+				return runner.ErrReferencePolicy
+			}
 		case arg == "--workspace":
 			if i+1 >= len(args) {
 				return usage("missing directory after --workspace")
@@ -722,13 +736,36 @@ func (c *cli) match(args []string) error {
 	if err != nil {
 		return err
 	}
+	var variant solutions.Variant
+	if policy != "" {
+		session, err := runner.LoadReferenceSession(policy)
+		if err != nil {
+			return err
+		}
+		if session.DrillID != d.ID {
+			return runner.ErrReferencePolicy
+		}
+		if !session.Options.CheckReference {
+			return errors.New("reference checking is disabled for this sprint")
+		}
+		snapshot := session.Drill()
+		d = &snapshot
+		workspace = session.Workspace
+		variant = session.ReferenceVariant
+	} else {
+		prefs, err := mode.LoadPreferences(d.ID)
+		if err != nil {
+			return err
+		}
+		variant = prefs.ReferenceVariant
+	}
 	if workspace == "" {
 		workspace, err = os.Getwd()
 		if err != nil {
 			return err
 		}
 	}
-	res, err := compare.Compare(*d, workspace)
+	res, err := compare.CompareVariant(*d, workspace, variant)
 	if err != nil {
 		return err
 	}

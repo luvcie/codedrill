@@ -26,7 +26,7 @@ func TestExam05FreshInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	mutations := map[string]struct{ file, before, after string }{
-		"exam05-vect2":   {"vect2.cpp", "coordinates{x, y}", "coordinates{y, x}"},
+		"exam05-vect2":   {"vect2.hpp", "coordinates[0] = x;", "coordinates[0] = y;"},
 		"exam05-bigint":  {"bigint.cpp", "return decimal == rhs.decimal;", "return decimal != rhs.decimal;"},
 		"exam05-polyset": {"searchable_tree_bag.cpp", "return position != nullptr;", "return false;"},
 		"exam05-life":    {"life.c", "? 'O' : ' '", "? '0' : ' '"},
@@ -128,6 +128,100 @@ func TestExam05FreshInstall(t *testing.T) {
 				}
 				if passed, output := session.RunTests(); passed || strings.Contains(output, "error:") {
 					t.Fatalf("behavior mutation must compile and fail at runtime: %s", output)
+				}
+			}
+		})
+	}
+}
+
+func TestVect2ReferenceVariants(t *testing.T) {
+	if _, err := exec.LookPath("g++"); err != nil {
+		t.Skip("vect2 checks need g++")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	drills, err := drill.LoadDrills()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := drill.Find(drills, "exam05-vect2")
+	if d == nil {
+		t.Fatal("vect2 drill is missing")
+	}
+	for _, variant := range []solutions.Variant{solutions.HeaderOnly, solutions.SplitFiles} {
+		name := "Header-only"
+		if variant == solutions.SplitFiles {
+			name = "Split files"
+		}
+		t.Run(name, func(t *testing.T) {
+			options := mode.Exam()
+			session, err := NewSessionWithOptions(*d, 0, "", Options{ReferenceOptions: &options, ReferenceVariant: variant})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(session.Cleanup)
+			policy, err := LoadReferenceSession(session.referencePolicy)
+			if err != nil || policy.ReferenceVariant != variant || *policy.Options != options {
+				t.Fatalf("reference selection was not captured: %+v, %v", policy, err)
+			}
+			source, err := solutions.ResolveVariant(d.ID, d.Dir, variant)
+			if err != nil || source == nil {
+				t.Fatalf("reference unavailable: %v", err)
+			}
+			for _, file := range source.Files {
+				data, err := file.Read()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(session.Workspace, file.Rel), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			passed, output := session.RunTests()
+			if !passed || !mode.Evaluate(options, passed, nil, nil).Passed {
+				t.Fatalf("reference failed Exam tests: %s", output)
+			}
+			for _, selected := range []solutions.Variant{solutions.HeaderOnly, solutions.SplitFiles} {
+				result, err := compare.CompareVariant(*d, session.Workspace, selected)
+				if err != nil || result.Exact != (selected == variant) {
+					t.Fatalf("selection %q against %q: exact %v, error %v", selected, variant, result.Exact, err)
+				}
+				for _, gates := range []mode.Options{mode.Study(), mode.Copy(), mode.Recall(), mode.Exam()} {
+					want := !gates.RequireExact || selected == variant
+					if mode.Evaluate(gates, passed, &result, nil).Passed != want {
+						t.Fatalf("selection %q against %q used wrong mode gates: %+v", selected, variant, gates)
+					}
+				}
+			}
+			if variant == solutions.HeaderOnly {
+				cmd := exec.Command("g++", "-std=c++98", "-Wall", "-Wextra", "-Werror", "-pedantic-errors", "vect2.cpp", "main.cpp", "-o", "vect2_cxx98")
+				cmd.Dir = session.Workspace
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("strict C++98 compile: %v\n%s", err, out)
+				}
+				cmd = exec.Command(filepath.Join(session.Workspace, "vect2_cxx98"))
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Fatalf("strict C++98 main: %v\n%s", err, out)
+				}
+				baseline, err := exec.Command(filepath.Join(session.Workspace, "vect2_test")).CombinedOutput()
+				if err != nil || string(out) != string(baseline) {
+					t.Fatalf("strict C++98 main changed output: %v\n%s\nexpected:\n%s", err, out, baseline)
+				}
+			}
+			for _, file := range source.Files {
+				path := filepath.Join(session.Workspace, file.Rel)
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if passed, output := session.RunTests(); passed {
+					t.Fatalf("missing required %s passed: %s", file.Rel, output)
+				}
+				if err := os.WriteFile(path, data, 0600); err != nil {
+					t.Fatal(err)
 				}
 			}
 		})

@@ -39,6 +39,13 @@ type Source struct {
 	Files []File
 }
 
+type Variant string
+
+const (
+	HeaderOnly Variant = ""
+	SplitFiles Variant = "split-files"
+)
+
 var extensions = map[string]bool{
 	".c":   true,
 	".h":   true,
@@ -69,6 +76,11 @@ func OverlayDir(drillID string) (string, error) {
 // solution directory (or embedded reference) is used when the overlay has none. A missing
 // solution is (nil, nil), not an error.
 func Resolve(drillID, drillDir string) (*Source, error) {
+	return ResolveVariant(drillID, drillDir, HeaderOnly)
+}
+
+// ResolveVariant selects a built-in vect2 reference; local overlays still win.
+func ResolveVariant(drillID, drillDir string, variant Variant) (*Source, error) {
 	overlay, err := OverlayDir(drillID)
 	if err != nil {
 		return nil, err
@@ -83,6 +95,15 @@ func Resolve(drillID, drillDir string) (*Source, error) {
 	}
 	if drillDir == "" {
 		root := "exam05/" + drillID + "/solution"
+		if drillID == "exam05-vect2" {
+			switch variant {
+			case HeaderOnly:
+			case SplitFiles:
+				root += "-split"
+			default:
+				return nil, fmt.Errorf("unknown vect2 reference %q", variant)
+			}
+		}
 		entries, err := fs.ReadDir(exercises.Files, root)
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil

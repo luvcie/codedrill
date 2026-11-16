@@ -33,7 +33,7 @@ func loadViewerFiles(session runner.ReferenceSession) (map[string][]byte, error)
 	if !reference.SupportedLanguage(session.Language) {
 		return nil, errors.New("the reference viewer currently supports C and C++ drills")
 	}
-	source, err := solutions.Resolve(session.DrillID, session.DrillDir)
+	source, err := solutions.ResolveVariant(session.DrillID, session.DrillDir, session.ReferenceVariant)
 	if err != nil || source == nil || len(source.Files) == 0 {
 		return nil, errors.New("reference files are unavailable for this sprint")
 	}
@@ -110,7 +110,7 @@ func (c *cli) referenceView(args []string) error {
 	}
 	score := ""
 	if session.Options.CheckReference {
-		if result, err := compare.Compare(session.Drill(), session.Workspace); err == nil {
+		if result, err := compare.CompareVariant(session.Drill(), session.Workspace, session.ReferenceVariant); err == nil {
 			score = fmt.Sprintf("%.1f%%", result.Percent())
 		}
 	}

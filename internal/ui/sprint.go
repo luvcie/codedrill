@@ -25,7 +25,7 @@ func (m *MainModel) triggerSprintStart() tea.Cmd {
 	}
 	// Preferences must still be readable at sprint start. A briefing that
 	// already holds this drill's selections takes precedence over disk state.
-	opts, err := mode.Load(m.activeDrill.ID)
+	prefs, err := mode.LoadPreferences(m.activeDrill.ID)
 	if err != nil {
 		m.setupErr = nil
 		m.prefsErr = err
@@ -34,9 +34,11 @@ func (m *MainModel) triggerSprintStart() tea.Cmd {
 	}
 	m.prefsErr = nil
 	if m.briefingModeID != m.activeDrill.ID {
-		m.setBriefingOptions(m.activeDrill, opts)
+		m.briefingReference = prefs.ReferenceVariant
+		m.setBriefingOptions(m.activeDrill, prefs.Options)
 	}
 	m.runMode = m.briefingMode.Normalize()
+	m.runReference = m.briefingReference
 	cfg, _ := storage.LoadConfig()
 	count := cfg.GetCountdown()
 	if count <= 0 {
@@ -77,6 +79,7 @@ func (m *MainModel) updateCountdown(key tea.KeyMsg) tea.Cmd {
 func (m *MainModel) launchSprintSession() tea.Cmd {
 	sess, err := runner.NewSessionWithOptions(*m.activeDrill, m.history.GetPB(m.activeDrill.ID, m.runMode.RecordMode()), logoRGB(ColorCroc), runner.Options{
 		ReferenceOptions: &m.runMode,
+		ReferenceVariant: m.runReference,
 	})
 	if err != nil {
 		m.setupErr = err
@@ -153,6 +156,7 @@ func (m *MainModel) onSprintFinished(msg sprintFinishedMsg) tea.Cmd {
 	m.evalPending = true
 	session, id := m.session, m.evalID
 	opts := m.runMode
+	variant := m.runReference
 	reviewable := msg.err == nil
 	zellij := msg.zellij
 	var d drill.Drill
@@ -167,7 +171,7 @@ func (m *MainModel) onSprintFinished(msg sprintFinishedMsg) tea.Cmd {
 			options: opts, drill: d, reviewable: reviewable,
 		}
 		if opts.CheckReference && hasDrill {
-			ref, err := compare.Compare(d, session.Workspace)
+			ref, err := compare.CompareVariant(d, session.Workspace, variant)
 			msg.referenceErr = err
 			if err == nil {
 				msg.reference = &ref
@@ -305,6 +309,7 @@ func (m *MainModel) updateResults(key tea.KeyMsg) tea.Cmd {
 		d := m.resultDrill
 		m.activeDrill = &d
 		if m.briefingModeID != d.ID {
+			m.briefingReference = m.runReference
 			m.setBriefingOptions(&d, m.runMode)
 		}
 		return m.triggerSprintStart()
@@ -323,6 +328,7 @@ func (m *MainModel) updateResults(key tea.KeyMsg) tea.Cmd {
 	case "b":
 		d := m.resultDrill
 		m.activeDrill = &d
+		m.briefingReference = m.runReference
 		m.setBriefingOptions(&d, m.runMode)
 		m.previousState = StateResults
 		m.state = StateBriefing
