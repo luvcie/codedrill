@@ -191,9 +191,9 @@ func (m *MainModel) updateTypingSounds(key tea.KeyMsg) tea.Cmd {
 	case "G", "end":
 		m.typingCursor = last
 	case "left", "h":
-		m.stepTypingVolume(-5)
+		m.stepTypingVolume(-1)
 	case "right", "l":
-		m.stepTypingVolume(5)
+		m.stepTypingVolume(1)
 	case "enter", " ":
 		switch m.typingCursor {
 		case typingRowEnabled:

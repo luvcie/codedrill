@@ -51,12 +51,42 @@ func TestMusicSelectionDoesNotDownloadOrEnable(t *testing.T) {
 	}
 	m.updateMusic(tea.KeyMsg{Type: tea.KeyRight})
 	cfg, _ = storage.LoadConfig()
-	if cfg.MusicVolume() != .4 || cfg.TypingSoundsOn() {
+	if cfg.MusicVolume() != .36 || cfg.TypingSoundsOn() {
 		t.Fatal("music volume was not independent")
 	}
 	m.openMusicSource(music.Holidays)
 	if m.download != nil || !strings.Contains(m.musicRowLabel(1), "7.6 MiB (both tracks)") {
 		t.Fatal("holiday download behavior")
+	}
+}
+
+func TestMusicVolumeStepsAndLimits(t *testing.T) {
+	m := openMusicTestModel(t)
+	m.musicCursor = 1
+	for _, step := range []struct {
+		key     tea.KeyType
+		presses int
+		want    int
+	}{
+		{tea.KeyRight, 1, 36},
+		{tea.KeyLeft, 1, 35},
+		{tea.KeyLeft, 101, 0},
+		{tea.KeyLeft, 1, 0},
+		{tea.KeyRight, 1, 1},
+		{tea.KeyRight, 101, 100},
+		{tea.KeyRight, 1, 100},
+		{tea.KeyLeft, 1, 99},
+	} {
+		for range step.presses {
+			m.Update(tea.KeyMsg{Type: step.key})
+		}
+		if m.musicVolume != step.want || m.musicErr != nil {
+			t.Fatalf("music volume = %d, want %d: %v", m.musicVolume, step.want, m.musicErr)
+		}
+		m.openMusic()
+		if m.musicVolume != step.want || m.musicErr != nil {
+			t.Fatalf("saved music volume = %d, want %d: %v", m.musicVolume, step.want, m.musicErr)
+		}
 	}
 }
 

@@ -162,27 +162,31 @@ func TestTypingSoundsVolumePersists(t *testing.T) {
 	if m.typingCursor != 1 {
 		t.Fatalf("cursor %d, want the volume row", m.typingCursor)
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	if m.typingVolume != 75 {
-		t.Fatalf("volume %d after right, want 75", m.typingVolume)
-	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	cfg, err := storage.LoadConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := int(cfg.TypingVolume()*100 + 0.5); got != 80 {
-		t.Fatalf("saved volume %d, want 80", got)
-	}
-	for range 30 {
-		m.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	}
-	if m.typingVolume != 0 {
-		t.Fatalf("volume %d after many left presses, want 0", m.typingVolume)
-	}
-	cfg, _ = storage.LoadConfig()
-	if cfg.TypingVolume() != 0 {
-		t.Fatalf("saved volume %v, want 0", cfg.TypingVolume())
+	for _, step := range []struct {
+		key     tea.KeyType
+		presses int
+		want    int
+	}{
+		{tea.KeyRight, 1, 71},
+		{tea.KeyRight, 1, 72},
+		{tea.KeyLeft, 1, 71},
+		{tea.KeyLeft, 101, 0},
+		{tea.KeyLeft, 1, 0},
+		{tea.KeyRight, 1, 1},
+		{tea.KeyRight, 101, 100},
+		{tea.KeyRight, 1, 100},
+		{tea.KeyLeft, 1, 99},
+	} {
+		for range step.presses {
+			m.Update(tea.KeyMsg{Type: step.key})
+		}
+		if m.typingVolume != step.want || m.typingErr != nil {
+			t.Fatalf("typing volume = %d, want %d: %v", m.typingVolume, step.want, m.typingErr)
+		}
+		m.openTypingSounds()
+		if m.typingVolume != step.want || m.typingErr != nil {
+			t.Fatalf("saved typing volume = %d, want %d: %v", m.typingVolume, step.want, m.typingErr)
+		}
 	}
 }
 

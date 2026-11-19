@@ -42,9 +42,9 @@ func (m *MixerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k", "down", "j", "tab", "shift+tab":
 			m.cursor = 1 - m.cursor
 		case "left", "h":
-			m.changeVolume(-5)
+			m.changeVolume(-1)
 		case "right", "l":
-			m.changeVolume(5)
+			m.changeVolume(1)
 		}
 	}
 	return m, nil

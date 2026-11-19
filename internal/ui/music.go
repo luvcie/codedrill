@@ -304,9 +304,9 @@ func (m *MainModel) updateMusic(key tea.KeyMsg) tea.Cmd {
 	case "pgdown":
 		m.musicCursor = min(m.musicRowCount()-1, m.musicCursor+m.musicLayout(w, h).contentRows)
 	case "left", "h", "right", "l":
-		delta := 5
+		delta := 1
 		if key.String() == "left" || key.String() == "h" {
-			delta = -5
+			delta = -1
 		}
 		m.musicVolume = min(100, max(0, m.musicVolume+delta))
 		m.saveMusic()
