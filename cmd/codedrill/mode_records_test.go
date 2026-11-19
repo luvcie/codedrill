@@ -40,13 +40,16 @@ func TestCommandsSeparateModeRecords(t *testing.T) {
 		if code != 0 || errOut != "" {
 			t.Fatalf("%s failed: %d %s", command, code, errOut)
 		}
-		for _, label := range []string{"Exam", "Recall", "Study"} {
+		for _, label := range []string{"Exam", "Study"} {
 			if !strings.Contains(out, label) {
 				t.Fatalf("%s hides the %s category: %s", command, label, out)
 			}
 		}
-		if strings.Contains(out, "Copy") {
-			t.Fatalf("%s still lists Copy as a record category: %s", command, out)
+		if strings.Contains(out, "Copy") || strings.Contains(out, "Recall") {
+			t.Fatalf("%s still lists a removed record category: %s", command, out)
+		}
+		if (command == "top" || command == "recent") && !strings.Contains(out, "3.000s") {
+			t.Fatalf("%s lost a saved practice run: %s", command, out)
 		}
 		if strings.Index(out, "Exam") > strings.Index(out, "Study") {
 			t.Fatalf("%s did not put Exam first: %s", command, out)

@@ -19,7 +19,7 @@ func TestModePersonalBestsAreIndependent(t *testing.T) {
 		category RecordMode
 		time     time.Duration
 	}{
-		{ExamMode, 20 * time.Second}, {RecallMode, 10 * time.Second},
+		{ExamMode, 20 * time.Second},
 		{StudyMode, time.Second},
 	} {
 		pb, delta, err := s.RecordAttempt("drill", tc.category, tc.time, true, 1, false)
@@ -40,7 +40,7 @@ func TestModePersonalBestsAreIndependent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for category, want := range map[RecordMode]time.Duration{ExamMode: 15 * time.Second, RecallMode: 10 * time.Second, StudyMode: time.Second} {
+	for category, want := range map[RecordMode]time.Duration{ExamMode: 15 * time.Second, StudyMode: time.Second} {
 		if got := reloaded.GetPB("drill", category); got != want {
 			t.Fatalf("reloaded %s PB = %v, want %v", category, got, want)
 		}
@@ -69,7 +69,7 @@ func TestSavedCopyRunsJoinStudyRecords(t *testing.T) {
 	if history.GetPB("drill", StudyMode) != 5*time.Second || len(history.GetTopAttempts("drill", StudyMode, 10)) != 2 {
 		t.Fatal("saved Copy and Study records did not merge")
 	}
-	if categories := history.RecordModes("drill"); !slices.Equal(categories, []RecordMode{ExamMode, RecallMode, StudyMode}) {
+	if categories := history.RecordModes("drill"); !slices.Equal(categories, []RecordMode{ExamMode, StudyMode}) {
 		t.Fatalf("Copy is still a separate category: %v", categories)
 	}
 	if pb, delta, err := history.RecordAttempt("drill", StudyMode, 4*time.Second, true, 1, false); err != nil || !pb || delta != time.Second {
@@ -81,6 +81,47 @@ func TestSavedCopyRunsJoinStudyRecords(t *testing.T) {
 	}
 	if history.GetPB("drill", StudyMode) != 4*time.Second || history.GetStats("drill").TotalRuns != 3 {
 		t.Fatal("merged records or practice totals changed after saving")
+	}
+}
+
+func TestSavedRecallRunsJoinStudyRecords(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path, err := GetHistoryPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const saved = `{"attempts":[{"drill_id":"drill","mode":"exam","duration":20000000000,"passed":true},{"drill_id":"drill","mode":"study","duration":10000000000,"passed":true},{"drill_id":"drill","mode":"recall","duration":5000000000,"passed":true},{"drill_id":"drill","mode":"recall","duration":3000000000,"passed":false}],"stats":{"drill":{"drill_id":"drill","total_runs":4,"successful":3}}}`
+	if err := os.WriteFile(path, []byte(saved), 0644); err != nil {
+		t.Fatal(err)
+	}
+	history, err := LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := history.RecordModes(""); !slices.Equal(got, []RecordMode{ExamMode, StudyMode}) {
+		t.Fatalf("removed category remains in history: %v", got)
+	}
+	if history.GetPB("drill", StudyMode) != 5*time.Second || history.GetPB("drill", ExamMode) != 20*time.Second {
+		t.Fatal("practice records did not join Study or changed Exam")
+	}
+	if len(history.GetTopAttempts("drill", StudyMode, 10)) != 2 || len(history.GetRecentAttempts("drill", StudyMode, 10)) != 3 {
+		t.Fatal("saved passing or failed practice runs disappeared")
+	}
+	if history.GetTotalRuns() != 4 || history.GetTotalPracticeTime() != 38*time.Second || history.GetStats("drill").Successful != 3 {
+		t.Fatal("history totals changed")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != saved {
+		t.Fatal("reading history rewrote the saved file")
+	}
+	if _, _, err := history.RecordAttempt("drill", StudyMode, 4*time.Second, true, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	history, err = LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history.GetTotalRuns() != 5 || history.GetPB("drill", StudyMode) != 4*time.Second || history.GetPB("drill", ExamMode) != 20*time.Second {
+		t.Fatal("saving lost runs or changed another mode's record")
 	}
 }
 
@@ -98,7 +139,7 @@ func TestOldHistoryDoesNotSetModeRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantModes := []RecordMode{ExamMode, RecallMode, StudyMode}
+	wantModes := []RecordMode{ExamMode, StudyMode}
 	if got := s.RecordModes("old"); !slices.Equal(got, wantModes) {
 		t.Fatalf("old runs added a record category: %v", got)
 	}
@@ -147,7 +188,7 @@ func TestOldSummaryDoesNotSetModeRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := s.RecordModes("old"); len(got) != 3 || s.GetModeStats("old", "") != nil {
+	if got := s.RecordModes("old"); len(got) != 2 || s.GetModeStats("old", "") != nil {
 		t.Fatalf("old summary added a record category: %v", got)
 	}
 	if pb, delta, err := s.RecordAttempt("old", ExamMode, 5*time.Second, true, 1, false); err != nil || !pb || delta != 0 {

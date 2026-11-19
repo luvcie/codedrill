@@ -62,7 +62,7 @@ func (s *HistoryStore) GetModeStats(drillID string, category RecordMode) *ModeSt
 	return s.modeStats[drillID][category]
 }
 
-// RecordModes always starts with Exam, even before the first Exam run.
+// RecordModes lists Exam and Study, then any custom record categories.
 func (s *HistoryStore) RecordModes(drillID string) []RecordMode {
 	s.indexModes()
 	records := s.modeStats[drillID]
@@ -74,7 +74,7 @@ func (s *HistoryStore) RecordModes(drillID string) []RecordMode {
 			}
 		}
 	}
-	modes := []RecordMode{ExamMode, RecallMode, StudyMode}
+	modes := []RecordMode{ExamMode, StudyMode}
 	var custom []RecordMode
 	for category := range records {
 		if strings.HasPrefix(string(category), "custom-") {

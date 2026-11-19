@@ -80,7 +80,7 @@ func LoadHistory() (*HistoryStore, error) {
 		return nil, fmt.Errorf("%s is corrupt and was copied to %s; move it aside to start fresh: %w", path, filepath.Base(backupPath), err)
 	}
 	for i := range store.Attempts {
-		if store.Attempts[i].Mode == "copy" {
+		if store.Attempts[i].Mode == "copy" || store.Attempts[i].Mode == RecallMode {
 			store.Attempts[i].Mode = StudyMode
 		}
 	}

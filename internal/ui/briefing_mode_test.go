@@ -110,7 +110,7 @@ func TestBriefingSavedRecallOpensStudyAndKeepsHistory(t *testing.T) {
 		t.Fatal("retired third preset shortcut changed the mode")
 	}
 	reopened.openLeaderboard(StateBriefing)
-	if view := ansi.Strip(reopened.contentView()); !strings.Contains(view, "Recall") || !strings.Contains(view, "1.234s") {
+	if view := ansi.Strip(reopened.contentView()); strings.Contains(view, "Recall") || !strings.Contains(view, "Study") || !strings.Contains(view, "1.234s") {
 		t.Fatalf("past Recall run disappeared from history:\n%s", view)
 	}
 }

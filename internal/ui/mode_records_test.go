@@ -17,7 +17,7 @@ import (
 func TestHistoryCategorySelectorIncludesAll(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
 	for category, duration := range map[storage.RecordMode]time.Duration{
-		storage.ExamMode: 20 * time.Second, storage.RecallMode: 10 * time.Second, storage.StudyMode: time.Second,
+		storage.ExamMode: 20 * time.Second, storage.StudyMode: time.Second,
 	} {
 		if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, category, duration, true, 1, false); err != nil {
 			t.Fatal(err)
@@ -27,7 +27,7 @@ func TestHistoryCategorySelectorIncludesAll(t *testing.T) {
 		m.leaderboardMode = 2
 		m.runMode = mode.Copy()
 		m.openLeaderboard(from)
-		if view := ansi.Strip(m.contentView()); !strings.Contains(view, "All   [") || !strings.Contains(view, "20.000s") || !strings.Contains(view, "10.000s") || !strings.Contains(view, "1.000s") {
+		if view := ansi.Strip(m.contentView()); !strings.Contains(view, "All   [") || !strings.Contains(view, "20.000s") || !strings.Contains(view, "1.000s") {
 			t.Fatalf("history opened from %v did not start in All:\n%s", from, view)
 		}
 	}
@@ -52,7 +52,7 @@ func TestFinishedRunSavesItsMode(t *testing.T) {
 		category storage.RecordMode
 	}{
 		{"exam", mode.Exam(), storage.ExamMode},
-		{"recall", mode.Recall(), storage.RecallMode},
+		{"hidden-copy", mode.Recall(), storage.StudyMode},
 		{"study-copy", mode.Copy(), storage.StudyMode},
 		{"study", mode.Study(), storage.StudyMode},
 	} {
@@ -87,7 +87,7 @@ func TestExamRemainsTheMainMenuRecord(t *testing.T) {
 		delta time.Duration
 	}{
 		{mode.Exam(), 20 * time.Second, true, 0}, {mode.Study(), time.Second, true, 0},
-		{mode.Copy(), 2 * time.Second, false, -time.Second}, {mode.Recall(), 3 * time.Second, true, 0},
+		{mode.Copy(), 2 * time.Second, false, -time.Second}, {mode.Recall(), 3 * time.Second, false, -2 * time.Second},
 	} {
 		m.runMode = tc.opts
 		m.accumulatedTime = tc.time
@@ -110,7 +110,6 @@ func TestExamRemainsTheMainMenuRecord(t *testing.T) {
 	if !strings.Contains(m.View(), "All   [") {
 		t.Fatal("history did not start in All")
 	}
-	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	m.updateLeaderboard(tea.KeyMsg{Type: tea.KeyRight})
 	if view := m.View(); !strings.Contains(view, "Study") || !strings.Contains(view, "1.000s") || !strings.Contains(view, "2.000s") || strings.Contains(view, "20.000s") {

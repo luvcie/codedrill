@@ -14,7 +14,7 @@ func TestRecordModesKeepCustomOptionsSeparate(t *testing.T) {
 			continue
 		}
 		category := opts.RecordMode()
-		if opts == Copy() && category == storage.StudyMode {
+		if (opts == Copy() || opts == Recall()) && category == storage.StudyMode {
 			opts = Study()
 		}
 		if previous, exists := seen[category]; exists && previous != opts {
@@ -25,9 +25,12 @@ func TestRecordModesKeepCustomOptionsSeparate(t *testing.T) {
 			t.Fatalf("mode has no readable label: %+v", opts)
 		}
 	}
-	for opts, want := range map[Options]storage.RecordMode{Exam(): storage.ExamMode, Recall(): storage.RecallMode, Copy(): storage.StudyMode, Study(): storage.StudyMode} {
+	for opts, want := range map[Options]storage.RecordMode{Exam(): storage.ExamMode, Recall(): storage.StudyMode, Copy(): storage.StudyMode, Study(): storage.StudyMode} {
 		if got := opts.RecordMode(); got != want {
 			t.Fatalf("preset category = %s, want %s", got, want)
 		}
+	}
+	if got := RecordLabel(storage.RecallMode); got != "Study" {
+		t.Fatalf("saved practice category is labelled %q, want Study", got)
 	}
 }

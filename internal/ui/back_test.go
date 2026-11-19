@@ -29,7 +29,7 @@ func TestBackReturnsToBriefingWithoutEvaluationOrSaving(t *testing.T) {
 				m.briefingReference = variant
 				m.setBriefingOptions(m.activeDrill, opts)
 				m.saveBriefingMode()
-				if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, storage.RecallMode, time.Second, true, 1, false); err != nil {
+				if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, storage.StudyMode, time.Second, true, 1, false); err != nil {
 					t.Fatal(err)
 				}
 				before, err := json.Marshal(m.history)

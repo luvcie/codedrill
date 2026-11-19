@@ -8,16 +8,14 @@ import (
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
-// RecordMode groups Study and Copy together. Custom configurations each have
+// RecordMode groups Study variants together. Custom configurations each have
 // their own records, separate from the named presets.
 func (o Options) RecordMode() storage.RecordMode {
 	o = o.Normalize()
 	switch o {
 	case Exam():
 		return storage.ExamMode
-	case Recall():
-		return storage.RecallMode
-	case Study(), Copy():
+	case Study(), Copy(), Recall():
 		return storage.StudyMode
 	}
 	var bits uint8
@@ -33,9 +31,7 @@ func RecordLabel(category storage.RecordMode) string {
 	switch category {
 	case storage.ExamMode:
 		return "Exam"
-	case storage.RecallMode:
-		return "Recall"
-	case storage.StudyMode:
+	case storage.StudyMode, storage.RecallMode:
 		return "Study"
 	}
 	if !strings.HasPrefix(string(category), "custom-") {

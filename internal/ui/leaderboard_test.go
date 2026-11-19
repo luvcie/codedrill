@@ -20,25 +20,28 @@ func TestAllHistoryShowsEachCategoryPB(t *testing.T) {
 	custom.RequireTests = true
 	hist := &storage.HistoryStore{Attempts: []storage.Attempt{
 		{DrillID: d.ID, Mode: storage.ExamMode, Duration: 20 * time.Second, Passed: true},
-		{DrillID: d.ID, Mode: storage.RecallMode, Duration: 10 * time.Second, Passed: true},
+		{DrillID: d.ID, Mode: storage.StudyMode, Duration: 10 * time.Second, Passed: true},
 		{DrillID: d.ID, Mode: custom.RecordMode(), Duration: 5 * time.Second, Passed: true},
 		{DrillID: "another-drill", Mode: storage.ExamMode, Duration: 125 * time.Millisecond, Passed: true},
 	}}
 	for i := 1; i <= 10; i++ {
 		hist.Attempts = append(hist.Attempts, storage.Attempt{DrillID: d.ID, Mode: storage.StudyMode, Duration: time.Duration(i) * time.Millisecond, Passed: true})
 	}
-	hist.Attempts = append(hist.Attempts, storage.Attempt{DrillID: d.ID, Mode: storage.RecallMode, Duration: 500 * time.Millisecond})
+	hist.Attempts = append(hist.Attempts, storage.Attempt{DrillID: d.ID, Mode: storage.StudyMode, Duration: 500 * time.Millisecond})
 	for _, recent := range []bool{false, true} {
 		view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.RecordMode("all"), 80))
-		for _, want := range []string{"All", "Exam", "20.000s", "Recall", "10.000s", "Study", "0.001s", "Custom (tests, exact match, reference visible)", "5.000s"} {
+		for _, want := range []string{"All", "Exam", "20.000s", "Study", "0.001s", "Custom (tests, exact match, reference visible)", "5.000s"} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("recent=%v: All hides %q:\n%s", recent, want, view)
 			}
 		}
+		if strings.Contains(view, "Recall") {
+			t.Fatalf("removed category is still visible:\n%s", view)
+		}
 		if strings.Contains(view, "0.125s") || strings.Contains(view, "0.500s") != recent {
 			t.Fatalf("recent=%v: All includes the wrong runs:\n%s", recent, view)
 		}
-		if hist.GetPB(d.ID, storage.ExamMode) != 20*time.Second || hist.GetPB(d.ID, storage.RecallMode) != 10*time.Second {
+		if hist.GetPB(d.ID, storage.ExamMode) != 20*time.Second || hist.GetPB(d.ID, storage.StudyMode) != time.Millisecond {
 			t.Fatal("All changed a category's PB")
 		}
 	}
@@ -57,10 +60,13 @@ func TestAllHistoryEmptyAndNarrowLayouts(t *testing.T) {
 		}
 	}
 	view := ansi.Strip(RenderLeaderboardView(d, &storage.HistoryStore{}, false, storage.RecordMode("all"), 80))
-	for _, want := range []string{"All", "Exam", "Recall", "Study", "No runs yet."} {
+	for _, want := range []string{"All", "Exam", "Study", "No runs yet."} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("empty All view hides %q:\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "Recall") {
+		t.Fatalf("empty history still offers the removed category:\n%s", view)
 	}
 }
 
