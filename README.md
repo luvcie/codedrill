@@ -36,6 +36,8 @@ For C and C++ drills with a reference, use `m -v` to peek or `m -p` to pin it be
 
 Use `back` in the Zellij terminal to discard the run and return to the same briefing with your mode and reference selected. After submission, you can resume editing or finish the run.
 
+For built-in C++ drills, `r` and submission evaluation move workspace `.gch` files and directories aside with a `.disabled` suffix before compiling. GCC can otherwise load a stale precompiled header instead of your edited source. Codedrill prints a notice when it moves one, preserves existing backups, and stops before compiling if the safeguard fails. Custom drills keep their precompiled headers.
+
 ## Common commands
 
 ```sh

@@ -815,6 +815,9 @@ func (s *Session) resolveRunCommand() string {
 	if cmd == "" {
 		cmd = s.fallbackRunCommand()
 	}
+	if d.IsPreset && strings.EqualFold(d.Language, "cpp") {
+		cmd = builtinCppHeaderCheck + cmd + "\nfi"
+	}
 	check, end := "", ""
 	category := drill.CategoryOf(d)
 	if d.IsPreset && (category == "42/rank 5" || strings.HasPrefix(category, "42/Exam ")) {
@@ -838,6 +841,27 @@ if [ "$codedrill_has_work" = 0 ]; then
 else
 ` + cmd + "\nfi" + end
 }
+
+// GCC can load an old .gch instead of the edited header, including .gch directories.
+const builtinCppHeaderCheck = `if ! (
+  set -o pipefail
+  find . -name '*.gch.disabled*' -prune -o -name '*.gch' -prune -print0 |
+  while IFS= read -r -d '' codedrill_pch; do
+    codedrill_disabled="$codedrill_pch.disabled"
+    while [ -e "$codedrill_disabled" ] || [ -L "$codedrill_disabled" ]; do
+      codedrill_disabled="$codedrill_disabled.disabled"
+    done
+    if ! mv -- "$codedrill_pch" "$codedrill_disabled"; then
+      printf 'Could not move precompiled header %s aside.\n' "$codedrill_pch" >&2
+      exit 1
+    fi
+    printf 'Moved %s to %s: GCC can load a stale precompiled header instead of your current source.\n' "$codedrill_pch" "$codedrill_disabled"
+  done
+); then
+  echo 'Cannot run this drill: could not move precompiled headers aside in the workspace. Compilation stopped.' >&2
+  false
+else
+`
 
 // The supplied subjects do not specify flags or a language standard.
 const examCompilerCheck = `codedrill_compiler=%[1]s

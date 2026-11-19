@@ -34,7 +34,7 @@
             '';
             postInstall = ''
               wrapProgram $out/bin/codedrill \
-                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.stdenv.cc pkgs.python3 ]}
+                --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.stdenv.cc pkgs.python3 ]}
             '';
             meta = {
               description = "Timed coding practice in the terminal";
