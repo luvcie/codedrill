@@ -26,7 +26,7 @@ func TestExam05FreshInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	mutations := map[string]struct{ file, before, after string }{
-		"exam05-vect2":   {"vect2.hpp", "coordinates[0] = x;", "coordinates[0] = y;"},
+		"exam05-vect2":   {"vect2.hpp", "coords[0] = x;", "coords[0] = y;"},
 		"exam05-bigint":  {"bigint.cpp", "return decimal == rhs.decimal;", "return decimal != rhs.decimal;"},
 		"exam05-polyset": {"searchable_tree_bag.cpp", "return position != nullptr;", "return false;"},
 		"exam05-life":    {"life.c", "? 'O' : ' '", "? '0' : ' '"},

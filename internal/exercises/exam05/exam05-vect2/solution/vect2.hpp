@@ -4,72 +4,72 @@
 #include <iostream>
 
 class vect2 {
-  int coordinates[2];
+  int coords[2];
 
 public:
 
   // 1. Constructors
   vect2() {
-    coordinates[0] = 0;
-    coordinates[1] = 0;
+    coords[0] = 0;
+    coords[1] = 0;
   }
 
   vect2(int x, int y) {
-    coordinates[0] = x;
-    coordinates[1] = y;
+    coords[0] = x;
+    coords[1] = y;
   }
 
   // 2. Indexing
-  int &operator[](int index) { return coordinates[index]; }
+  int &operator[](int index) { return coords[index]; }
 
-  int operator[](int index) const { return coordinates[index]; }
+  int operator[](int index) const { return coords[index]; }
 
   // 3. Modify the current vector
   vect2 &operator+=(const vect2 &rhs) {
-    coordinates[0] += rhs[0];
-    coordinates[1] += rhs[1];
+    coords[0] += rhs[0];
+    coords[1] += rhs[1];
     return *this;
   }
 
   vect2 &operator-=(const vect2 &rhs) {
-    coordinates[0] -= rhs[0];
-    coordinates[1] -= rhs[1];
+    coords[0] -= rhs[0];
+    coords[1] -= rhs[1];
     return *this;
   }
 
   vect2 &operator*=(int factor) {
-    coordinates[0] *= factor;
-    coordinates[1] *= factor;
+    coords[0] *= factor;
+    coords[1] *= factor;
     return *this;
   }
 
   // 4. Return a new vector
   vect2 operator+(const vect2 &rhs) const {
-    return vect2(coordinates[0] + rhs[0], coordinates[1] + rhs[1]);
+    return vect2(coords[0] + rhs[0], coords[1] + rhs[1]);
   }
 
   vect2 operator-(const vect2 &rhs) const {
-    return vect2(coordinates[0] - rhs[0], coordinates[1] - rhs[1]);
+    return vect2(coords[0] - rhs[0], coords[1] - rhs[1]);
   }
 
   vect2 operator-() const {
-    return vect2(-coordinates[0], -coordinates[1]);
+    return vect2(-coords[0], -coords[1]);
   }
 
   vect2 operator*(int factor) const {
-    return vect2(coordinates[0] * factor, coordinates[1] * factor);
+    return vect2(coords[0] * factor, coords[1] * factor);
   }
 
   // 5. Increment and decrement
   vect2 &operator++() { return *this += vect2(1, 1); }
+
+  vect2 &operator--() { return *this -= vect2(1, 1); }
 
   vect2 operator++(int) {
     vect2 old = *this;
     ++*this;
     return old;
   }
-
-  vect2 &operator--() { return *this -= vect2(1, 1); }
 
   vect2 operator--(int) {
     vect2 old = *this;
@@ -79,7 +79,7 @@ public:
 
   // 6. Comparisons
   bool operator==(const vect2 &rhs) const {
-    return coordinates[0] == rhs[0] && coordinates[1] == rhs[1];
+    return coords[0] == rhs[0] && coords[1] == rhs[1];
   }
 
   bool operator!=(const vect2 &rhs) const {

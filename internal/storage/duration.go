@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// FormatDuration renders sprint times as "5.123s" or "02m 05.123s".
+// FormatDuration renders sprint times as "5.123s", "02m 05.123s", or "1h 02m 05.123s".
 func FormatDuration(d time.Duration) string {
 	if d == 0 {
 		return "0s"
@@ -14,6 +14,9 @@ func FormatDuration(d time.Duration) string {
 	mins := int(d.Minutes())
 	secs := int(d.Seconds()) % 60
 	ms := int(d.Milliseconds()) % 1000
+	if mins >= 60 {
+		return fmt.Sprintf("%dh %02dm %02d.%03ds", mins/60, mins%60, secs, ms)
+	}
 	if mins > 0 {
 		return fmt.Sprintf("%02dm %02d.%03ds", mins, secs, ms)
 	}
