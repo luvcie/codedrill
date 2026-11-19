@@ -13,7 +13,7 @@ import (
 )
 
 func TestVect2BriefingReferenceChoice(t *testing.T) {
-	m := newBriefingModeModel(t, "exam05-vect2")
+	m := newBriefingModeModel(t, "rank05-vect2")
 	if !strings.Contains(ansi.Strip(m.View()), "Reference: < Header-only >") {
 		t.Fatal("header-only is not the default briefing reference")
 	}
@@ -51,7 +51,7 @@ func TestVect2BriefingReferenceChoice(t *testing.T) {
 
 func TestVect2EvaluationUsesRunReference(t *testing.T) {
 	for _, selected := range []solutions.Variant{solutions.HeaderOnly, solutions.SplitFiles} {
-		m := newBriefingModeModel(t, "exam05-vect2")
+		m := newBriefingModeModel(t, "rank05-vect2")
 		m.briefingReference = selected
 		m.briefingMode = mode.Recall()
 		m.triggerSprintStart()

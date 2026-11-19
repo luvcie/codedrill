@@ -1,7 +1,7 @@
 {
-  "id": "exam05-polyset",
+  "id": "rank05-polyset",
   "title": "polyset",
-  "category": "42/Exam 05",
+  "category": "42/rank 5",
   "language": "cpp",
   "difficulty": "hard",
   "entry_file": "searchable_array_bag.cpp",

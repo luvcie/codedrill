@@ -119,7 +119,7 @@ func TestRenderPaceHints(t *testing.T) {
 }
 
 func TestVect2PaceHintsHideSecretRank(t *testing.T) {
-	d := drill.Drill{ID: "exam05-vect2", Difficulty: "hard", IsPreset: true}
+	d := drill.Drill{ID: "rank05-vect2", Difficulty: "hard", IsPreset: true}
 	hints := ansi.Strip(RenderPaceHints(d))
 	if strings.Contains(hints, "X+") || strings.Contains(settingsPreview(), "X+") {
 		t.Fatal("rank previews reveal the hidden rank")
@@ -145,7 +145,7 @@ func TestVect2PaceHintsHideSecretRank(t *testing.T) {
 }
 
 func TestVect2NextPaceGoals(t *testing.T) {
-	d := drill.Drill{ID: "exam05-vect2", IsPreset: true}
+	d := drill.Drill{ID: "rank05-vect2", IsPreset: true}
 	for _, tc := range []struct {
 		duration time.Duration
 		want     string

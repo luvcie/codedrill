@@ -419,7 +419,7 @@ func (m *MainModel) categoryOptions() []huh.Option[string] {
 			add(c)
 		}
 	}
-	// Subcategories are choices too: "42/Exam 05" must be selectable when
+	// Subcategories are choices too: "42/rank 5" must be selectable when
 	// editing a drill that already lives there.
 	for _, d := range m.drills {
 		add(drill.CategoryOf(d))
@@ -447,7 +447,7 @@ func validateCategoryName(s string) error {
 }
 
 // canonicalCategory normalizes a category path and keeps the spelling a drill
-// already uses. A new "42 exam 05" becomes the existing "42/Exam 05".
+// already uses.
 func (m *MainModel) canonicalCategory(category string) string {
 	category = drill.NormalizeCategory(category)
 	for _, d := range m.drills {

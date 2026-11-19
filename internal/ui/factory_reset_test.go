@@ -31,7 +31,7 @@ func resetTestModel(t *testing.T) (*MainModel, string) {
 	if err := storage.SaveConfig(storage.Config{Theme: "nord", Shell: "zsh"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := mode.Save("exam05-vect2", mode.Copy()); err != nil {
+	if err := mode.Save("rank05-vect2", mode.Copy()); err != nil {
 		t.Fatal(err)
 	}
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -116,13 +116,13 @@ func TestFactoryResetSuccessRestoresFreshInterface(t *testing.T) {
 	if err := checkResetBuiltins(m.drills); err != nil {
 		t.Fatal("hidden presets were not restored:", err)
 	}
-	for _, d := range drill.Filter(m.drills, "42/Exam 05") {
+	for _, d := range drill.Filter(m.drills, "42/rank 5") {
 		source, err := solutions.Resolve(d.ID, d.Dir)
 		if err != nil || source == nil || source.Local {
 			t.Fatalf("bundled reference unavailable for %s: %v", d.ID, err)
 		}
 	}
-	if options, err := mode.Load("exam05-vect2"); err != nil || options != mode.Study() {
+	if options, err := mode.Load("rank05-vect2"); err != nil || options != mode.Study() {
 		t.Fatalf("saved practice preferences survived: %+v, %v", options, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); !os.IsNotExist(err) {
@@ -133,14 +133,14 @@ func TestFactoryResetSuccessRestoresFreshInterface(t *testing.T) {
 	}
 }
 
-func TestFactoryResetRequiresBundledExam05(t *testing.T) {
+func TestFactoryResetRequiresBundledRank05(t *testing.T) {
 	builtins, err := drill.LoadBuiltins()
 	if err != nil || checkResetBuiltins(builtins) != nil {
 		t.Fatal("the built-in reset prerequisite is not satisfied")
 	}
 	var missing []drill.Drill
 	for _, d := range builtins {
-		if d.ID != "exam05-polyset" {
+		if d.ID != "rank05-polyset" {
 			missing = append(missing, d)
 		}
 	}

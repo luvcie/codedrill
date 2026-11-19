@@ -221,7 +221,7 @@ func NewMainModelWithRandomFiltered(filter string) (*MainModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	filter = strings.TrimSpace(filter)
+	filter = drill.NormalizeCategory(filter)
 	pool := drill.Filter(m.drills, filter)
 	if len(pool) == 0 {
 		if filter == "" {

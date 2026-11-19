@@ -13,7 +13,7 @@ func TestAllLists42DrillsLast(t *testing.T) {
 	drills := []drill.Drill{
 		{ID: "42-first", Category: "42"},
 		{ID: "other-first", Category: "Algorithms"},
-		{ID: "exam", Category: "42 Exam 05"},
+		{ID: "rank", Category: "42/rank 5"},
 		{ID: "other-last", Category: "LeetCode"},
 		{ID: "42-last", Category: "42/Exam 06"},
 	}
@@ -26,7 +26,7 @@ func TestAllLists42DrillsLast(t *testing.T) {
 			got = append(got, d.drill.ID)
 		}
 	}
-	want := []string{"other-first", "other-last", "42-first", "exam", "42-last"}
+	want := []string{"other-first", "other-last", "42-first", "rank", "42-last"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("ALL order = %v, want %v", got, want)
 	}
@@ -62,9 +62,9 @@ func listHasDrill(m *MainModel, id string) bool {
 func TestSubcategoryMergesIntoTabAndCollapses(t *testing.T) {
 	m := newMenuTestModel(t)
 	if err := drill.SaveDrill(drill.Drill{
-		ID:        "exam05",
-		Title:     "Exam 05 drill",
-		Category:  "42 EXAM 05",
+		ID:        "rank05",
+		Title:     "rank 5 drill",
+		Category:  "42/RANK 5",
 		EntryFile: "a.c",
 	}); err != nil {
 		t.Fatal(err)
@@ -79,22 +79,22 @@ func TestSubcategoryMergesIntoTabAndCollapses(t *testing.T) {
 	if !slices.Contains(m.categories, "42") {
 		t.Fatalf("42 tab missing: %v", m.categories)
 	}
-	if d := drill.Find(m.drills, "exam05"); d == nil || d.Category != "42/Exam 05" {
+	if d := drill.Find(m.drills, "rank05"); d == nil || d.Category != "42/rank 5" {
 		t.Fatalf("saved category not normalized: %+v", d)
 	}
 
 	switchToCategory(t, m, "42")
-	idx, group := findSubcategory(t, m, "Exam 05")
+	idx, group := findSubcategory(t, m, "rank 5")
 	if group.collapsed {
 		t.Fatal("a subcategory should start expanded")
 	}
 	if group.count != 1 {
 		t.Fatalf("group count = %d, want 1", group.count)
 	}
-	if !strings.Contains(group.Title(), "EXAM 05") || !strings.HasPrefix(group.Title(), "▾") {
+	if !strings.Contains(group.Title(), "RANK 5") || !strings.HasPrefix(group.Title(), "▾") {
 		t.Fatalf("expanded group title = %q", group.Title())
 	}
-	if !listHasDrill(m, "exam05") {
+	if !listHasDrill(m, "rank05") {
 		t.Fatal("the exam drill is not under its group")
 	}
 	m.list.Select(idx)
@@ -110,7 +110,7 @@ func TestSubcategoryMergesIntoTabAndCollapses(t *testing.T) {
 		t.Fatalf("e on a group header opened state %v", m.state)
 	}
 	found := false
-	for _, hit := range m.searchHits("exam05") {
+	for _, hit := range m.searchHits("rank05") {
 		found = found || slices.Contains(hit, true)
 	}
 	if !found {
@@ -121,30 +121,30 @@ func TestSubcategoryMergesIntoTabAndCollapses(t *testing.T) {
 	for _, o := range m.categoryOptions() {
 		options = append(options, o.Value)
 	}
-	if !slices.Contains(options, "42/Exam 05") {
+	if !slices.Contains(options, "42/rank 5") {
 		t.Fatalf("category options lack the subcategory: %v", options)
 	}
 
 	m.list.Select(idx)
 	m.activateSelected()
-	idx, group = findSubcategory(t, m, "Exam 05")
+	idx, group = findSubcategory(t, m, "rank 5")
 	if !group.collapsed || !strings.HasPrefix(group.Title(), "▸") {
 		t.Fatalf("collapsed group = %q, collapsed %v", group.Title(), group.collapsed)
 	}
-	if listHasDrill(m, "exam05") {
+	if listHasDrill(m, "rank05") {
 		t.Fatal("a collapsed group still lists its drills")
 	}
-	if slices.Contains(m.searchHits("exam05")[categoryNamed(t, m, "42")], true) {
+	if slices.Contains(m.searchHits("rank05")[categoryNamed(t, m, "42")], true) {
 		t.Fatal("search should not find a drill inside a collapsed group on the 42 tab")
 	}
 
 	m.list.Select(idx)
 	m.activateSelected()
-	_, group = findSubcategory(t, m, "Exam 05")
-	if group.collapsed || !listHasDrill(m, "exam05") {
+	_, group = findSubcategory(t, m, "rank 5")
+	if group.collapsed || !listHasDrill(m, "rank05") {
 		t.Fatal("expanding the group did not bring its drill back")
 	}
-	if !slices.Contains(m.searchHits("exam05")[categoryNamed(t, m, "42")], true) {
+	if !slices.Contains(m.searchHits("rank05")[categoryNamed(t, m, "42")], true) {
 		t.Fatal("search should find the drill again after expanding")
 	}
 }

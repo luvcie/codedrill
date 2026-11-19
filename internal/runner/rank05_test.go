@@ -14,10 +14,10 @@ import (
 )
 
 // This also runs in the Nix build, without the developer's config or source paths.
-func TestExam05FreshInstall(t *testing.T) {
+func TestRank05FreshInstall(t *testing.T) {
 	for _, command := range []string{"gcc", "g++", "python3", "bash"} {
 		if _, err := exec.LookPath(command); err != nil {
-			t.Skipf("Exam 05 runtime checks need %s", command)
+			t.Skipf("rank 5 runtime checks need %s", command)
 		}
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -26,16 +26,16 @@ func TestExam05FreshInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	mutations := map[string]struct{ file, before, after string }{
-		"exam05-vect2":   {"vect2.hpp", "coords[0] = x;", "coords[0] = y;"},
-		"exam05-bigint":  {"bigint.cpp", "return decimal == rhs.decimal;", "return decimal != rhs.decimal;"},
-		"exam05-polyset": {"searchable_tree_bag.cpp", "return position != nullptr;", "return false;"},
-		"exam05-life":    {"life.c", "? 'O' : ' '", "? '0' : ' '"},
-		"exam05-bsq":     {"bsq.c", "map->rows[y][x] = map->fill", "map->rows[y][x] = map->empty"},
+		"rank05-vect2":   {"vect2.hpp", "coords[0] = x;", "coords[0] = y;"},
+		"rank05-bigint":  {"bigint.cpp", "return decimal == rhs.decimal;", "return decimal != rhs.decimal;"},
+		"rank05-polyset": {"searchable_tree_bag.cpp", "return position != nullptr;", "return false;"},
+		"rank05-life":    {"life.c", "? 'O' : ' '", "? '0' : ' '"},
+		"rank05-bsq":     {"bsq.c", "map->rows[y][x] = map->fill", "map->rows[y][x] = map->empty"},
 	}
 	for id, mutation := range mutations {
 		t.Run(id, func(t *testing.T) {
 			d := drill.Find(drills, id)
-			if d == nil || !d.IsPreset || d.Dir != "" || d.Category != "42/Exam 05" {
+			if d == nil || !d.IsPreset || d.Dir != "" || d.Category != "42/rank 5" {
 				t.Fatalf("built-in drill unavailable: %+v", d)
 			}
 			source, err := solutions.Resolve(d.ID, d.Dir)
@@ -143,7 +143,7 @@ func TestVect2ReferenceVariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := drill.Find(drills, "exam05-vect2")
+	d := drill.Find(drills, "rank05-vect2")
 	if d == nil {
 		t.Fatal("vect2 drill is missing")
 	}

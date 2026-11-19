@@ -19,7 +19,7 @@ func TestLayoutRoundTrip(t *testing.T) {
 
 	want := MenuLayout{Categories: map[string][]LayoutBlock{
 		"42": {
-			{Group: "Exam 05", Drills: []string{"exam05a", "exam05b"}},
+			{Group: "rank 5", Drills: []string{"rank05a", "rank05b"}},
 			{Drill: "ft_strlen"},
 		},
 	}}

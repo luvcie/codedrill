@@ -7,7 +7,7 @@ import (
 )
 
 func TestVect2RankBoundaries(t *testing.T) {
-	d := Drill{ID: "exam05-vect2", Difficulty: "hard", IsPreset: true}
+	d := Drill{ID: "rank05-vect2", Difficulty: "hard", IsPreset: true}
 	boundaries := []struct {
 		rank string
 		time time.Duration
@@ -153,7 +153,7 @@ func TestCustomDrillsKeepDifficultyRanks(t *testing.T) {
 }
 
 func TestCustomOverrideUsesDifficultyRanks(t *testing.T) {
-	builtin := Drill{ID: "exam05-vect2", Difficulty: "hard", IsPreset: true}
+	builtin := Drill{ID: "rank05-vect2", Difficulty: "hard", IsPreset: true}
 	custom := builtin
 	custom.IsPreset = false
 	if targets := RankTargets(builtin); len(targets) != 17 || targets[16].Rank != "X" || targets[16].Time != 150*time.Second {

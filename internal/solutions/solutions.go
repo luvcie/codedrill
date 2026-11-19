@@ -94,8 +94,8 @@ func ResolveVariant(drillID, drillDir string, variant Variant) (*Source, error) 
 		return fromOverlay, nil
 	}
 	if drillDir == "" {
-		root := "exam05/" + drillID + "/solution"
-		if drillID == "exam05-vect2" {
+		root := "rank05/" + drillID + "/solution"
+		if drillID == "rank05-vect2" {
 			switch variant {
 			case HeaderOnly:
 			case SplitFiles:

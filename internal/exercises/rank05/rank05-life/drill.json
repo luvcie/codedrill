@@ -1,7 +1,7 @@
 {
-  "id": "exam05-life",
+  "id": "rank05-life",
   "title": "life",
-  "category": "42/Exam 05",
+  "category": "42/rank 5",
   "language": "c",
   "difficulty": "hard",
   "entry_file": "life.c",

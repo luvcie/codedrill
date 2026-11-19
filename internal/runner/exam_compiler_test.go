@@ -37,7 +37,7 @@ func TestExamCompilerCheck(t *testing.T) {
 			}
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-			s, err := NewSession(drill.Drill{ID: "test", Category: "42/Exam 05", IsPreset: true, Language: tc.language, EntryFile: "answer.c", TestCommand: "echo TEST_RAN"}, 0)
+			s, err := NewSession(drill.Drill{ID: "test", Category: "42/rank 5", IsPreset: true, Language: tc.language, EntryFile: "answer.c", TestCommand: "echo TEST_RAN"}, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestExamCompilerRejectsClang(t *testing.T) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	s, err := NewSession(drill.Drill{ID: "test", Category: "42/Exam 05", IsPreset: true, Language: "c", EntryFile: "answer.c", TestCommand: "echo TEST_RAN"}, 0)
+	s, err := NewSession(drill.Drill{ID: "test", Category: "42/rank 5", IsPreset: true, Language: "c", EntryFile: "answer.c", TestCommand: "echo TEST_RAN"}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestExamCompilerRejectsClang(t *testing.T) {
 
 func TestCustomExamDrillKeepsItsCompilerCommand(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	s, err := NewSession(drill.Drill{ID: "custom", Category: "42/Exam 05", Language: "c", EntryFile: "answer.c", TestCommand: "echo CUSTOM"}, 0)
+	s, err := NewSession(drill.Drill{ID: "custom", Category: "42/rank 5", Language: "c", EntryFile: "answer.c", TestCommand: "echo CUSTOM"}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

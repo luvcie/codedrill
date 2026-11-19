@@ -119,7 +119,7 @@ func (m *MainModel) focusBriefingOption(delta int) {
 }
 
 func (m *MainModel) hasReferenceChoice() bool {
-	return m.activeDrill != nil && m.activeDrill.ID == "exam05-vect2" && m.activeDrill.Dir == ""
+	return m.activeDrill != nil && m.activeDrill.ID == "rank05-vect2" && m.activeDrill.Dir == ""
 }
 
 func (m *MainModel) briefingReferenceChoice() string {

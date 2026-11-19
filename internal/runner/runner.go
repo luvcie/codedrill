@@ -796,7 +796,8 @@ func (s *Session) resolveRunCommand() string {
 		cmd = s.fallbackRunCommand()
 	}
 	check, end := "", ""
-	if d.IsPreset && strings.HasPrefix(d.Category, "42/Exam ") {
+	category := drill.CategoryOf(d)
+	if d.IsPreset && (category == "42/rank 5" || strings.HasPrefix(category, "42/Exam ")) {
 		compiler, language := "gcc", "c"
 		if strings.EqualFold(d.Language, "cpp") {
 			compiler, language = "g++", "c++"

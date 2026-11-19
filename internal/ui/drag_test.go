@@ -147,9 +147,9 @@ func TestKeyboardDragReordersDrillAndPersists(t *testing.T) {
 func TestKeyboardDragReordersSubcategoryAndChild(t *testing.T) {
 	m := newMenuTestModel(t)
 	for _, d := range []drill.Drill{
-		{ID: "alpha", Title: "Alpha", Category: "42/Exam 05", EntryFile: "a.c"},
-		{ID: "beta", Title: "Beta", Category: "42/Exam 05", EntryFile: "b.c"},
-		{ID: "gamma", Title: "Gamma", Category: "42/Exam 06", EntryFile: "c.c"},
+		{ID: "alpha", Title: "Alpha", Category: "42/rank 5", EntryFile: "a.c"},
+		{ID: "beta", Title: "Beta", Category: "42/rank 5", EntryFile: "b.c"},
+		{ID: "gamma", Title: "Gamma", Category: "42/rank 6", EntryFile: "c.c"},
 	} {
 		if err := drill.SaveDrill(d); err != nil {
 			t.Fatal(err)
@@ -158,18 +158,18 @@ func TestKeyboardDragReordersSubcategoryAndChild(t *testing.T) {
 	m.reloadDrills()
 	switchToCategory(t, m, "42")
 
-	idx, _ := findSubcategory(t, m, "Exam 05")
+	idx, _ := findSubcategory(t, m, "rank 5")
 	m.list.Select(idx)
 	m.Update(tea.KeyMsg{Type: tea.KeyShiftDown})
-	first, _ := findSubcategory(t, m, "Exam 06")
-	second, _ := findSubcategory(t, m, "Exam 05")
+	first, _ := findSubcategory(t, m, "rank 6")
+	second, _ := findSubcategory(t, m, "rank 5")
 	if first >= second {
-		t.Fatalf("group rows at %d and %d, want Exam 06 above Exam 05", first, second)
+		t.Fatalf("group rows at %d and %d, want rank 6 above rank 5", first, second)
 	}
 
 	selectDrill(t, m, "alpha")
 	m.Update(tea.KeyMsg{Type: tea.KeyShiftDown})
-	idx, _ = findSubcategory(t, m, "Exam 05")
+	idx, _ = findSubcategory(t, m, "rank 5")
 	items := m.list.Items()
 	if idx+2 >= len(items) {
 		t.Fatalf("group at %d has no room for its children", idx)
@@ -180,15 +180,15 @@ func TestKeyboardDragReordersSubcategoryAndChild(t *testing.T) {
 	}
 
 	for _, block := range layoutBlocksFor(t, "42") {
-		if !strings.EqualFold(block.Group, "Exam 05") {
+		if !strings.EqualFold(block.Group, "rank 5") {
 			continue
 		}
 		if len(block.Drills) != 2 || block.Drills[0] != "beta" || block.Drills[1] != "alpha" {
-			t.Fatalf("saved Exam 05 drills = %v", block.Drills)
+			t.Fatalf("saved rank 5 drills = %v", block.Drills)
 		}
 		return
 	}
-	t.Fatal("saved layout has no Exam 05 group")
+	t.Fatal("saved layout has no rank 5 group")
 }
 
 func TestDragDrillReordersAndPersists(t *testing.T) {
@@ -237,8 +237,8 @@ func TestDragDrillReordersAndPersists(t *testing.T) {
 func TestDragSubcategoryReordersAndPersists(t *testing.T) {
 	m := newMenuTestModel(t)
 	for _, d := range []drill.Drill{
-		{ID: "exam05a", Title: "Exam 05 drill", Category: "42/Exam 05", EntryFile: "a.c"},
-		{ID: "exam06a", Title: "Exam 06 drill", Category: "42/Exam 06", EntryFile: "b.c"},
+		{ID: "rank05a", Title: "rank 5 drill", Category: "42/rank 5", EntryFile: "a.c"},
+		{ID: "exam06a", Title: "rank 6 drill", Category: "42/rank 6", EntryFile: "b.c"},
 	} {
 		if err := drill.SaveDrill(d); err != nil {
 			t.Fatal(err)
@@ -248,16 +248,16 @@ func TestDragSubcategoryReordersAndPersists(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	switchToCategory(t, m, "42")
 
-	from := rowOf(t, m, "EXAM 06")
-	to := rowOf(t, m, "EXAM 05")
+	from := rowOf(t, m, "RANK 6")
+	to := rowOf(t, m, "RANK 5")
 	dragRow(t, m, from, to)
 
 	first, ok := m.list.Items()[0].(drillItem)
-	if !ok || !first.isGroup() || !strings.EqualFold(first.group, "Exam 06") {
-		t.Fatalf("first row = %+v, want the Exam 06 group", first)
+	if !ok || !first.isGroup() || !strings.EqualFold(first.group, "rank 6") {
+		t.Fatalf("first row = %+v, want the rank 6 group", first)
 	}
 	blocks := layoutBlocksFor(t, "42")
-	if len(blocks) < 2 || !strings.EqualFold(blocks[0].Group, "Exam 06") || !strings.EqualFold(blocks[1].Group, "Exam 05") {
+	if len(blocks) < 2 || !strings.EqualFold(blocks[0].Group, "rank 6") || !strings.EqualFold(blocks[1].Group, "rank 5") {
 		t.Fatalf("saved blocks = %+v", blocks)
 	}
 
@@ -268,16 +268,16 @@ func TestDragSubcategoryReordersAndPersists(t *testing.T) {
 	restarted.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	switchToCategory(t, restarted, "42")
 	first, ok = restarted.list.Items()[0].(drillItem)
-	if !ok || !first.isGroup() || !strings.EqualFold(first.group, "Exam 06") {
-		t.Fatalf("after restart first row = %+v, want the Exam 06 group", first)
+	if !ok || !first.isGroup() || !strings.EqualFold(first.group, "rank 6") {
+		t.Fatalf("after restart first row = %+v, want the rank 6 group", first)
 	}
 }
 
 func TestDragDrillWithinSubcategoryAndPersists(t *testing.T) {
 	m := newMenuTestModel(t)
 	for _, d := range []drill.Drill{
-		{ID: "alpha", Title: "Alpha", Category: "42/Exam 05", EntryFile: "a.c"},
-		{ID: "beta", Title: "Beta", Category: "42/Exam 05", EntryFile: "b.c"},
+		{ID: "alpha", Title: "Alpha", Category: "42/rank 5", EntryFile: "a.c"},
+		{ID: "beta", Title: "Beta", Category: "42/rank 5", EntryFile: "b.c"},
 	} {
 		if err := drill.SaveDrill(d); err != nil {
 			t.Fatal(err)

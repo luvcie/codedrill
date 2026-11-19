@@ -12,17 +12,17 @@ import (
 func TestReferenceSelectionSurvivesModeChanges(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	want := Preferences{Options: Recall(), ReferenceVariant: solutions.SplitFiles}
-	if err := SavePreferences("exam05-vect2", want); err != nil {
+	if err := SavePreferences("rank05-vect2", want); err != nil {
 		t.Fatal(err)
 	}
 	if err := Save("another-drill", Exam()); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save("exam05-vect2", Exam()); err != nil {
+	if err := Save("rank05-vect2", Exam()); err != nil {
 		t.Fatal(err)
 	}
 	want.Options = Exam()
-	if got, err := LoadPreferences("exam05-vect2"); err != nil || got != want {
+	if got, err := LoadPreferences("rank05-vect2"); err != nil || got != want {
 		t.Fatalf("saved reference changed with practice mode: %+v, %v", got, err)
 	}
 	if got, err := LoadPreferences("another-drill"); err != nil || got.ReferenceVariant != solutions.HeaderOnly || got.Options != Exam() {

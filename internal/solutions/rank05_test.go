@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-func TestExam05ReferenceOverride(t *testing.T) {
+func TestRank05ReferenceOverride(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	dir, err := OverlayDir("exam05-vect2")
+	dir, err := OverlayDir("rank05-vect2")
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeFile(t, dir, "private.cpp", "private reference")
-	source, err := Resolve("exam05-vect2", "")
+	source, err := Resolve("rank05-vect2", "")
 	if err != nil || source == nil || !source.Local || len(source.Files) != 1 {
 		t.Fatalf("local reference did not win outright: %+v, %v", source, err)
 	}
@@ -26,12 +26,12 @@ func TestExam05ReferenceOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	custom := t.TempDir()
-	source, err = Resolve("exam05-vect2", custom)
+	source, err = Resolve("rank05-vect2", custom)
 	if err != nil || source != nil {
 		t.Fatalf("custom override inherited the built-in reference: %+v, %v", source, err)
 	}
 	writeFile(t, filepath.Join(custom, "solution"), "custom.cpp", "custom bundled reference")
-	source, err = Resolve("exam05-vect2", custom)
+	source, err = Resolve("rank05-vect2", custom)
 	if err != nil || source == nil || len(source.Files) != 1 || source.Files[0].Rel != "custom.cpp" {
 		t.Fatalf("custom bundled reference did not win: %+v, %v", source, err)
 	}

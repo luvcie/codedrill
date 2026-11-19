@@ -19,7 +19,7 @@ func TestVect2ReferenceSelectionAndModes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := drill.Find(drills, "exam05-vect2")
+	d := drill.Find(drills, "rank05-vect2")
 	if d == nil {
 		t.Fatal("vect2 drill is missing")
 	}

@@ -125,10 +125,10 @@ func TestViewerStartsOnEditorFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ id, want string }{
-		{"exam05-vect2", "vect2.hpp"},
-		{"exam05-bigint", "bigint.hpp"},
-		{"exam05-polyset", "searchable_array_bag.hpp"},
-		{"exam05-life", "life.c"},
+		{"rank05-vect2", "vect2.hpp"},
+		{"rank05-bigint", "bigint.hpp"},
+		{"rank05-polyset", "searchable_array_bag.hpp"},
+		{"rank05-life", "life.c"},
 	} {
 		t.Run(tc.id, func(t *testing.T) {
 			d := drill.Find(drills, tc.id)

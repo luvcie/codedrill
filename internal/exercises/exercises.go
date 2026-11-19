@@ -1,7 +1,7 @@
-// Package exercises contains the built-in Exam 05 practice materials.
+// Package exercises contains the built-in rank 5 practice materials.
 package exercises
 
 import "embed"
 
-//go:embed exam05
+//go:embed rank05
 var Files embed.FS

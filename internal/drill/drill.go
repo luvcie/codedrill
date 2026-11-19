@@ -39,8 +39,8 @@ type Drill struct {
 }
 
 // CategorySeparator divides a category into a parent and a subcategory. A
-// drill whose category is "42/Exam 05" belongs to the 42 tab and is listed in
-// a collapsible "Exam 05" group there.
+// drill whose category is "42/rank 5" belongs to the 42 tab and is listed in
+// a collapsible "rank 5" group there.
 const CategorySeparator = "/"
 
 func CategoryOf(d Drill) string {
@@ -50,9 +50,8 @@ func CategoryOf(d Drill) string {
 	return "Custom"
 }
 
-// NormalizeCategory cleans up a category name. It maps the old "42 Exam" and
-// "42 Exam NN" names onto the current 42 category, keeping the exam part as a
-// subcategory, and trims the parts of a "parent/subcategory" path.
+// NormalizeCategory trims category paths and keeps rank 5's spelling consistent.
+// Old "42 Exam" and "42 Exam NN" names map onto the current 42 category.
 func NormalizeCategory(category string) string {
 	c := strings.TrimSpace(category)
 	if c == "" {
@@ -66,6 +65,8 @@ func NormalizeCategory(category string) string {
 			return sub
 		case sub == "":
 			return parent
+		case parent == "42" && strings.EqualFold(sub, "rank 5"):
+			return "42/rank 5"
 		default:
 			return parent + CategorySeparator + sub
 		}
@@ -80,7 +81,7 @@ func NormalizeCategory(category string) string {
 	return c
 }
 
-// ParentCategory is the tab a category belongs to: "42" for "42/Exam 05".
+// ParentCategory is the tab a category belongs to: "42" for "42/rank 5".
 func ParentCategory(category string) string {
 	c := NormalizeCategory(category)
 	if i := strings.Index(c, CategorySeparator); i >= 0 {
@@ -133,7 +134,7 @@ func isCustomCategory(c string) bool {
 }
 
 func Matches(d Drill, filter string) bool {
-	filter = strings.TrimSpace(filter)
+	filter = NormalizeCategory(filter)
 	if filter == "" || strings.EqualFold(filter, "ALL") {
 		return true
 	}
@@ -187,12 +188,12 @@ func LoadBuiltins() ([]Drill, error) {
 	if err := json.Unmarshal(presetsJSON, &drills); err != nil {
 		return nil, fmt.Errorf("built-in drills: %w", err)
 	}
-	entries, err := fs.ReadDir(exercises.Files, "exam05")
+	entries, err := fs.ReadDir(exercises.Files, "rank05")
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range entries {
-		root := "exam05/" + entry.Name()
+		root := "rank05/" + entry.Name()
 		data, err := exercises.Files.ReadFile(root + "/drill.json")
 		if err != nil {
 			return nil, err

@@ -1,7 +1,7 @@
 {
-  "id": "exam05-bsq",
+  "id": "rank05-bsq",
   "title": "bsq",
-  "category": "42/Exam 05",
+  "category": "42/rank 5",
   "language": "c",
   "difficulty": "hard",
   "entry_file": "bsq.c",

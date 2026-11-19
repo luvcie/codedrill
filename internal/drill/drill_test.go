@@ -199,9 +199,12 @@ func TestNormalizeCategory(t *testing.T) {
 		{"42", "42"},
 		{"42 Exam", "42"},
 		{"42 EXAM", "42"},
-		{"42 Exam 05", "42/Exam 05"},
-		{"42 EXAM 05", "42/Exam 05"},
-		{" 42 / Exam 05 ", "42/Exam 05"},
+		{" 42 / rank 5 ", "42/rank 5"},
+		{"42/rank 5", "42/rank 5"},
+		{" 42 / RANK 5 ", "42/rank 5"},
+		{"42 EXAM 06", "42/Exam 06"},
+		{"42/Exam 06", "42/Exam 06"},
+		{"Rust/rank 5", "Rust/rank 5"},
 		{"Rust / Ownership", "Rust/Ownership"},
 		{"Custom", "Custom"},
 	}
@@ -213,35 +216,37 @@ func TestNormalizeCategory(t *testing.T) {
 }
 
 func TestCategoryHierarchy(t *testing.T) {
-	d := Drill{Category: "42 EXAM 05"}
-	if got := CategoryOf(d); got != "42/Exam 05" {
-		t.Fatalf("CategoryOf = %q, want 42/Exam 05", got)
+	d := Drill{Category: "42/RANK 5"}
+	if got := CategoryOf(d); got != "42/rank 5" {
+		t.Fatalf("CategoryOf = %q, want 42/rank 5", got)
 	}
 	if got := ParentCategoryOf(d); got != "42" {
 		t.Fatalf("ParentCategoryOf = %q, want 42", got)
 	}
-	if got := SubcategoryOf(d); got != "Exam 05" {
-		t.Fatalf("SubcategoryOf = %q, want Exam 05", got)
+	if got := SubcategoryOf(d); got != "rank 5" {
+		t.Fatalf("SubcategoryOf = %q, want rank 5", got)
 	}
 	if got := SubcategoryOf(Drill{Category: "42"}); got != "" {
 		t.Fatalf("plain category has subcategory %q", got)
 	}
-	if !Matches(d, "42") || !Matches(d, "42/Exam 05") {
-		t.Fatal("a subcategory should match its parent and its full path")
+	for _, filter := range []string{"42", "42/rank 5", "rank 5", "RANK 5", " 42 / RANK 5 "} {
+		if !Matches(d, filter) {
+			t.Fatalf("renamed subcategory did not match %q", filter)
+		}
 	}
 	if Matches(d, "LeetCode") {
 		t.Fatal("a subcategory matched an unrelated category")
 	}
 }
 
-func TestLoadNormalizesLegacy42ExamSubcategory(t *testing.T) {
+func TestLoadNormalizesRank5Subcategory(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	base, _ := GetUserDrillsDir()
 	dir := filepath.Join(base, "legacy")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"id": "legacy", "title": "Legacy", "category": "42 EXAM 05", "entry_file": "a.c"}`
+	manifest := `{"id": "legacy", "title": "Legacy", "category": "42/RANK 5", "entry_file": "a.c"}`
 	if err := os.WriteFile(filepath.Join(dir, "drill.json"), []byte(manifest), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -250,8 +255,8 @@ func TestLoadNormalizesLegacy42ExamSubcategory(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := Find(drills, "legacy")
-	if d == nil || d.Category != "42/Exam 05" {
-		t.Fatalf("legacy subcategory not normalized: %+v", d)
+	if d == nil || d.Category != "42/rank 5" {
+		t.Fatalf("rank 5 subcategory not normalized: %+v", d)
 	}
 }
 

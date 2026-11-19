@@ -31,10 +31,10 @@ func TestEditorStartupFile(t *testing.T) {
 		{drill.Drill{ID: "other-header-extension", EntryFile: "main.c", StudentFiles: []string{"main.h"}}, "main.c"},
 	}
 	for _, preset := range []struct{ id, want string }{
-		{"exam05-vect2", "vect2.hpp"},
-		{"exam05-bigint", "bigint.hpp"},
-		{"exam05-polyset", "searchable_array_bag.hpp"},
-		{"exam05-life", "life.c"},
+		{"rank05-vect2", "vect2.hpp"},
+		{"rank05-bigint", "bigint.hpp"},
+		{"rank05-polyset", "searchable_array_bag.hpp"},
+		{"rank05-life", "life.c"},
 	} {
 		d := drill.Find(drills, preset.id)
 		if d == nil {

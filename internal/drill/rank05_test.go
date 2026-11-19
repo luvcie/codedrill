@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-func TestExam05LocalOverride(t *testing.T) {
+func TestRank05LocalOverride(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	local := Drill{ID: "exam05-vect2", Title: "My vector", Language: "cpp", EntryFile: "mine.cpp", Description: "private", TestCommand: "true"}
+	local := Drill{ID: "rank05-vect2", Title: "My vector", Language: "cpp", EntryFile: "mine.cpp", Description: "private", TestCommand: "true"}
 	if err := SaveDrill(local); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestExam05LocalOverride(t *testing.T) {
 }
 
 func TestFindPrefersIDOverTitle(t *testing.T) {
-	drills := []Drill{{ID: "exam05-vect2", Title: "vect2"}, {ID: "vect2", Title: "Custom vector"}}
+	drills := []Drill{{ID: "rank05-vect2", Title: "vect2"}, {ID: "vect2", Title: "Custom vector"}}
 	if d := Find(drills, "VECT2"); d == nil || d.ID != "vect2" {
 		t.Fatalf("built-in title shadows a local ID: %+v", d)
 	}

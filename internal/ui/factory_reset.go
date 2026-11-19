@@ -49,8 +49,8 @@ func (m *MainModel) advanceFactoryReset() tea.Cmd {
 
 func checkResetBuiltins(builtins []drill.Drill) error {
 	for _, name := range []string{"bigint", "bsq", "life", "polyset", "vect2"} {
-		if d := drill.Find(builtins, "exam05-"+name); d == nil || !d.IsPreset {
-			return fmt.Errorf("nothing reset: this executable is missing the built-in Exam 05 %s drill", name)
+		if d := drill.Find(builtins, "rank05-"+name); d == nil || !d.IsPreset {
+			return fmt.Errorf("nothing reset: this executable is missing the built-in rank 5 %s drill", name)
 		}
 	}
 	return nil
