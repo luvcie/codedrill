@@ -30,7 +30,7 @@ func TestMusicSelectionDoesNotDownloadOrEnable(t *testing.T) {
 	if m.musicPrefs.Enabled || m.musicVolume != 35 {
 		t.Fatal("music defaults changed")
 	}
-	m.musicCursor = 2
+	m.musicCursor = 3
 	if cmd := m.activateMusicRow(); cmd != nil || m.download != nil {
 		t.Fatal("opening playlist downloaded music")
 	}
@@ -90,6 +90,28 @@ func TestMusicVolumeStepsAndLimits(t *testing.T) {
 	}
 }
 
+func TestMusicShufflePersists(t *testing.T) {
+	m := openMusicTestModel(t)
+	if !strings.Contains(ansi.Strip(m.View()), "Shuffle  off") {
+		t.Fatal("music settings have no Shuffle toggle")
+	}
+	m.musicCursor = 2
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m.openMusic()
+	cfg, err := storage.LoadConfig()
+	if err != nil || !m.musicPrefs.Shuffle || !cfg.Music.Shuffle || cfg.Music.Enabled || cfg.MusicVolume() != .36 {
+		t.Fatalf("saved Shuffle changed other settings: %+v, %v", cfg.Music, err)
+	}
+	w, h := m.screenSize()
+	layout := m.musicLayout(w, h)
+	m.Update(leftClick(4, layout.contentTop+2-layout.start))
+	m.openMusic()
+	if m.musicPrefs.Shuffle || !strings.Contains(ansi.Strip(m.View()), "Shuffle  off") {
+		t.Fatal("mouse did not save Shuffle off")
+	}
+}
+
 func TestBattlePlaylistReusesMusicControls(t *testing.T) {
 	m := openMusicTestModel(t)
 	t.Cleanup(m.Cleanup)
@@ -97,10 +119,10 @@ func TestBattlePlaylistReusesMusicControls(t *testing.T) {
 		row       int
 		id, label string
 	}{
-		{2, music.SprintZen, "Calm (Sprint / Zen)"},
-		{3, music.TetraLeague, "Battle (Tetra League)"},
-		{4, music.Holidays, "TETR.IO Holidays 2023"},
-		{5, music.Local, "Local MP3 folder"},
+		{3, music.SprintZen, "Calm (Sprint / Zen)"},
+		{4, music.TetraLeague, "Battle (Tetra League)"},
+		{5, music.Holidays, "TETR.IO Holidays 2023"},
+		{6, music.Local, "Local MP3 folder"},
 	} {
 		m.openMusic()
 		if !strings.Contains(m.musicRowLabel(source.row), source.label) {

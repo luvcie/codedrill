@@ -1,20 +1,36 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/luvcie/codedrill/internal/music"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
 // MixerModel runs in a drill's terminal pane without suspending the editor.
 type MixerModel struct {
-	volumes [2]int
-	off     [2]bool
-	cursor  int
-	width   int
-	err     error
+	volumes      [2]int
+	off          [2]bool
+	cursor       int
+	width        int
+	err          error
+	socket       string
+	playback     music.PlaybackState
+	playbackErr  error
+	playbackBusy bool
+	pending      []music.Command
+}
+
+type mixerTickMsg struct{}
+
+type mixerPlaybackMsg struct {
+	state music.PlaybackState
+	err   error
 }
 
 func NewMixerModel() (*MixerModel, error) {
@@ -26,13 +42,44 @@ func NewMixerModel() (*MixerModel, error) {
 		volumes: [2]int{int(cfg.MusicVolume()*100 + .5), int(cfg.TypingVolume()*100 + .5)},
 		off:     [2]bool{cfg.Music == nil || !cfg.Music.Enabled, !cfg.TypingSoundsOn()},
 		width:   80,
+		socket:  os.Getenv("CODEDRILL_MUSIC_SOCKET"),
 	}, nil
 }
 
-func (m *MixerModel) Init() tea.Cmd { return nil }
+func mixerTick() tea.Cmd {
+	return tea.Tick(250*time.Millisecond, func(time.Time) tea.Msg { return mixerTickMsg{} })
+}
+
+func (m *MixerModel) Init() tea.Cmd {
+	return tea.Batch(m.requestPlayback(music.GetStatus), mixerTick())
+}
+
+func (m *MixerModel) requestPlayback(command music.Command) tea.Cmd {
+	if m.playbackBusy {
+		if command != music.GetStatus {
+			m.pending = append(m.pending, command)
+		}
+		return nil
+	}
+	m.playbackBusy = true
+	socket := m.socket
+	return func() tea.Msg {
+		state, err := music.Control(socket, command)
+		return mixerPlaybackMsg{state: state, err: err}
+	}
+}
 
 func (m *MixerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case mixerTickMsg:
+		return m, tea.Batch(m.requestPlayback(music.GetStatus), mixerTick())
+	case mixerPlaybackMsg:
+		m.playback, m.playbackErr, m.playbackBusy = msg.state, msg.err, false
+		if len(m.pending) > 0 {
+			command := m.pending[0]
+			m.pending = m.pending[1:]
+			return m, m.requestPlayback(command)
+		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 	case tea.KeyMsg:
@@ -45,6 +92,14 @@ func (m *MixerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.changeVolume(-1)
 		case "right", "l":
 			m.changeVolume(1)
+		case "p":
+			return m, m.requestPlayback(music.Previous)
+		case "n":
+			return m, m.requestPlayback(music.Next)
+		case "r":
+			return m, m.requestPlayback(music.ToggleLoop)
+		case "s":
+			return m, m.requestPlayback(music.ToggleShuffle)
 		}
 	}
 	return m, nil
@@ -79,7 +134,23 @@ func (m *MixerModel) changeVolume(delta int) {
 
 func (m *MixerModel) View() string {
 	w := max(1, m.width)
-	lines := []string{"", "  " + LogoStyle.Render("codedrill") + "  " + SubtextStyle.Render("volume"), ""}
+	lines := []string{"", "  " + LogoStyle.Render("codedrill") + "  " + SubtextStyle.Render("mixer"), ""}
+	title := m.playback.Title
+	if title == "" {
+		title = "No music playing"
+	}
+	lines = append(lines, "  Song: "+title)
+	for _, setting := range []struct {
+		label string
+		on    bool
+	}{{"Loop current song", m.playback.Loop}, {"Shuffle", m.playback.Shuffle}} {
+		value := "off"
+		if setting.on {
+			value = "on"
+		}
+		lines = append(lines, "  "+setting.label+": "+value)
+	}
+	lines = append(lines, "")
 	for i, name := range []string{"Music", "SFX"} {
 		status := ""
 		if m.off[i] {
@@ -91,6 +162,9 @@ func (m *MixerModel) View() string {
 	if m.err != nil {
 		lines = append(lines, "  "+DangerStyle.Render("Could not save: "+m.err.Error()))
 	}
-	lines = append(lines, "", renderHelp("[↑/↓] choose  [←/→] volume  [q/Esc/Enter] return", w, ""))
+	if m.playbackErr != nil && !errors.Is(m.playbackErr, music.ErrNoPlayer) {
+		lines = append(lines, "  "+DangerStyle.Render("Playback controls unavailable."))
+	}
+	lines = append(lines, "", renderHelp("[p] previous  [n] next  [r] loop current song  [s] shuffle\n[↑/↓] choose  [←/→] volume  [q/Esc/Enter] return", w, ""))
 	return truncateBlock(strings.Join(lines, "\n"), w)
 }

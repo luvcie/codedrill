@@ -67,7 +67,7 @@ func (m *MainModel) musicTrackBase() int {
 
 func (m *MainModel) musicRowCount() int {
 	if m.musicSource == "" {
-		return 6
+		return 7
 	}
 	return m.musicTrackBase() + len(m.musicTracks)
 }
@@ -111,7 +111,11 @@ func (m *MainModel) musicRowLabel(row int) string {
 		if m.musicPrefs.Enabled {
 			enabled = "on"
 		}
-		return []string{"Music  " + enabled, fmt.Sprintf("Volume  %d%%", m.musicVolume), "Calm (Sprint / Zen)  →", "Battle (Tetra League)  →", "TETR.IO Holidays 2023  →", "Local MP3 folder  →"}[row]
+		shuffle := "off"
+		if m.musicPrefs.Shuffle {
+			shuffle = "on"
+		}
+		return []string{"Music  " + enabled, fmt.Sprintf("Volume  %d%%", m.musicVolume), "Shuffle  " + shuffle, "Calm (Sprint / Zen)  →", "Battle (Tetra League)  →", "TETR.IO Holidays 2023  →", "Local MP3 folder  →"}[row]
 	}
 	if row == 0 {
 		return "← Music"
@@ -201,12 +205,15 @@ func (m *MainModel) activateMusicRow() tea.Cmd {
 			m.musicPrefs.Enabled = !m.musicPrefs.Enabled
 			m.saveMusic()
 		case 2:
-			m.openMusicSource(music.SprintZen)
+			m.musicPrefs.Shuffle = !m.musicPrefs.Shuffle
+			m.saveMusic()
 		case 3:
-			m.openMusicSource(music.TetraLeague)
+			m.openMusicSource(music.SprintZen)
 		case 4:
-			m.openMusicSource(music.Holidays)
+			m.openMusicSource(music.TetraLeague)
 		case 5:
+			m.openMusicSource(music.Holidays)
+		case 6:
 			m.openMusicSource(music.Local)
 		}
 		return nil
@@ -218,7 +225,7 @@ func (m *MainModel) activateMusicRow() tea.Cmd {
 	}
 	if row == 0 {
 		m.musicSource = ""
-		m.musicCursor = 2
+		m.musicCursor = 3
 		return nil
 	}
 	if m.musicSource == music.Local && row == 1 {
@@ -319,7 +326,7 @@ func (m *MainModel) updateMusic(key tea.KeyMsg) tea.Cmd {
 	case "esc", "q":
 		if m.musicSource != "" {
 			m.musicSource = ""
-			m.musicCursor = 2
+			m.musicCursor = 3
 		} else {
 			m.closeSettings()
 		}
@@ -356,7 +363,11 @@ func (m *MainModel) startMusic() {
 	m.musicPlaybackErr = nil
 	cfg, _ := storage.LoadConfig()
 	if cfg.Music != nil && cfg.Music.Enabled {
-		m.musicPlayer = music.Start(music.SelectedPaths(cfg.Music.Tracks, cfg.Music.Folder), cfg.MusicVolume())
+		socket := ""
+		if m.session != nil {
+			socket = m.session.MusicSocket()
+		}
+		m.musicPlayer = music.Start(music.SelectedSongs(cfg.Music.Tracks, cfg.Music.Folder), cfg.MusicVolume(), cfg.Music.Shuffle, socket)
 	}
 }
 

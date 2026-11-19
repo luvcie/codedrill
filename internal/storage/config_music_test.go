@@ -14,7 +14,7 @@ func TestMusicSettingsRoundTrip(t *testing.T) {
 	enabled, volume := true, 60
 	cfg.Typing = &TypingSettings{Enabled: &enabled, Volume: &volume, Pack: "existing-pack"}
 	musicVolume := 0
-	cfg.Music = &MusicSettings{Enabled: true, Volume: &musicVolume, Folder: "/my/music", Tracks: []string{"chk-016"}}
+	cfg.Music = &MusicSettings{Enabled: true, Shuffle: true, Volume: &musicVolume, Folder: "/my/music", Tracks: []string{"chk-016"}}
 	if err := SaveConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func TestMusicSettingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.Music.Enabled || cfg.MusicVolume() != 0 || cfg.Music.Folder != "/my/music" || cfg.Music.Tracks[0] != "chk-016" {
+	if !cfg.Music.Enabled || !cfg.Music.Shuffle || cfg.MusicVolume() != 0 || cfg.Music.Folder != "/my/music" || cfg.Music.Tracks[0] != "chk-016" {
 		t.Fatalf("music settings: %+v", cfg.Music)
 	}
 	if !cfg.TypingSoundsOn() || cfg.TypingVolume() != .6 || cfg.TypingPackID() != "existing-pack" {

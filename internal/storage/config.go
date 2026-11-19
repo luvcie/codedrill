@@ -24,6 +24,7 @@ type Config struct {
 // MusicSettings is independent of countdown cues and typing sounds.
 type MusicSettings struct {
 	Enabled bool     `json:"enabled,omitempty"`
+	Shuffle bool     `json:"shuffle,omitempty"`
 	Volume  *int     `json:"volume,omitempty"`
 	Folder  string   `json:"folder,omitempty"`
 	Tracks  []string `json:"tracks,omitempty"`

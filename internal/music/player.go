@@ -22,12 +22,12 @@ type Player struct {
 	err    error // Read only after done closes.
 }
 
-func SelectedPaths(ids []string, folder string) []string {
-	var paths []string
+func SelectedSongs(ids []string, folder string) []Song {
+	var songs []Song
 	for _, source := range []string{SprintZen, TetraLeague, Holidays} {
 		for _, track := range Tracks(source) {
 			if slices.Contains(ids, track.ID) && Cached(track) {
-				paths = append(paths, Path(track))
+				songs = append(songs, Song{Title: track.Name, Path: Path(track)})
 			}
 		}
 	}
@@ -35,17 +35,17 @@ func SelectedPaths(ids []string, folder string) []string {
 		tracks, _ := LocalTracks(folder)
 		for _, track := range tracks {
 			if slices.Contains(ids, track.ID) {
-				paths = append(paths, track.URL)
+				songs = append(songs, Song{Title: track.Name, Path: track.URL})
 			}
 		}
 	}
-	return paths
+	return songs
 }
 
-func Start(paths []string, volume float64) *Player {
+func Start(songs []Song, volume float64, shuffle bool, socket string) *Player {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Player{cancel: cancel, done: make(chan struct{})}
-	go func() { defer close(p.done); p.err = play(ctx, paths, max(0, min(1, volume))) }()
+	go func() { defer close(p.done); p.err = play(ctx, songs, max(0, min(1, volume)), shuffle, socket) }()
 	return p
 }
 
@@ -55,8 +55,8 @@ func (p *Player) Close() error {
 	return p.err
 }
 
-func play(ctx context.Context, paths []string, volume float64) error {
-	if len(paths) == 0 {
+func play(ctx context.Context, songs []Song, volume float64, shuffle bool, socket string) error {
+	if len(songs) == 0 {
 		return errors.New("no selected tracks are available; choose or download songs in Settings → Music")
 	}
 	client, err := pulse.NewClient(pulse.ClientApplicationName("codedrill music"), pulse.ClientTimeout(2*time.Second))
@@ -65,21 +65,9 @@ func play(ctx context.Context, paths []string, volume float64) error {
 	}
 	defer client.Close()
 	live := storage.FollowVolume(ctx, volume, storage.Config.MusicVolume)
-	for ctx.Err() == nil {
-		played := false
-		for _, path := range paths {
-			if ctx.Err() != nil {
-				return nil
-			}
-			if err = playTrack(ctx, client, path, live); err == nil {
-				played = true
-			}
-		}
-		if !played {
-			return err
-		}
-	}
-	return nil
+	return runPlaylist(ctx, songs, shuffle, socket, func(trackCtx context.Context, path string) error {
+		return playTrack(trackCtx, client, path, live)
+	})
 }
 
 func playTrack(ctx context.Context, client *pulse.Client, path string, volume *storage.LiveVolume) error {

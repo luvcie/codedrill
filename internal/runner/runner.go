@@ -54,7 +54,7 @@ const editorShimDir = ".codedrill-editor"
 var helperFiles = []string{
 	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m", "volume", "v",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
-	".sprint_start", ".starter_code", editorShimDir,
+	".sprint_start", ".starter_code", editorShimDir, ".codedrill-music.sock",
 }
 
 const defaultLogoRGB = "127;160;90"
@@ -586,7 +586,8 @@ func (s *Session) writeHelpers() error {
 		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
-		{"volume", script(`exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath()), 0755},
+		{"volume", script(`export CODEDRILL_MUSIC_SOCKET="$MUSIC_SOCKET"
+exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s.MusicSocket()), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "PB_LABEL", pbLabel, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
@@ -679,6 +680,10 @@ func (s *Session) writeEditorShim(editor, codedrill string) error {
 	}
 	b.WriteString(` "$@"` + "\n")
 	return os.WriteFile(filepath.Join(dir, name), []byte(b.String()), 0755)
+}
+
+func (s *Session) MusicSocket() string {
+	return filepath.Join(s.Workspace, ".codedrill-music.sock")
 }
 
 func (s *Session) Cleanup() {

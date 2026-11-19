@@ -86,14 +86,14 @@ func TestBattleCatalogAndCachedPlayback(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	paths := SelectedPaths([]string{"kvx-016", "kmk-033", "kmk-024", "christmas-city"}, "")
-	wantPaths := []string{
-		filepath.Join(root, "codedrill", "music", "kvx-016.mp3"),
-		filepath.Join(root, "codedrill", "music", "kmk-033.mp3"),
-		filepath.Join(root, "codedrill", "music", "christmas-city.mp3"),
+	songs := SelectedSongs([]string{"kvx-016", "kmk-033", "kmk-024", "christmas-city"}, "")
+	wantSongs := []Song{
+		{Title: Calm[0].Name, Path: filepath.Join(root, "codedrill", "music", "kvx-016.mp3")},
+		{Title: Battle[0].Name, Path: filepath.Join(root, "codedrill", "music", "kmk-033.mp3")},
+		{Title: HolidayTracks[0].Name, Path: filepath.Join(root, "codedrill", "music", "christmas-city.mp3")},
 	}
-	if !reflect.DeepEqual(paths, wantPaths) {
-		t.Fatalf("cached playback = %v, want %v", paths, wantPaths)
+	if !reflect.DeepEqual(songs, wantSongs) {
+		t.Fatalf("cached playback = %v, want %v", songs, wantSongs)
 	}
 }
 
@@ -130,9 +130,9 @@ func TestHolidayZIPIsReusedAndSelectionDoesNotDiscardOtherSong(t *testing.T) {
 	if !Cached(HolidayTracks[1]) {
 		t.Fatal("missing track was not restored from cached ZIP")
 	}
-	paths := SelectedPaths([]string{HolidayTracks[1].ID}, "")
-	if !reflect.DeepEqual(paths, []string{Path(HolidayTracks[1])}) {
-		t.Fatalf("wrong selection: %v", paths)
+	songs := SelectedSongs([]string{HolidayTracks[1].ID}, "")
+	if !reflect.DeepEqual(songs, []Song{{Title: HolidayTracks[1].Name, Path: Path(HolidayTracks[1])}}) {
+		t.Fatalf("wrong selection: %v", songs)
 	}
 	if err := extractHolidays([]byte("not a ZIP")); err == nil {
 		t.Fatal("accepted invalid ZIP")
@@ -150,9 +150,9 @@ func TestLocalFolderAndVolume(t *testing.T) {
 	if err != nil || len(tracks) != 2 {
 		t.Fatalf("tracks %v: %v", tracks, err)
 	}
-	paths := SelectedPaths([]string{tracks[1].ID}, folder)
-	if !reflect.DeepEqual(paths, []string{filepath.Join(folder, "b.mp3")}) {
-		t.Fatal(paths)
+	songs := SelectedSongs([]string{tracks[1].ID}, folder)
+	if !reflect.DeepEqual(songs, []Song{{Title: "b", Path: filepath.Join(folder, "b.mp3")}}) {
+		t.Fatal(songs)
 	}
 	data := binary.LittleEndian.AppendUint16(nil, uint16(1000))
 	ctx, cancel := context.WithCancel(context.Background())
