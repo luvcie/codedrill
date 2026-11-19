@@ -55,7 +55,7 @@ func TestRank05MenuAndBriefing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, preset := range []string{"1", "2", "3", "4"} {
+		for _, preset := range []string{"1", "2"} {
 			briefing.Update(runeKey(preset))
 			if issue := briefing.briefingProblem(); issue != "" {
 				t.Fatalf("%s mode %s is unavailable: %s", d.ID, preset, issue)

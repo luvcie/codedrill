@@ -13,7 +13,7 @@ import (
 func TestViewerUsesRunModeSnapshot(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
 	m.runMode = mode.Copy()
-	m.briefingMode = mode.Recall()
+	m.briefingMode = mode.Exam()
 	if err := mode.Save("ft_strlen", mode.Exam()); err != nil {
 		t.Fatal(err)
 	}

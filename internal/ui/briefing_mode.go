@@ -18,8 +18,6 @@ func modePresetName(opts mode.Options) string {
 	switch opts {
 	case mode.Study(), mode.Copy():
 		return "Study"
-	case mode.Recall():
-		return "Recall"
 	case mode.Exam():
 		return "Exam"
 	}
@@ -175,7 +173,6 @@ func (m *MainModel) toggleBriefingOption() {
 
 var briefingPresets = []mode.Options{
 	mode.Study(),
-	mode.Recall(),
 	mode.Exam(),
 }
 

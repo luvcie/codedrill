@@ -6,10 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/mode"
+	"github.com/luvcie/codedrill/internal/solutions"
+	"github.com/luvcie/codedrill/internal/storage"
 )
 
 func newBriefingModeModel(t *testing.T, id string) *MainModel {
@@ -51,8 +54,8 @@ func TestStudyCopyCheckboxKeepsStudySelected(t *testing.T) {
 	m.modeFocus = 2
 	m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	if m.briefingMode != mode.Recall() {
-		t.Fatalf("Study with copying advanced to %+v, want Recall", m.briefingMode)
+	if m.briefingMode != mode.Exam() {
+		t.Fatalf("Study with copying advanced to %+v, want Exam", m.briefingMode)
 	}
 }
 
@@ -63,8 +66,7 @@ func TestBriefingPresetsSaveSelection(t *testing.T) {
 		name string
 	}{
 		{"1", mode.Study(), "Study"},
-		{"2", mode.Recall(), "Recall"},
-		{"3", mode.Exam(), "Exam"},
+		{"2", mode.Exam(), "Exam"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newBriefingModeModel(t, "ft_strlen")
@@ -80,6 +82,36 @@ func TestBriefingPresetsSaveSelection(t *testing.T) {
 				t.Fatalf("preset name missing from briefing:\n%s", view)
 			}
 		})
+	}
+}
+
+func TestBriefingSavedRecallOpensStudyAndKeepsHistory(t *testing.T) {
+	m := newBriefingModeModel(t, "rank05-vect2")
+	if err := mode.SavePreferences(m.activeDrill.ID, mode.Preferences{
+		Options: mode.Recall(), ReferenceVariant: solutions.SplitFiles,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.history.RecordAttempt(m.activeDrill.ID, storage.RecallMode, 1234*time.Millisecond, true, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewMainModelWithTarget(m.activeDrill.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.briefingMode != mode.Study() || reopened.briefingReference != solutions.SplitFiles {
+		t.Fatalf("saved Recall did not open in Study with its reference: %+v", reopened.briefingMode)
+	}
+	if view := ansi.Strip(reopened.contentView()); strings.Contains(view, "Recall") || !strings.Contains(view, "< Study >") {
+		t.Fatalf("briefing still offers Recall:\n%s", view)
+	}
+	reopened.Update(runeKey("3"))
+	if reopened.briefingMode != mode.Study() {
+		t.Fatal("retired third preset shortcut changed the mode")
+	}
+	reopened.openLeaderboard(StateBriefing)
+	if view := ansi.Strip(reopened.contentView()); !strings.Contains(view, "Recall") || !strings.Contains(view, "1.234s") {
+		t.Fatalf("past Recall run disappeared from history:\n%s", view)
 	}
 }
 
@@ -149,7 +181,8 @@ func TestBriefingInvalidGatesBlockEnter(t *testing.T) {
 
 func TestBriefingExactCopyValidationAndStudyFallback(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("2")) // Recall, no reference attached.
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace}) // Exact copy, no reference attached.
 	if !strings.Contains(m.briefingProblem(), "attached reference") {
 		t.Fatalf("missing reference was not rejected: %+v", m.briefingMode)
 	}
@@ -159,10 +192,10 @@ func TestBriefingExactCopyValidationAndStudyFallback(t *testing.T) {
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if m.state != StateBriefing {
-		t.Fatalf("enter started a Recall run without a reference: state %v", m.state)
+		t.Fatalf("enter started an exact-copy run without a reference: state %v", m.state)
 	}
 
-	m.Update(runeKey("1")) // Study without a reference is tests-only.
+	m.Update(tea.KeyMsg{Type: tea.KeySpace}) // Study without exact copy is tests-only.
 	if m.briefingProblem() != "" {
 		t.Fatalf("study without a reference was blocked: %s", m.briefingProblem())
 	}
@@ -183,13 +216,14 @@ func TestBriefingExactCopyChecksReferenceAndLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.Update(runeKey("2")) // Recall with a C reference attached.
+	m.modeFocus = 2
+	m.Update(tea.KeyMsg{Type: tea.KeySpace}) // Exact copy with a C reference attached.
 	if m.briefingProblem() != "" {
-		t.Fatalf("valid Recall was rejected: %s", m.briefingProblem())
+		t.Fatalf("valid exact copy was rejected: %s", m.briefingProblem())
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.state != StateCountdown || m.runMode != mode.Recall() {
-		t.Fatalf("Recall did not snapshot: state %v, options %+v", m.state, m.runMode)
+	if m.state != StateCountdown || m.runMode != mode.Copy() {
+		t.Fatalf("Study with exact copy did not snapshot: state %v, options %+v", m.state, m.runMode)
 	}
 
 	// An unsupported language cannot use exact copy.
@@ -205,7 +239,8 @@ func TestBriefingExactCopyChecksReferenceAndLanguage(t *testing.T) {
 		t.Skip("no unsupported drill available")
 	}
 	m2.openBriefing(&m2.drills[found])
-	m2.Update(runeKey("2"))
+	m2.modeFocus = 2
+	m2.Update(tea.KeyMsg{Type: tea.KeySpace})
 	if !strings.Contains(m2.briefingProblem(), "C and C++ drills") {
 		t.Fatalf("unsupported language was not rejected: %s", m2.briefingProblem())
 	}
@@ -253,7 +288,7 @@ func TestBriefingModePersistenceAcrossNavigation(t *testing.T) {
 
 func TestResultsPreserveBriefingSelections(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
-	m.Update(runeKey("3"))
+	m.Update(runeKey("2"))
 	d := *m.activeDrill
 	m.runMode = m.briefingMode
 	m.resultDrill = d
@@ -296,7 +331,7 @@ func TestBriefingSaveErrorIsVisibleAndEditingContinues(t *testing.T) {
 	if view := ansi.Strip(m.View()); !strings.Contains(view, "Preferences not saved") {
 		t.Fatalf("save failure is not visible:\n%s", view)
 	}
-	m.Update(runeKey("3"))
+	m.Update(runeKey("2"))
 	if m.briefingMode != mode.Exam() || m.briefingSaveErr == nil {
 		t.Fatalf("save failure prevented further editing: %+v", m.briefingMode)
 	}
@@ -422,12 +457,11 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		t.Fatalf("expected initial Study mode, got %+v", m.briefingMode)
 	}
 
-	// Press Right: cycles to Recall, then Exam, then wraps back to Study.
+	// Press Right: cycles to Exam, then wraps back to Study.
 	expectedCycle := []struct {
 		want mode.Options
 		name string
 	}{
-		{mode.Recall(), "Recall"},
 		{mode.Exam(), "Exam"},
 		{mode.Study(), "Study"},
 	}
@@ -447,13 +481,12 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		}
 	}
 
-	// Press Left: wraps backwards from Study to Exam, then Recall, then Study.
+	// Press Left: wraps backwards from Study to Exam, then Study.
 	reverseCycle := []struct {
 		want mode.Options
 		name string
 	}{
 		{mode.Exam(), "Exam"},
-		{mode.Recall(), "Recall"},
 		{mode.Study(), "Study"},
 	}
 

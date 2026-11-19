@@ -142,6 +142,15 @@ func (m *MainModel) onSprintFinished(msg sprintFinishedMsg) tea.Cmd {
 	m.evalRefErr = nil
 	m.evalReview = nil
 	m.evalPending = false
+	if msg.zellij && m.session != nil && m.session.BackRequested() {
+		m.endSession()
+		m.accumulatedTime = 0
+		m.briefingReference = m.runReference
+		m.setBriefingOptions(m.activeDrill, m.runMode)
+		m.previousState = StateMenu
+		m.state = StateBriefing
+		return nil
+	}
 	m.state = StateEvaluating
 
 	// An error straight away means the editor session never came up.

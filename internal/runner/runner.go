@@ -53,10 +53,12 @@ const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
 // first editor exits.
 const editorShimDir = ".codedrill-editor"
 
+const backMarker = ".codedrill-back"
+
 var helperFiles = []string{
-	"pace", "p", "run", "r", "submit", "s", "info", "i", "diff", "d", "match", "m", "volume", "v",
+	"pace", "p", "run", "r", "submit", "s", "back", "info", "i", "diff", "d", "match", "m", "volume", "v",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
-	".sprint_start", ".starter_code", editorShimDir, ".codedrill-music.sock",
+	".sprint_start", ".starter_code", editorShimDir, ".codedrill-music.sock", backMarker,
 }
 
 const defaultLogoRGB = "127;160;90"
@@ -315,6 +317,17 @@ fi
 exit 0
 `
 
+const backBody = `if [ -z "$ZELLIJ_SESSION_NAME" ] || ! command -v zellij >/dev/null 2>&1; then
+  echo 'back is only available in a Zellij drill session.' >&2
+  exit 1
+fi
+: > ` + backMarker + ` || exit 1
+if ! zellij kill-session "$ZELLIJ_SESSION_NAME"; then
+  rm -f ` + backMarker + `
+  exit 1
+fi
+`
+
 const infoBody = `if [ ! -f PROBLEM.md ]; then
   echo "$TITLE"
 elif command -v glow >/dev/null 2>&1; then
@@ -527,6 +540,7 @@ echo 'm  match  m -w watch'
 echo 'i  problem'
 echo 'v  volume (music / SFX)'
 echo -e "\033[1;36ms  submit\033[0m"
+echo 'back  briefing (quit without saving)'
 echo "$HINT"
 echo
 exec_shell
@@ -591,6 +605,7 @@ func (s *Session) writeHelpers() error {
 		{"pace", script(paceBody, "RANK_TARGETS", strings.Join(paceTargets, " "), "TOP_MS", ms(top.Time), "TOP_RANK", top.Rank, "PB_MS", ms(s.pb)), 0755},
 		{"run", script(runBody, "TEST_CMD", s.resolveRunCommand()), 0755},
 		{"submit", script(submitBody), 0755}, {"info", script(infoBody, "TITLE", title), 0755},
+		{"back", script(backBody), 0755},
 		{"diff", script(studentFiles+diffBody, "ENTRY", s.EntryFile), 0755},
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"volume", script(`export CODEDRILL_MUSIC_SOCKET="$MUSIC_SOCKET"
@@ -692,6 +707,11 @@ func (s *Session) writeEditorShim(editor, codedrill string) error {
 
 func (s *Session) MusicSocket() string {
 	return filepath.Join(s.Workspace, ".codedrill-music.sock")
+}
+
+func (s *Session) BackRequested() bool {
+	_, err := os.Stat(filepath.Join(s.Workspace, backMarker))
+	return err == nil
 }
 
 func (s *Session) Cleanup() {

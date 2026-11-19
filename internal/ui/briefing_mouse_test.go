@@ -145,7 +145,7 @@ func TestBriefingMouseNormalizationAndValidation(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	// Switch to Exam preset first (reference checking off, tests required).
-	m.Update(runeKey("3"))
+	m.Update(runeKey("2"))
 	if m.briefingMode != mode.Exam() {
 		t.Fatalf("expected Exam preset: %+v", m.briefingMode)
 	}
@@ -444,9 +444,9 @@ func TestBriefingMouseDisabled(t *testing.T) {
 	if m.briefingMode.ShowReference {
 		t.Fatalf("Space key with mouseOff did not toggle ShowReference off: %+v", m.briefingMode)
 	}
-	m.Update(runeKey("3"))
+	m.Update(runeKey("2"))
 	if m.briefingMode != mode.Exam() {
-		t.Fatalf("Preset key '3' with mouseOff did not apply Exam: %+v", m.briefingMode)
+		t.Fatalf("Preset key '2' with mouseOff did not apply Exam: %+v", m.briefingMode)
 	}
 }
 

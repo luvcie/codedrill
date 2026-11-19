@@ -27,16 +27,16 @@ func TestVect2BriefingReferenceChoice(t *testing.T) {
 	}
 	m.Update(runeKey("2"))
 	m.openBriefing(m.activeDrill)
-	if m.briefingReference != solutions.SplitFiles || m.briefingMode != mode.Recall() {
+	if m.briefingReference != solutions.SplitFiles || m.briefingMode != mode.Exam() {
 		t.Fatal("reference and mode were not remembered")
 	}
 	y := rowOf(t, m, "Reference: < Split files >")
 	m.Update(leftClick(columnOf(t, m, y, "Reference:"), y))
-	if m.briefingReference != solutions.HeaderOnly || m.briefingMode != mode.Recall() {
+	if m.briefingReference != solutions.HeaderOnly || m.briefingMode != mode.Exam() {
 		t.Fatal("clicking the reference choice did not switch references independently")
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	if m.briefingReference != solutions.SplitFiles || m.briefingMode != mode.Recall() {
+	if m.briefingReference != solutions.SplitFiles || m.briefingMode != mode.Exam() {
 		t.Fatal("arrow key did not switch the focused reference")
 	}
 	reopened, err := NewMainModelWithTarget(m.activeDrill.ID)
@@ -53,7 +53,7 @@ func TestVect2EvaluationUsesRunReference(t *testing.T) {
 	for _, selected := range []solutions.Variant{solutions.HeaderOnly, solutions.SplitFiles} {
 		m := newBriefingModeModel(t, "rank05-vect2")
 		m.briefingReference = selected
-		m.briefingMode = mode.Recall()
+		m.briefingMode = mode.Copy()
 		m.triggerSprintStart()
 		m.launchSprintSession()
 		if m.session == nil {
@@ -87,7 +87,7 @@ func TestVect2EvaluationUsesRunReference(t *testing.T) {
 		}
 		m.openReferenceDiff()
 		if m.referenceDiff == nil {
-			t.Fatal("completed Recall comparison did not enable review")
+			t.Fatal("completed Study comparison did not enable review")
 		}
 	}
 }

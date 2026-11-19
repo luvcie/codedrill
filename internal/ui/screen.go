@@ -37,7 +37,7 @@ func (m *MainModel) screenKeys() string {
 		if m.modeFocus == briefingOptionCount && m.hasReferenceChoice() {
 			target = "reference"
 		}
-		return "[Tab/Shift+Tab] option  [Space] toggle  [←/→] " + target + "\n[Enter] start  [n/p] next/prev  [r] random\n[l] history  [Esc/q] back"
+		return "[Tab/Shift+Tab] option  [Space] toggle  [←/→] " + target + "\n[1] Study  [2] Exam  [Enter] start  [n/p] next/prev  [r] random\n[l] history  [Esc/q] back"
 	case StateEvaluating:
 		switch {
 		case m.evalPending:

@@ -23,7 +23,7 @@ func Copy() Options {
 	return Options{CheckReference: true, ShowReference: true, RequireExact: true}
 }
 
-// Recall checks the reference without showing it and requires an exact match.
+// Recall identifies the retired preset in saved preferences and history.
 func Recall() Options {
 	return Options{CheckReference: true, RequireExact: true}
 }

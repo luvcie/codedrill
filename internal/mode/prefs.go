@@ -30,8 +30,8 @@ func PrefsPath() (string, error) {
 }
 
 // Load returns a drill's options. A missing file or drill uses Study. Saved
-// combinations are normalized; when neither pass gate is usable, only the
-// tests gate is enabled and the other normalized values are kept.
+// Recall selections open in Study. Other combinations are normalized; when
+// neither pass gate is usable, only the tests gate is enabled.
 func Load(drillID string) (Options, error) {
 	prefs, err := LoadPreferences(drillID)
 	return prefs.Options, err
@@ -103,11 +103,12 @@ func SavePreferences(drillID string, selection Preferences) error {
 	return storage.AtomicWriteFile(path, data, 0644)
 }
 
-// sanitize repairs saved options without touching valid gate choices. A saved
-// combination with no gate keeps its normalized reference options and gains
-// only the tests gate, so loading never enables showing or exact copy.
+// sanitize replaces the retired Recall preset and repairs unusable gates.
 func sanitize(opts Options) Options {
 	opts = opts.Normalize()
+	if opts == Recall() {
+		return Study()
+	}
 	if !opts.RequireTests && !opts.RequireExact {
 		opts.RequireTests = true
 	}

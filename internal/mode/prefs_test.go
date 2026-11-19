@@ -41,6 +41,19 @@ func TestLoadMissingPreferencesDefaultsToStudy(t *testing.T) {
 	}
 }
 
+func TestSavedRecallLoadsAsStudyAndKeepsReference(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := SavePreferences("rank05-vect2", Preferences{
+		Options: Recall(), ReferenceVariant: solutions.SplitFiles,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := Preferences{Options: Study(), ReferenceVariant: solutions.SplitFiles}
+	if got, err := LoadPreferences("rank05-vect2"); err != nil || got != want {
+		t.Fatalf("saved Recall loaded as %+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestSaveAndLoadPerDrill(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if err := Save("first", Recall()); err != nil {
@@ -53,7 +66,7 @@ func TestSaveAndLoadPerDrill(t *testing.T) {
 		id   string
 		want Options
 	}{
-		{"first", Recall()},
+		{"first", Study()},
 		{"second", Exam()},
 		{"third", Study()},
 	} {
