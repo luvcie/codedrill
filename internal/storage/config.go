@@ -40,13 +40,14 @@ func (c Config) MusicVolume() float64 {
 // TypingSettings holds the optional editor typing sounds. They are separate
 // from Sound, which controls the countdown and result cues.
 type TypingSettings struct {
-	Enabled        *bool  `json:"enabled,omitempty"`
-	Pack           string `json:"pack,omitempty"`
-	Volume         *int   `json:"volume,omitempty"`
-	WordCompletion *bool  `json:"wordCompletion,omitempty"`
-	LockKeys       string `json:"lockKeys,omitempty"`
-	ComboKeys      string `json:"comboKeys,omitempty"`
-	QuadKeys       string `json:"quadKeys,omitempty"`
+	Enabled            *bool  `json:"enabled,omitempty"`
+	Pack               string `json:"pack,omitempty"`
+	RandomPackPerDrill bool   `json:"randomPackPerDrill,omitempty"`
+	Volume             *int   `json:"volume,omitempty"`
+	WordCompletion     *bool  `json:"wordCompletion,omitempty"`
+	LockKeys           string `json:"lockKeys,omitempty"`
+	ComboKeys          string `json:"comboKeys,omitempty"`
+	QuadKeys           string `json:"quadKeys,omitempty"`
 }
 
 // TypingSoundsOn reports whether typing sounds should be prepared. They stay

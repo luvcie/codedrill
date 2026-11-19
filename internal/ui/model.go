@@ -141,6 +141,7 @@ type MainModel struct {
 	typingChoices []typingChoice
 	typingOn      bool
 	typingWords   bool
+	typingRandom  bool
 	typingVolume  int
 	typingPack    string
 	typingNotice  string

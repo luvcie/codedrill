@@ -97,6 +97,7 @@ func TestTypingSoundsScreenContents(t *testing.T) {
 	plain := ansi.Strip(m.viewTypingSounds())
 	for _, want := range []string{
 		"Typing sounds  off", "Volume  70%", "Word completion sounds  off",
+		"Random pack per drill  off",
 		"Preview selected pack", "Silent", "GameCube Controller SFX", "Generated tones",
 	} {
 		if !strings.Contains(plain, want) {
@@ -130,12 +131,11 @@ func TestTypingSoundsTogglePersists(t *testing.T) {
 
 func TestTypingSoundsPackSelectionPersists(t *testing.T) {
 	m := openTypingTestModel(t)
-	// Rows are Enabled, Volume, Words, Preview, Silent, Generated tones, then
-	// the catalog, so the first catalog pack is row 6.
-	for range 6 {
+	firstCatalogRow := typingRowPackBase + 2 // Silent and generated tones precede catalog packs.
+	for range firstCatalogRow {
 		m.Update(runeKey("j"))
 	}
-	if m.typingCursor != 6 || m.typingCursorChoice().ID != typingsound.Catalog[0].ID {
+	if m.typingCursor != firstCatalogRow || m.typingCursorChoice().ID != typingsound.Catalog[0].ID {
 		t.Fatalf("cursor %d choice %q, want the first catalog pack", m.typingCursor, m.typingCursorChoice().ID)
 	}
 	// The preview command may fail without an audio server; only the saved
@@ -153,6 +153,38 @@ func TestTypingSoundsPackSelectionPersists(t *testing.T) {
 	}
 	if !strings.Contains(ansi.Strip(m.viewTypingSounds()), typingsound.TETRIODatabase) {
 		t.Fatal("selected community pack has no source credit")
+	}
+}
+
+func TestTypingSoundsRandomPackTogglePreservesManualPack(t *testing.T) {
+	m := openTypingTestModel(t)
+	if m.typingRandom {
+		t.Fatal("random packs are on by default")
+	}
+	m.typingPack = typingsound.Catalog[0].ID
+	m.typingVolume = 42
+	m.typingWords = true
+	if !m.saveTyping() {
+		t.Fatal(m.typingErr)
+	}
+	m.typingCursor = typingRowRandom
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.openTypingSounds()
+	cfg, err := storage.LoadConfig()
+	if err != nil || !m.typingRandom || !cfg.Typing.RandomPackPerDrill || cfg.TypingSoundsOn() ||
+		cfg.TypingPackID() != typingsound.Catalog[0].ID || cfg.TypingVolume() != .42 || !cfg.TypingWordSoundsOn() {
+		t.Fatalf("random toggle changed other settings: %+v, %v", cfg.Typing, err)
+	}
+	if m.download != nil || !strings.Contains(ansi.Strip(m.View()), "Random pack per drill  on") {
+		t.Fatal("random toggle started a download or was not shown")
+	}
+	w, h := m.screenSize()
+	layout := m.typingLayout(w, h)
+	m.Update(leftClick(4, layout.contentTop+typingRowRandom-layout.start))
+	m.openTypingSounds()
+	cfg, err = storage.LoadConfig()
+	if err != nil || m.typingRandom || cfg.Typing.RandomPackPerDrill || m.typingPack != typingsound.Catalog[0].ID {
+		t.Fatalf("turning random off lost the manual pack: %+v, %v", cfg.Typing, err)
 	}
 }
 

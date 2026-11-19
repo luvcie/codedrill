@@ -21,12 +21,12 @@ type typingChoice struct {
 	Source string
 }
 
-// The typing tab has four fixed rows before the sound-pack list. Pack rows are
-// indexes 4 and up; the list scrolls as one block in short windows.
+// The fixed rows and sound-pack list scroll as one block in short windows.
 const (
 	typingRowEnabled = iota
 	typingRowVolume
 	typingRowWords
+	typingRowRandom
 	typingRowPreview
 	typingRowPackBase
 )
@@ -66,11 +66,13 @@ func (m *MainModel) openTypingSounds() {
 	m.typingChoices = typingChoices()
 	m.typingOn = false
 	m.typingWords = false
+	m.typingRandom = false
 	m.typingVolume = 70
 	m.typingPack = typingsound.SilentPackID
 	if cfg, err := storage.LoadConfig(); err == nil {
 		m.typingOn = cfg.TypingSoundsOn()
 		m.typingWords = cfg.TypingWordSoundsOn()
+		m.typingRandom = cfg.Typing != nil && cfg.Typing.RandomPackPerDrill
 		m.typingVolume = int(cfg.TypingVolume()*100 + 0.5)
 		if pack := cfg.TypingPackID(); pack != "" {
 			m.typingPack = pack
@@ -116,6 +118,7 @@ func (m *MainModel) saveTyping() bool {
 		cfg.Typing.WordCompletion = &words
 		cfg.Typing.Volume = &volume
 		cfg.Typing.Pack = m.typingPack
+		cfg.Typing.RandomPackPerDrill = m.typingRandom
 		err = storage.SaveConfig(cfg)
 	}
 	if err != nil {
@@ -153,6 +156,13 @@ func (m *MainModel) toggleTypingWords() {
 		} else {
 			m.typingNotice = "Word completion sounds off."
 		}
+	}
+}
+
+func (m *MainModel) toggleTypingRandom() {
+	m.typingRandom = !m.typingRandom
+	if m.saveTyping() {
+		m.typingNotice = ""
 	}
 }
 
@@ -198,11 +208,13 @@ func (m *MainModel) updateTypingSounds(key tea.KeyMsg) tea.Cmd {
 		switch m.typingCursor {
 		case typingRowEnabled:
 			m.typingOn = !m.typingOn
-			if m.saveTyping() && m.typingOn && m.typingPack == typingsound.SilentPackID {
+			if m.saveTyping() && m.typingOn && !m.typingRandom && m.typingPack == typingsound.SilentPackID {
 				m.typingNotice = "Sounds are on. Choose a pack below."
 			}
 		case typingRowWords:
 			m.toggleTypingWords()
+		case typingRowRandom:
+			m.toggleTypingRandom()
 		case typingRowPreview:
 			return m.previewTyping()
 		default:
@@ -366,6 +378,12 @@ func (m *MainModel) typingRow(w, row int) string {
 		return cursorRow(m.typingCursor == row, w, "Word completion sounds  "+value)
 	case typingRowPreview:
 		return cursorRow(m.typingCursor == row, w, "Preview selected pack")
+	case typingRowRandom:
+		value := "off"
+		if m.typingRandom {
+			value = "on"
+		}
+		return cursorRow(m.typingCursor == row, w, "Random pack per drill  "+value)
 	default:
 		i := row - typingRowPackBase
 		if i < 0 || i >= len(m.typingChoices) {
@@ -418,12 +436,15 @@ func (m *MainModel) updateTypingSoundsMouse(msg tea.MouseMsg) tea.Cmd {
 		case typingRowEnabled:
 			m.typingCursor = row
 			m.typingOn = !m.typingOn
-			if m.saveTyping() && m.typingOn && m.typingPack == typingsound.SilentPackID {
+			if m.saveTyping() && m.typingOn && !m.typingRandom && m.typingPack == typingsound.SilentPackID {
 				m.typingNotice = "Sounds are on. Choose a pack below."
 			}
 		case typingRowWords:
 			m.typingCursor = row
 			m.toggleTypingWords()
+		case typingRowRandom:
+			m.typingCursor = row
+			m.toggleTypingRandom()
 		case typingRowPreview:
 			m.typingCursor = row
 			return m.previewTyping()

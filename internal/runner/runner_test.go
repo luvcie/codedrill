@@ -411,7 +411,7 @@ func TestTypingSoundsFromSavedConfig(t *testing.T) {
 	if cmd := sess.GetSprintCmd(); len(cmd.Args) < 2 || cmd.Args[1] != "__typing-sound-editor" {
 		t.Fatalf("saved pack did not use the wrapper: %v", cmd.Args)
 	}
-	if flag := typingSoundsFlag(); flag != "1" {
+	if flag := typingSoundsFlag(""); flag != "1" {
 		t.Fatalf("typing sounds flag %q, want 1", flag)
 	}
 
@@ -419,7 +419,7 @@ func TestTypingSoundsFromSavedConfig(t *testing.T) {
 	if err := storage.SaveConfig(silent); err != nil {
 		t.Fatal(err)
 	}
-	if flag := typingSoundsFlag(); flag != "0" {
+	if flag := typingSoundsFlag(""); flag != "0" {
 		t.Fatalf("silent pack flag %q, want 0", flag)
 	}
 
@@ -428,7 +428,7 @@ func TestTypingSoundsFromSavedConfig(t *testing.T) {
 	if err := storage.SaveConfig(quiet); err != nil {
 		t.Fatal(err)
 	}
-	if flag := typingSoundsFlag(); flag != "0" {
+	if flag := typingSoundsFlag(""); flag != "0" {
 		t.Fatalf("disabled flag %q, want 0", flag)
 	}
 
@@ -436,7 +436,7 @@ func TestTypingSoundsFromSavedConfig(t *testing.T) {
 	if err := storage.SaveConfig(prototype); err != nil {
 		t.Fatal(err)
 	}
-	if flag := typingSoundsFlag(); flag != "1" {
+	if flag := typingSoundsFlag(""); flag != "1" {
 		t.Fatalf("saved prototype flag %q, want 1", flag)
 	}
 
@@ -444,7 +444,7 @@ func TestTypingSoundsFromSavedConfig(t *testing.T) {
 	if err := storage.SaveConfig(unknown); err != nil {
 		t.Fatal(err)
 	}
-	if flag := typingSoundsFlag(); flag != "0" {
+	if flag := typingSoundsFlag(""); flag != "0" {
 		t.Fatalf("unknown pack flag %q, want 0", flag)
 	}
 }

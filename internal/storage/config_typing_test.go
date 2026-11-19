@@ -30,7 +30,7 @@ func TestTypingSettingsPersist(t *testing.T) {
 	want := Config{
 		Editor: "hx",
 		Typing: &TypingSettings{
-			Enabled: &on, Pack: "sfx-test-pack", Volume: &volume, WordCompletion: &words,
+			Enabled: &on, Pack: "sfx-test-pack", RandomPackPerDrill: true, Volume: &volume, WordCompletion: &words,
 			LockKeys: "{,enter", ComboKeys: ";", QuadKeys: "}",
 		},
 	}
@@ -41,7 +41,7 @@ func TestTypingSettingsPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.TypingSoundsOn() || got.TypingPackID() != "sfx-test-pack" {
+	if !got.TypingSoundsOn() || got.TypingPackID() != "sfx-test-pack" || !got.Typing.RandomPackPerDrill {
 		t.Fatalf("typing settings lost: %+v", got.Typing)
 	}
 	if v := int(got.TypingVolume()*100 + 0.5); v != 42 {

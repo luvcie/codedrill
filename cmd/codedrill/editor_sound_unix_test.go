@@ -16,12 +16,13 @@ func TestTypingSoundMode(t *testing.T) {
 		return storage.Config{Typing: &storage.TypingSettings{Enabled: &on, Pack: pack}}
 	}
 	tests := []struct {
-		name      string
-		cfg       storage.Config
-		env       string
-		prototype bool
-		usePack   bool
-		pack      string
+		name        string
+		cfg         storage.Config
+		env         string
+		sessionPack string
+		prototype   bool
+		usePack     bool
+		pack        string
 	}{
 		{name: "saved prototype", cfg: enabled(typingsound.PrototypePackID), prototype: true},
 		{name: "saved prototype off", cfg: storage.Config{Typing: &storage.TypingSettings{Enabled: &off, Pack: typingsound.PrototypePackID}}},
@@ -29,10 +30,16 @@ func TestTypingSoundMode(t *testing.T) {
 		{name: "real pack", cfg: enabled("sfx-Starcat_JP-8Bit_Puzzler"), usePack: true, pack: "sfx-Starcat_JP-8Bit_Puzzler"},
 		{name: "unknown pack", cfg: enabled("missing")},
 		{name: "silent", cfg: enabled(typingsound.SilentPackID)},
+		{name: "random drill pack overrides silent", cfg: enabled(typingsound.SilentPackID), sessionPack: typingsound.Catalog[0].ID, usePack: true, pack: typingsound.Catalog[0].ID},
+		{name: "random drill pack overrides prototype", cfg: enabled(typingsound.PrototypePackID), sessionPack: typingsound.Catalog[0].ID, usePack: true, pack: typingsound.Catalog[0].ID},
+		{name: "random drill pack stays off", cfg: storage.Config{}, sessionPack: typingsound.Catalog[0].ID},
+		{name: "diagnostic overrides random", cfg: enabled(typingsound.SilentPackID), env: "prototype", sessionPack: typingsound.Catalog[0].ID, prototype: true},
+		{name: "unknown drill pack", cfg: enabled(typingsound.Catalog[0].ID), sessionPack: "missing"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("CODEDRILL_TYPING_SOUNDS", tc.env)
+			t.Setenv("CODEDRILL_TYPING_PACK", tc.sessionPack)
 			prototype, pack, usePack := typingSoundMode(tc.cfg)
 			if prototype != tc.prototype || usePack != tc.usePack || pack.ID != tc.pack {
 				t.Fatalf("got prototype=%v usePack=%v pack=%q, want %v %v %q",

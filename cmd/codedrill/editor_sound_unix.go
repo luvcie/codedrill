@@ -55,9 +55,8 @@ func (s *typingSink) close() {
 	}
 }
 
-// typingSoundMode decides which player an editor launch needs. The prototype
-// environment variable wins. A saved prototype pack needs the normal on switch,
-// and an unknown pack id must not start a silent wrapper.
+// typingSoundMode uses the drill's fixed pack or the saved manual selection.
+// The prototype environment variable wins; saved packs need the on switch.
 func typingSoundMode(cfg storage.Config) (prototype bool, pack typingsound.PackInfo, usePack bool) {
 	if os.Getenv("CODEDRILL_TYPING_SOUNDS") == "prototype" {
 		return true, typingsound.PackInfo{}, false
@@ -65,10 +64,14 @@ func typingSoundMode(cfg storage.Config) (prototype bool, pack typingsound.PackI
 	if !cfg.TypingSoundsOn() {
 		return false, typingsound.PackInfo{}, false
 	}
-	if cfg.TypingPackID() == typingsound.PrototypePackID {
+	id := os.Getenv("CODEDRILL_TYPING_PACK")
+	if id == "" {
+		id = cfg.TypingPackID()
+	}
+	if id == typingsound.PrototypePackID {
 		return true, typingsound.PackInfo{}, false
 	}
-	pack, ok := typingsound.FindPack(cfg.TypingPackID())
+	pack, ok := typingsound.FindPack(id)
 	return false, pack, ok
 }
 

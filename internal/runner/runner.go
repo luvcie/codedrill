@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,7 @@ type Session struct {
 	logoRGB         string
 	referenceDir    string
 	referencePolicy string
+	typingPack      string
 }
 
 // Options carries the sprint's reference policy. An absent policy denies source access.
@@ -143,6 +145,10 @@ func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts
 		if err := sess.writeReferenceSession(opts.ReferenceOptions, opts.ReferenceVariant); err != nil {
 			return nil, fmt.Errorf("write reference session policy: %w", err)
 		}
+	}
+	cfg, _ := storage.LoadConfig()
+	if cfg.TypingSoundsOn() && cfg.Typing.RandomPackPerDrill {
+		sess.typingPack = typingsound.Catalog[rand.IntN(len(typingsound.Catalog))].ID
 	}
 	if err := sess.writeHelpers(); err != nil {
 		return nil, fmt.Errorf("write workspace helpers: %w", err)
@@ -469,7 +475,8 @@ echo "Set one with: codedrill config shell bash."
 exec bash
 `
 
-const editorBody = `exec_shell() {
+const editorBody = `export CODEDRILL_TYPING_PACK
+exec_shell() {
   if command -v "$SHELL_CMD" >/dev/null 2>&1; then
     exec "$SHELL_CMD"
   fi
@@ -577,7 +584,7 @@ func (s *Session) writeHelpers() error {
 		logo = defaultLogoRGB
 	}
 
-	typingSounds := typingSoundsFlag()
+	typingSounds := typingSoundsFlag(s.typingPack)
 	files := []helperFile{
 		{".sprint_start", []byte(strconv.FormatInt(s.StartTime.UnixMilli(), 10)), 0644},
 		{".starter_code", nil, 0644},
@@ -588,7 +595,7 @@ func (s *Session) writeHelpers() error {
 		{"match", script(matchBody, "CODEDRILL", executablePath(), "DRILL", d.ID, "WORKSPACE", ws, "POLICY", s.referencePolicy), 0755},
 		{"volume", script(`export CODEDRILL_MUSIC_SOCKET="$MUSIC_SOCKET"
 exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s.MusicSocket()), 0755},
-		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds), 0755},
+		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds, "CODEDRILL_TYPING_PACK", s.typingPack), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "PB_LABEL", pbLabel, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
 		{"layout.kdl", []byte(fmt.Sprintf(`layout {
     pane split_direction="vertical" {
@@ -670,6 +677,7 @@ func (s *Session) writeEditorShim(editor, codedrill string) error {
 	}
 	var b strings.Builder
 	b.WriteString(bashShebang())
+	b.WriteString("export CODEDRILL_TYPING_PACK=" + shellQuote(s.typingPack) + "\n")
 	b.WriteString("exec ")
 	b.WriteString(shellQuote(codedrill))
 	b.WriteString(" __typing-sound-editor ")
@@ -735,7 +743,7 @@ func DetectEditor() string {
 // typingSoundsFlag says whether the editor session should run through the
 // typing-sound wrapper. The prototype environment variable wins, so the
 // diagnostic mode keeps working when the saved pack is silent.
-func typingSoundsFlag() string {
+func typingSoundsFlag(pack string) string {
 	if os.Getenv("CODEDRILL_TYPING_SOUNDS") == "prototype" {
 		return "1"
 	}
@@ -743,7 +751,9 @@ func typingSoundsFlag() string {
 	if !cfg.TypingSoundsOn() {
 		return "0"
 	}
-	pack := cfg.TypingPackID()
+	if pack == "" {
+		pack = cfg.TypingPackID()
+	}
 	if pack == typingsound.PrototypePackID {
 		return "1"
 	}
@@ -763,9 +773,10 @@ func (s *Session) GetSprintCmd() *exec.Cmd {
 
 	args := strings.Fields(DetectEditor())
 	file := filepath.Join(s.Workspace, s.drill.InitialFile())
-	if typingSoundsFlag() == "1" {
+	if typingSoundsFlag(s.typingPack) == "1" {
 		cmd := exec.Command(executablePath(), append([]string{"__typing-sound-editor"}, append(args, file)...)...)
 		cmd.Dir = s.Workspace
+		cmd.Env = append(os.Environ(), "CODEDRILL_TYPING_PACK="+s.typingPack)
 		return cmd
 	}
 	cmd := exec.Command(args[0], append(args[1:], file)...)
