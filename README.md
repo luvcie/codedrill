@@ -31,7 +31,7 @@ go build -o codedrill ./cmd/codedrill
 ## Start a drill
 
 1. Select a drill and press Enter to open its briefing. To open a specific briefing from the shell, run `codedrill start ft_strlen`.
-2. Press `1` for Study or `2` for Exam, then Enter to start. Study shows the reference when available and grades by tests. Select **Copy reference exactly** to practice matching the reference on supported C and C++ drills. Exam grades by tests with the reference hidden. Codedrill remembers your selection per drill.
+2. Press `1` for Study, then Enter to start. Study shows the reference when available. Select **Copy reference exactly** to practice matching it on supported C and C++ drills.
 3. Write your solution. In the Zellij terminal pane, run `r` to test and `s` to submit. Without Zellij, close the editor to submit.
 4. After evaluation, press `e` to resume editing or Enter to save a passing run.
 
@@ -47,14 +47,3 @@ go build -o codedrill ./cmd/codedrill
 Free Work opens one to four Zellij terminals in a directory you choose. Leave the directory blank for home. Music and typing sounds use your saved settings.
 
 In Settings, use Tab to reach Music or Typing Sounds. Run `codedrill config` to see settings and paths, `codedrill list` for drill IDs, or `codedrill --help` for all commands.
-
-## Troubleshooting
-
-- **Editor or shell missing.** Check that the command runs on its own. Set the editor with `codedrill config editor nvim` or set the pane shell with `codedrill config shell bash`.
-- **Compiler rejected.** Built-in 42 exam and Rank 5 drills require GCC or G++ on `PATH`. On macOS, the default `gcc` can be Clang.
-- **Stale C++ headers.** Before compiling a built-in C++ drill, codedrill moves workspace `.gch` files and directories aside with a `.disabled` suffix. Existing backups are preserved. Custom drills manage their own precompiled headers.
-- **No music or typing sounds.** Enable each in Settings and select tracks or a sound pack. Download catalog tracks before playing them. Playback needs a PulseAudio-compatible server, such as PipeWire with its PulseAudio service. Typing sounds are off by default.
-
-## Credits
-
-Calm and Battle tracks come from HURT RECORD. Dr Ocelot composed the TETR.IO Holidays 2023 tracks. Community typing sound packs come from the TETR.IO PLUS database. [HURT RECORD](https://www.hurtrecord.com/) · [TETR.IO PLUS database](https://you.have.fail/tetrioplus/)
