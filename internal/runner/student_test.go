@@ -232,14 +232,14 @@ func TestCopyStartsEmptyAndStillRequiresReferenceMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Cleanup()
-	result, err := compare.Compare(d, s.Workspace)
+	result, err := compare.CompareVariant(d, s.Workspace, solutions.HeaderOnly)
 	if err != nil || result.Exact || mode.Evaluate(opts, true, &result, err).Passed {
 		t.Fatalf("empty student code passed Copy: %+v %v", result, err)
 	}
 	if err := os.WriteFile(filepath.Join(s.Workspace, "main.c"), []byte("int answer;"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	result, err = compare.Compare(d, s.Workspace)
+	result, err = compare.CompareVariant(d, s.Workspace, solutions.HeaderOnly)
 	if err != nil || !mode.Evaluate(opts, false, &result, err).Passed {
 		t.Fatalf("Copy pass gates changed: %+v %v", result, err)
 	}

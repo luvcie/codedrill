@@ -167,7 +167,7 @@ func TestCustomConfigurationsHaveSeparatePBs(t *testing.T) {
 func TestForfeitKeepsTheRunsCapturedMode(t *testing.T) {
 	m := newEvaluationTestModel(t)
 	m.runMode = mode.Copy()
-	if err := mode.Save(m.activeDrill.ID, mode.Exam()); err != nil {
+	if err := mode.SavePreferences(m.activeDrill.ID, mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	m.accumulatedTime = 10 * time.Second

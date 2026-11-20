@@ -9,21 +9,17 @@ import (
 	"github.com/luvcie/codedrill/internal/solutions"
 )
 
-func TestReferenceSelectionSurvivesModeChanges(t *testing.T) {
+func TestSavingAnotherDrillKeepsReferenceSelection(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	want := Preferences{Options: Recall(), ReferenceVariant: solutions.SplitFiles}
+	want := Preferences{Options: Study(), ReferenceVariant: solutions.SplitFiles}
 	if err := SavePreferences("rank05-vect2", want); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save("another-drill", Exam()); err != nil {
+	if err := SavePreferences("another-drill", Preferences{Options: Exam()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save("rank05-vect2", Exam()); err != nil {
-		t.Fatal(err)
-	}
-	want.Options = Exam()
 	if got, err := LoadPreferences("rank05-vect2"); err != nil || got != want {
-		t.Fatalf("saved reference changed with practice mode: %+v, %v", got, err)
+		t.Fatalf("saving another drill changed the reference: %+v, %v", got, err)
 	}
 	if got, err := LoadPreferences("another-drill"); err != nil || got.ReferenceVariant != solutions.HeaderOnly || got.Options != Exam() {
 		t.Fatalf("another drill inherited the reference selection: %+v, %v", got, err)
@@ -32,11 +28,11 @@ func TestReferenceSelectionSurvivesModeChanges(t *testing.T) {
 
 func TestLoadMissingPreferencesDefaultsToStudy(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	got, err := Load("ft_strlen")
+	got, err := LoadPreferences("ft_strlen")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != Study() {
+	if got.Options != Study() {
 		t.Fatalf("got %+v, want Study", got)
 	}
 }
@@ -56,10 +52,10 @@ func TestSavedRecallLoadsAsStudyAndKeepsReference(t *testing.T) {
 
 func TestSaveAndLoadPerDrill(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if err := Save("first", Recall()); err != nil {
+	if err := SavePreferences("first", Preferences{Options: Recall()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := Save("second", Exam()); err != nil {
+	if err := SavePreferences("second", Preferences{Options: Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -70,11 +66,11 @@ func TestSaveAndLoadPerDrill(t *testing.T) {
 		{"second", Exam()},
 		{"third", Study()},
 	} {
-		got, err := Load(tc.id)
+		got, err := LoadPreferences(tc.id)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.id, err)
 		}
-		if got != tc.want {
+		if got.Options != tc.want {
 			t.Fatalf("%s is %+v, want %+v", tc.id, got, tc.want)
 		}
 	}
@@ -98,7 +94,7 @@ func TestSaveAndLoadPerDrill(t *testing.T) {
 func TestSaveStoresGivenBooleansAndLoadNormalizes(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	odd := Options{ShowReference: true, RequireExact: true}
-	if err := Save("odd", odd); err != nil {
+	if err := SavePreferences("odd", Preferences{Options: odd}); err != nil {
 		t.Fatal(err)
 	}
 	path, _ := PrefsPath()
@@ -111,12 +107,12 @@ func TestSaveStoresGivenBooleansAndLoadNormalizes(t *testing.T) {
 			t.Fatalf("saved file lacks %q:\n%s", want, data)
 		}
 	}
-	got, err := Load("odd")
+	got, err := LoadPreferences("odd")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := Options{RequireTests: true}
-	if got != want {
+	if got.Options != want {
 		t.Fatalf("unusable saved combination loaded as %+v, want %+v", got, want)
 	}
 }
@@ -148,11 +144,11 @@ func TestLoadNormalizesSavedCombinations(t *testing.T) {
 		{"inconsistent", Exam()},
 		{"reference-off", Exam()},
 	} {
-		got, err := Load(tc.id)
+		got, err := LoadPreferences(tc.id)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.id, err)
 		}
-		if got != tc.want {
+		if got.Options != tc.want {
 			t.Fatalf("%s is %+v, want %+v", tc.id, got, tc.want)
 		}
 	}
@@ -171,15 +167,15 @@ func TestLoadEnablesOnlyTestsWhenNoGate(t *testing.T) {
 	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := Load("no-gate")
+	got, err := LoadPreferences("no-gate")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := Options{CheckReference: true, RequireTests: true}
-	if got != want {
+	if got.Options != want {
 		t.Fatalf("loaded %+v, want %+v", got, want)
 	}
-	if got == Study() {
+	if got.Options == Study() {
 		t.Fatal("loader fell back to Study instead of enabling only tests")
 	}
 }
@@ -196,10 +192,10 @@ func TestCorruptPreferencesAreNotOverwritten(t *testing.T) {
 	if err := os.WriteFile(path, []byte("{"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load("ft_strlen"); err == nil {
+	if _, err := LoadPreferences("ft_strlen"); err == nil {
 		t.Fatal("loading corrupt preferences did not fail")
 	}
-	if err := Save("ft_strlen", Study()); err == nil {
+	if err := SavePreferences("ft_strlen", Preferences{Options: Study()}); err == nil {
 		t.Fatal("saving over corrupt preferences did not fail")
 	}
 	data, err := os.ReadFile(path)
@@ -210,17 +206,17 @@ func TestCorruptPreferencesAreNotOverwritten(t *testing.T) {
 
 func TestSaveRejectsEmptyDrillID(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if err := Save("  ", Study()); err == nil {
+	if err := SavePreferences("  ", Preferences{Options: Study()}); err == nil {
 		t.Fatal("empty drill id accepted")
 	}
 }
 
 func TestPreferencesConfigErrors(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/dev/null")
-	if _, err := Load("ft_strlen"); err == nil {
+	if _, err := LoadPreferences("ft_strlen"); err == nil {
 		t.Fatal("load with an unusable config directory did not fail")
 	}
-	if err := Save("ft_strlen", Study()); err == nil {
+	if err := SavePreferences("ft_strlen", Preferences{Options: Study()}); err == nil {
 		t.Fatal("save with an unusable config directory did not fail")
 	}
 }

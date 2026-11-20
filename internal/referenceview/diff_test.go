@@ -12,7 +12,7 @@ import (
 )
 
 func TestDiffFilesLinesAndNavigation(t *testing.T) {
-	result, err := reference.Compare("int f(void) {\nreturn 42;\n}", "int f(void) {\n\nreturn 7;\n}")
+	result, err := reference.CompareLanguage("c", "int f(void) {\nreturn 42;\n}", "int f(void) {\n\nreturn 7;\n}")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestDiffFilesLinesAndNavigation(t *testing.T) {
 }
 
 func TestDiffNarrowWrappingScrollAndExit(t *testing.T) {
-	result, err := reference.Compare(strings.Repeat("int missing_token;\n", 100), "")
+	result, err := reference.CompareLanguage("c", strings.Repeat("int missing_token;\n", 100), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestDiffSanitizesTerminalControls(t *testing.T) {
 }
 
 func TestDiffProgramRestoresAlternateScreen(t *testing.T) {
-	result, err := reference.Compare("int reference_token;", "int student_token;")
+	result, err := reference.CompareLanguage("c", "int reference_token;", "int student_token;")
 	if err != nil {
 		t.Fatal(err)
 	}

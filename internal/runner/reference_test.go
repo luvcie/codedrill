@@ -25,7 +25,7 @@ func TestReferenceSessionSnapshotAndIsolation(t *testing.T) {
 	t.Cleanup(s.Cleanup)
 	path := s.referencePolicy
 	options.ShowReference = false
-	if err := mode.Save("life", mode.Exam()); err != nil {
+	if err := mode.SavePreferences("life", mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := LoadReferenceSession(path)

@@ -57,7 +57,7 @@ func (c Config) TypingSoundsOn() bool {
 	return c.Typing != nil && c.Typing.Enabled != nil && *c.Typing.Enabled
 }
 
-// TypingPackID is the selected pack, or "silent" when none is chosen.
+// TypingPackID returns the saved pack ID, or an empty string if unset.
 func (c Config) TypingPackID() string {
 	if c.Typing == nil {
 		return ""

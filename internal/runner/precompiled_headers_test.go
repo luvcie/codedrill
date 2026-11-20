@@ -25,7 +25,7 @@ func TestBuiltinCppStalePrecompiledHeader(t *testing.T) {
 	if d == nil {
 		t.Fatal("vect2 drill is missing")
 	}
-	source, err := solutions.Resolve(d.ID, d.Dir)
+	source, err := solutions.ResolveVariant(d.ID, d.Dir, solutions.HeaderOnly)
 	if err != nil || source == nil {
 		t.Fatalf("vect2 reference unavailable: %v", err)
 	}

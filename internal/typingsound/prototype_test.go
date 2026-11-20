@@ -184,7 +184,7 @@ func TestWordCompletionPlaysLockWithoutAdvancingCombo(t *testing.T) {
 }
 
 func TestWordCompletionEmitsOneLockPerWordBoundary(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	player := &PackPlayer{mapping: DefaultMapping(), lockIndex: 2, quadIndex: 5, comboBase: 8, comboCount: 4}
 	var played []int
 	emit := func(event Event) {

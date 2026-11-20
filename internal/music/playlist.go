@@ -129,9 +129,6 @@ func (p *playlist) apply(command Command) (restart bool, err error) {
 
 // One loop owns the queue; a track is stopped before another starts.
 func runPlaylist(ctx context.Context, songs []Song, shuffle bool, socket string, play func(context.Context, string) error) error {
-	if len(songs) == 0 {
-		return errors.New("no selected tracks are available; choose or download songs in Settings → Music")
-	}
 	if ctx.Err() != nil {
 		return nil
 	}

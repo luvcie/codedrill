@@ -29,14 +29,8 @@ func PrefsPath() (string, error) {
 	return filepath.Join(dir, "drill_prefs.json"), nil
 }
 
-// Load returns a drill's options. A missing file or drill uses Study. Saved
-// Recall selections open in Study. Other combinations are normalized; when
-// neither pass gate is usable, only the tests gate is enabled.
-func Load(drillID string) (Options, error) {
-	prefs, err := LoadPreferences(drillID)
-	return prefs.Options, err
-}
-
+// LoadPreferences defaults to Study for a missing drill and normalizes
+// saved options, including the retired Recall preset.
 func LoadPreferences(drillID string) (Preferences, error) {
 	path, err := PrefsPath()
 	if err != nil {
@@ -61,18 +55,7 @@ func LoadPreferences(drillID string) (Preferences, error) {
 	return opts, nil
 }
 
-// Save stores one drill's options and leaves other drills alone. The four
-// booleans are written as given; callers should Validate before saving so an
-// unusable selection can be reported to the user.
-func Save(drillID string, opts Options) error {
-	prefs, err := LoadPreferences(drillID)
-	if err != nil {
-		return err
-	}
-	prefs.Options = opts
-	return SavePreferences(drillID, prefs)
-}
-
+// SavePreferences updates one drill without changing other drills.
 func SavePreferences(drillID string, selection Preferences) error {
 	if strings.TrimSpace(drillID) == "" {
 		return errors.New("missing drill id")

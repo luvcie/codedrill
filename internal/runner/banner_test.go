@@ -21,7 +21,7 @@ func TestTerminalBannerUsesLogoColour(t *testing.T) {
 		{"default colour", "", "LOGO_RGB='127;160;90'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			sess, err := NewSessionWithLogo(d, 0, tc.logo)
+			sess, err := NewSessionWithOptions(d, 0, tc.logo, Options{})
 			if err != nil {
 				t.Fatal(err)
 			}

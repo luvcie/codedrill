@@ -38,7 +38,7 @@ func TestRank05FreshInstall(t *testing.T) {
 			if d == nil || !d.IsPreset || d.Dir != "" || d.Category != "42/rank 5" {
 				t.Fatalf("built-in drill unavailable: %+v", d)
 			}
-			source, err := solutions.Resolve(d.ID, d.Dir)
+			source, err := solutions.ResolveVariant(d.ID, d.Dir, solutions.HeaderOnly)
 			if err != nil || source == nil || source.Local || len(source.Files) == 0 {
 				t.Fatalf("built-in reference unavailable: %+v, %v", source, err)
 			}
@@ -88,7 +88,7 @@ func TestRank05FreshInstall(t *testing.T) {
 				if passed, output := session.RunTests(); !passed {
 					t.Fatalf("reference failed drill command: %s", output)
 				}
-				exact, err := compare.Compare(*d, session.Workspace)
+				exact, err := compare.CompareVariant(*d, session.Workspace, solutions.HeaderOnly)
 				if err != nil || !exact.Exact {
 					t.Fatalf("reference cannot satisfy Copy/Recall: %+v, %v", exact, err)
 				}
@@ -103,7 +103,7 @@ func TestRank05FreshInstall(t *testing.T) {
 				if passed, output := session.RunTests(); !passed {
 					t.Fatalf("equivalent implementation failed tests: %s", output)
 				}
-				alternative, err := compare.Compare(*d, session.Workspace)
+				alternative, err := compare.CompareVariant(*d, session.Workspace, solutions.HeaderOnly)
 				if err != nil || alternative.Exact {
 					t.Fatalf("alternative was an exact match: %+v, %v", alternative, err)
 				}

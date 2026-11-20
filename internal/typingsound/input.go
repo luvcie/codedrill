@@ -27,12 +27,6 @@ type Input struct {
 	mapping        Mapping
 }
 
-// NewInput returns an observer with the default key mapping. When enabled,
-// word completion reports words, closing parentheses and separate colon tokens.
-func NewInput(wordCompletion bool) *Input {
-	return NewInputWithMapping(wordCompletion, DefaultMapping())
-}
-
 // NewInputWithMapping returns an observer that reports the configured trigger keys.
 func NewInputWithMapping(wordCompletion bool, mapping Mapping) *Input {
 	return &Input{wordCompletion: wordCompletion, colonSeparated: true, mapping: mapping}

@@ -74,7 +74,7 @@ func TestSingleFileExactMatch(t *testing.T) {
 		"ft_strlen.c": "// solution\nint ft_strlen(char *s) { return (0); }\n",
 	})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestMultipleFilesExactMatch(t *testing.T) {
 		"lib/helper.h": "int helper(void);\n",
 	})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestOneMismatchingFile(t *testing.T) {
 		"b.c": "int b(void) { return 3; }\n",
 	})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestMissingWorkspaceFileFailsExact(t *testing.T) {
 	workspace := t.TempDir()
 	writeTree(t, workspace, map[string]string{"main.c": "int main(void) { return 0; }\n"})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestExtraWorkspaceFilesAreIgnored(t *testing.T) {
 		"lib/stray.h": "nor is this\n",
 	})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestScoreIsWeightedByTokens(t *testing.T) {
 	workspace := t.TempDir()
 	writeTree(t, workspace, map[string]string{"main.c": "int main(void) { return 0; }\n"})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestEntryFileFirstThenAlphabetical(t *testing.T) {
 		"m.c":     body,
 	})
 
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestUnsupportedLanguage(t *testing.T) {
 		{"python", "not supported"},
 	} {
 		d := drill.Drill{ID: "lang", Language: tc.language}
-		if _, err := Compare(d, t.TempDir()); err == nil || !strings.Contains(err.Error(), tc.want) {
+		if _, err := CompareVariant(d, t.TempDir(), solutions.HeaderOnly); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("language %q: error is %v, want one containing %q", tc.language, err, tc.want)
 		}
 	}
@@ -258,7 +258,7 @@ func TestCppReferenceFileIsUnsupported(t *testing.T) {
 		"main.c":     "int main(void) { return 0; }\n",
 		"helper.cpp": "int helper() { return 0; }\n",
 	})
-	if _, err := Compare(d, workspace); err == nil || !strings.Contains(err.Error(), "C++") {
+	if _, err := CompareVariant(d, workspace, solutions.HeaderOnly); err == nil || !strings.Contains(err.Error(), "C++") {
 		t.Fatalf("error is %v, want a C++ unsupported error", err)
 	}
 }
@@ -266,7 +266,7 @@ func TestCppReferenceFileIsUnsupported(t *testing.T) {
 func TestRejectsUnsafeDrillID(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	d := drill.Drill{ID: "../escape", Language: "c"}
-	if _, err := Compare(d, t.TempDir()); err == nil || !strings.Contains(err.Error(), "invalid drill id") {
+	if _, err := CompareVariant(d, t.TempDir(), solutions.HeaderOnly); err == nil || !strings.Contains(err.Error(), "invalid drill id") {
 		t.Fatalf("error is %v, want an invalid drill id error", err)
 	}
 }
@@ -281,7 +281,7 @@ func TestRejectsSymlinkedWorkspaceFile(t *testing.T) {
 	if err := os.Symlink(filepath.Join(outside, "a.c"), filepath.Join(workspace, "a.c")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	if _, err := Compare(d, workspace); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+	if _, err := CompareVariant(d, workspace, solutions.HeaderOnly); err == nil || !strings.Contains(err.Error(), "symbolic link") {
 		t.Fatalf("error is %v, want a symlink error", err)
 	}
 }
@@ -301,7 +301,7 @@ func TestReferenceSymlinkLeavesNoSolution(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 	d := drill.Drill{ID: "linked", Language: "c", EntryFile: "a.c"}
-	if _, err := Compare(d, t.TempDir()); err == nil || !strings.Contains(err.Error(), "no reference solution") {
+	if _, err := CompareVariant(d, t.TempDir(), solutions.HeaderOnly); err == nil || !strings.Contains(err.Error(), "no reference solution") {
 		t.Fatalf("error is %v, want a missing solution error", err)
 	}
 }

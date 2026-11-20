@@ -9,7 +9,7 @@ import (
 func TestCompareExactIgnoresLayoutAndComments(t *testing.T) {
 	ref := "int f(void)\n{\n\treturn 0;\n}\n"
 	student := "/* solution */\nint f(void) { return (0); } // done\n"
-	res, err := Compare(ref, student)
+	res, err := CompareLanguage("c", ref, student)
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestCompareCountsAndScore(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := Compare(tc.ref, tc.student)
+			res, err := CompareLanguage("c", tc.ref, tc.student)
 			if err != nil {
 				t.Fatalf("compare: %v", err)
 			}
@@ -61,7 +61,7 @@ func TestCompareCountsAndScore(t *testing.T) {
 func TestCompareFirstDifferingLine(t *testing.T) {
 	ref := "int f(void)\n{\n\treturn 0;\n}\n"
 	student := "int f(void)\n{\n\t/* changed */\n\treturn 1;\n}\n"
-	res, err := Compare(ref, student)
+	res, err := CompareLanguage("c", ref, student)
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestCompareFirstDifferingLine(t *testing.T) {
 func TestCompareDiffText(t *testing.T) {
 	ref := "int f(void)\n{\n\treturn 0;\n}\n"
 	student := "int f(void)\n{\n\treturn 1;\n}\n"
-	res, err := Compare(ref, student)
+	res, err := CompareLanguage("c", ref, student)
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestCompareDiffText(t *testing.T) {
 }
 
 func TestDiffTextLabelsEachChangedSourceLine(t *testing.T) {
-	res, err := Compare("int a;\nint b;\n"+strings.Repeat("x ", 12), "")
+	res, err := CompareLanguage("c", "int a;\nint b;\n"+strings.Repeat("x ", 12), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestDiffTextLabelsEachChangedSourceLine(t *testing.T) {
 }
 
 func TestCompareEmptySources(t *testing.T) {
-	res, err := Compare("", "")
+	res, err := CompareLanguage("c", "", "")
 	if err != nil || !res.Exact {
 		t.Fatalf("two empty sources: %+v, %v", res, err)
 	}
@@ -113,7 +113,7 @@ func TestCompareEmptySources(t *testing.T) {
 		t.Fatalf("empty sources report %+v", res)
 	}
 
-	res, err = Compare("", "int x;")
+	res, err = CompareLanguage("c", "", "int x;")
 	if err != nil || res.Exact || res.Score != 0 || res.Extra != 3 || res.Missing != 0 {
 		t.Fatalf("empty reference: %+v, %v", res, err)
 	}
@@ -121,7 +121,7 @@ func TestCompareEmptySources(t *testing.T) {
 		t.Fatalf("empty reference points at line %d, want 1", res.FirstDifferingLine)
 	}
 
-	res, err = Compare("int x;", "")
+	res, err = CompareLanguage("c", "int x;", "")
 	if err != nil || res.Exact || res.Score != 0 || res.Missing != 3 || res.Extra != 0 {
 		t.Fatalf("empty student: %+v, %v", res, err)
 	}
@@ -129,7 +129,7 @@ func TestCompareEmptySources(t *testing.T) {
 		t.Fatalf("empty student points at line %d, want 0", res.FirstDifferingLine)
 	}
 
-	res, err = Compare("// nothing here\n", "")
+	res, err = CompareLanguage("c", "// nothing here\n", "")
 	if err != nil || !res.Exact {
 		t.Fatalf("comment-only source: %+v, %v", res, err)
 	}
@@ -138,7 +138,7 @@ func TestCompareEmptySources(t *testing.T) {
 func TestCompareNeverReportsHundredPercentWithoutExactMatch(t *testing.T) {
 	ref := strings.Repeat("a ", 2000)
 	student := strings.Repeat("a ", 1999) + "b"
-	res, err := Compare(ref, student)
+	res, err := CompareLanguage("c", ref, student)
 	if err != nil {
 		t.Fatalf("compare: %v", err)
 	}
@@ -154,12 +154,12 @@ func TestCompareNeverReportsHundredPercentWithoutExactMatch(t *testing.T) {
 }
 
 func TestCompareReportsMalformedSource(t *testing.T) {
-	_, err := Compare("int f(void) { return 0; }", "int f(void) { char *s = \"oops; }")
+	_, err := CompareLanguage("c", "int f(void) { return 0; }", "int f(void) { char *s = \"oops; }")
 	if err == nil || !strings.Contains(err.Error(), "student: line 1: unterminated string literal") {
 		t.Fatalf("student error is %v", err)
 	}
 
-	_, err = Compare("int f(void) { /* open", "int f(void) { return 0; }")
+	_, err = CompareLanguage("c", "int f(void) { /* open", "int f(void) { return 0; }")
 	if err == nil || !strings.Contains(err.Error(), "reference: line 1: unterminated block comment") {
 		t.Fatalf("reference error is %v", err)
 	}

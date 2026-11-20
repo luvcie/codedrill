@@ -207,8 +207,8 @@ func TestHallOfFameNoFillOrPurple(t *testing.T) {
 	out := []string{
 		RenderLeaderboardView(d, hist, false, storage.ExamMode, 80),
 		RenderLeaderboardView(d, hist, true, storage.ExamMode, 80),
-		renderCountdown(3, 80, 24),
-		renderCountdown(0, 80, 24),
+		renderCountdownPressed(3, 80, 24, ""),
+		renderCountdownPressed(0, 80, 24, ""),
 	}
 	for _, view := range out {
 		if hasBackgroundSGR(view) {

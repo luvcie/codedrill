@@ -195,7 +195,7 @@ func (m *MainModel) menuItemsFor(category string) []list.Item {
 	}
 
 	blocks := m.menuBlocks(category)
-	for _, row := range m.menuRows(category) {
+	for _, row := range m.menuRows(category, blocks) {
 		if row.add {
 			items = append(items, drillItem{isAdd: true})
 			continue

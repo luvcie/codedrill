@@ -237,7 +237,7 @@ func TestExamSkipsReferenceComparison(t *testing.T) {
 
 func TestSavedModeIsSnapshottedBeforeCountdown(t *testing.T) {
 	m := newEvaluationTestModel(t)
-	if err := mode.Save("ft_strlen", mode.Copy()); err != nil {
+	if err := mode.SavePreferences("ft_strlen", mode.Preferences{Options: mode.Copy()}); err != nil {
 		t.Fatal(err)
 	}
 	writeTestReference(t, "ft_strlen", testReference)
@@ -251,7 +251,7 @@ func TestSavedModeIsSnapshottedBeforeCountdown(t *testing.T) {
 	}
 
 	// Changing preferences during the countdown must not alter this run.
-	if err := mode.Save("ft_strlen", mode.Exam()); err != nil {
+	if err := mode.SavePreferences("ft_strlen", mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	for range 3 {

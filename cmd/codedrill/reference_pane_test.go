@@ -142,7 +142,7 @@ func TestReferencePaneToggleAndReturn(t *testing.T) {
 	snapshot, policy, refs := viewerFixture(t, mode.Copy())
 	state := installPaneCLI(t, snapshot)
 	before, _ := os.ReadFile(policy)
-	if err := mode.Save("life", mode.Exam()); err != nil {
+	if err := mode.SavePreferences("life", mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	for cycle := 0; cycle < 3; cycle++ {

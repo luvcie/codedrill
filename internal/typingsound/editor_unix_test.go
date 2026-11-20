@@ -18,7 +18,7 @@ func TestEditorBridgeHelper(t *testing.T) {
 		return
 	}
 	cmd := exec.Command("sh", "-c", "stty raw -echo; printf READY; dd bs=1 count=1 2>/dev/null")
-	if err := RunEditor(cmd, false, func(Event) {}); err != nil {
+	if err := RunEditorWithMapping(cmd, false, DefaultMapping(), func(Event) {}); err != nil {
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -85,7 +85,7 @@ func TestEditorBridgeRepeatHelper(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		cmd := exec.Command("sh", "-c", "stty raw -echo; printf READY; dd bs=1 count=1 2>/dev/null")
 		seen := 0
-		if err := RunEditor(cmd, false, func(Event) { seen++ }); err != nil || seen != 1 {
+		if err := RunEditorWithMapping(cmd, false, DefaultMapping(), func(Event) { seen++ }); err != nil || seen != 1 {
 			os.Exit(1)
 		}
 		os.Stdout.WriteString("DONE")

@@ -40,13 +40,6 @@ type Result struct {
 // maxCells bounds the LCS table. Drill sources sit far below this.
 const maxCells = 4_000_000
 
-// Compare tokenizes both sources, normalizes redundant return parentheses and
-// scores their token sequences. Either source failing to tokenize is an error,
-// not a zero score.
-func Compare(referenceSrc, studentSrc string) (Result, error) {
-	return CompareLanguage("c", referenceSrc, studentSrc)
-}
-
 // SupportedLanguage reports whether the shared comparison pipeline supports language.
 func SupportedLanguage(language string) bool {
 	switch strings.ToLower(strings.TrimSpace(language)) {

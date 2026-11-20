@@ -61,7 +61,7 @@ func TestSprintDiffVisibilityAndSnapshot(t *testing.T) {
 				// Authorization must precede reference resolution or tokenization.
 				writeDiffFile(t, referenceDir, "life.c", "SECRET_REFERENCE /* unterminated")
 			}
-			if err := mode.Save("life", preferences); err != nil {
+			if err := mode.SavePreferences("life", mode.Preferences{Options: preferences}); err != nil {
 				t.Fatal(err)
 			}
 			code, out, errOut := runCLI(t, "reference-diff", "--session", policy)

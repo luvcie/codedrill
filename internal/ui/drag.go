@@ -95,7 +95,8 @@ func (m *MainModel) beginMenuPress(x, y int) tea.Cmd {
 		wasSelected: wasSelected, target: -1,
 	}
 	if !item.isAdd && m.reorderableCategory(m.categoryFilter) {
-		if row, ok := m.menuRowForIndex(idx); ok {
+		blocks := m.menuBlocks(m.categoryFilter)
+		if row, ok := m.menuRowForIndex(idx, blocks); ok {
 			p.canDrag = true
 			p.row = row
 		}
@@ -237,12 +238,11 @@ func (m *MainModel) dragTarget(p *menuPress, x, y int) (int, menuRow, bool) {
 	if !ok {
 		return 0, menuRow{}, false
 	}
-	rows := m.menuRows(m.categoryFilter)
-	if idx < 0 || idx >= len(rows) {
+	blocks := m.menuBlocks(m.categoryFilter)
+	row, ok := m.menuRowForIndex(idx, blocks)
+	if !ok {
 		return 0, menuRow{}, false
 	}
-	row := rows[idx]
-	blocks := m.menuBlocks(m.categoryFilter)
 
 	if p.row.child >= 0 {
 		// A drill inside a subcategory stays in that group.
@@ -325,12 +325,11 @@ func (m *MainModel) keyboardMenuMove(delta int) tea.Cmd {
 	if !ok || item.isAdd {
 		return nil
 	}
-	row, ok := m.menuRowForIndex(idx)
+	blocks := m.menuBlocks(m.categoryFilter)
+	row, ok := m.menuRowForIndex(idx, blocks)
 	if !ok {
 		return nil
 	}
-	blocks := m.menuBlocks(m.categoryFilter)
-
 	var target menuRow
 	if row.child >= 0 {
 		if row.block < 0 || row.block >= len(blocks) {

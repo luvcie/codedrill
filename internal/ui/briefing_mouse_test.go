@@ -183,7 +183,7 @@ func TestBriefingMousePersistence(t *testing.T) {
 	y0 := rowOf(t, m, "Reference check")
 	m.Update(leftClick(2, y0))
 
-	saved, err := mode.Load("ft_strlen")
+	saved, err := mode.LoadPreferences("ft_strlen")
 	if err != nil {
 		t.Fatalf("mode.Load failed: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestBriefingMousePersistence(t *testing.T) {
 
 	// Toggle option 0 back on.
 	m.Update(leftClick(2, y0))
-	saved, err = mode.Load("ft_strlen")
+	saved, err = mode.LoadPreferences("ft_strlen")
 	if err != nil {
 		t.Fatalf("mode.Load failed: %v", err)
 	}

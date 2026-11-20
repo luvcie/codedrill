@@ -194,7 +194,8 @@ func TestFavoritesPreserveSavedOrderAndReordering(t *testing.T) {
 	m.refreshList()
 	for _, want := range [][]string{{"d", "c", "", "b", "a", ""}, {"d", "c", "", "a", "b", ""}} {
 		var ids []string
-		rows, blocks := m.menuRows("42"), m.menuBlocks("42")
+		blocks := m.menuBlocks("42")
+		rows := m.menuRows("42", blocks)
 		for i, item := range m.list.Items() {
 			di := item.(drillItem)
 			ids = append(ids, di.drill.ID)

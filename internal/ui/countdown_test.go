@@ -11,7 +11,7 @@ import (
 
 func TestRenderCountdown(t *testing.T) {
 	for _, n := range []int{1, 3, 10, 42} {
-		view := ansi.Strip(renderCountdown(n, 80, 20))
+		view := ansi.Strip(renderCountdownPressed(n, 80, 20, ""))
 		if !strings.Contains(view, "skip") {
 			t.Errorf("countdown %d lacks the skip hint:\n%s", n, view)
 		}
@@ -29,7 +29,7 @@ func TestRenderCountdown(t *testing.T) {
 		}
 	}
 	for _, n := range []int{0, -1} {
-		view := ansi.Strip(renderCountdown(n, 80, 20))
+		view := ansi.Strip(renderCountdownPressed(n, 80, 20, ""))
 		if !strings.Contains(view, strings.Split(goArt, "\n")[0]) || strings.Contains(view, "skip") {
 			t.Errorf("frame %d should be the bare GO frame:\n%s", n, view)
 		}
@@ -38,15 +38,15 @@ func TestRenderCountdown(t *testing.T) {
 		}
 	}
 	// Short rows drop the box padding and still keep the hint in view.
-	short := ansi.Strip(renderCountdown(3, 80, 9))
+	short := ansi.Strip(renderCountdownPressed(3, 80, 9, ""))
 	if lipgloss.Height(short) != 9 || !strings.Contains(short, "skip") {
 		t.Errorf("countdown in 9 rows lost the hint or changed height:\n%s", short)
 	}
 	// Anything below the box height is clipped, never grown past the window.
-	if h := lipgloss.Height(renderCountdown(3, 80, 4)); h != 4 {
+	if h := lipgloss.Height(renderCountdownPressed(3, 80, 4, "")); h != 4 {
 		t.Errorf("countdown in 4 rows is %d rows", h)
 	}
-	if renderCountdown(1, 0, 0) == "" {
+	if renderCountdownPressed(1, 0, 0, "") == "" {
 		t.Error("expected output with default dimensions")
 	}
 }
@@ -104,7 +104,7 @@ func assertWordmarkNearTop(t *testing.T, w, h int, plain string) {
 // The skip hint is a help line: it sits at column 2 under the box, not
 // centred in the frame.
 func TestCountdownHintIsLeftAlignedUnderBox(t *testing.T) {
-	view := ansi.Strip(renderCountdown(3, 80, 20))
+	view := ansi.Strip(renderCountdownPressed(3, 80, 20, ""))
 	var hint string
 	for _, line := range strings.Split(view, "\n") {
 		if strings.Contains(line, "skip") {
@@ -119,7 +119,7 @@ func TestCountdownHintIsLeftAlignedUnderBox(t *testing.T) {
 func TestCountdownFitsNarrowWidths(t *testing.T) {
 	for _, width := range []int{20, 30} {
 		for _, n := range []int{0, 3, 10} {
-			view := renderCountdown(n, width, 12)
+			view := renderCountdownPressed(n, width, 12, "")
 			if lipgloss.Height(view) != 12 {
 				t.Errorf("width %d count %d is %d rows, want 12", width, n, lipgloss.Height(view))
 			}

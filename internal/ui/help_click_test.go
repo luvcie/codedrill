@@ -141,7 +141,7 @@ func TestFooterClickPromptsAndDisabledMouse(t *testing.T) {
 	if !m.search.open {
 		t.Fatal("search did not open")
 	}
-	if _, ok := m.helpKeyAt(3, m.height-2); ok {
+	if _, _, ok := m.helpItemAt(3, m.height-2); ok {
 		t.Fatal("search has an active footer")
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -194,7 +194,7 @@ func TestFooterAlternativesAndGaps(t *testing.T) {
 	for y, line := range lines {
 		if i := strings.Index(line, "[Enter] start"); i >= 0 {
 			x := ansi.StringWidth(line[:i]) + len("[Enter] start")
-			if _, ok := m.helpKeyAt(x, y); ok {
+			if _, _, ok := m.helpItemAt(x, y); ok {
 				t.Fatal("gap is clickable")
 			}
 		}

@@ -42,14 +42,9 @@ func (r Result) Percent() float64 {
 	return reference.Percent(r.Score, r.Exact)
 }
 
-// Compare compares a drill's workspace with its selected reference solution.
-// The entry file comes first, followed by remaining files in alphabetical order.
-// A reference file without a workspace counterpart always makes the result inexact.
-func Compare(d drill.Drill, workspace string) (Result, error) {
-	return CompareVariant(d, workspace, solutions.HeaderOnly)
-}
-
-// CompareVariant uses the reference selected for this run.
+// CompareVariant compares a workspace with the selected reference. The entry
+// file comes first, followed by the remaining files in alphabetical order.
+// A missing workspace counterpart makes the result inexact.
 func CompareVariant(d drill.Drill, workspace string, variant solutions.Variant) (Result, error) {
 	language := strings.ToLower(strings.TrimSpace(d.Language))
 	if !reference.SupportedLanguage(language) {

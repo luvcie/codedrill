@@ -15,7 +15,7 @@ func emittedKeys(events []Event) []byte {
 }
 
 func TestInputFiltersTerminalSequencesAndPasteAcrossReads(t *testing.T) {
-	input := NewInput(false)
+	input := NewInputWithMapping(false, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	for _, chunk := range []string{
@@ -31,7 +31,7 @@ func TestInputFiltersTerminalSequencesAndPasteAcrossReads(t *testing.T) {
 }
 
 func TestEscapeThenKey(t *testing.T) {
-	input := NewInput(false)
+	input := NewInputWithMapping(false, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	now := time.Unix(0, 0)
@@ -45,7 +45,7 @@ func TestEscapeThenKey(t *testing.T) {
 }
 
 func TestWordCompletionTriggersOnceAfterAWord(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	input.Observe([]byte("vect2  "), emit)
@@ -60,7 +60,7 @@ func TestWordCompletionAllowsReferenceAndPointerSuffixes(t *testing.T) {
 	for _, word := range []string{"vect2&", "vect2&&", "vect2*", "vect2**", "vect2*&"} {
 		for _, boundary := range []byte{' ', '\t'} {
 			t.Run(word+string(boundary), func(t *testing.T) {
-				input := NewInput(true)
+				input := NewInputWithMapping(true, DefaultMapping())
 				var got []Event
 				emit := func(e Event) { got = append(got, e) }
 				for _, b := range []byte(word) {
@@ -78,7 +78,7 @@ func TestWordCompletionAllowsReferenceAndPointerSuffixes(t *testing.T) {
 func TestWordCompletionAtClosingParenthesesAndStandaloneColon(t *testing.T) {
 	for _, name := range []string{"vect2", "Point", "make_value", "f"} {
 		t.Run(name, func(t *testing.T) {
-			input := NewInput(true)
+			input := NewInputWithMapping(true, DefaultMapping())
 			var got []Event
 			emit := func(e Event) { got = append(got, e) }
 			for _, b := range []byte(name + "::" + name + "()") {
@@ -97,7 +97,7 @@ func TestWordCompletionAtClosingParenthesesAndStandaloneColon(t *testing.T) {
 }
 
 func TestWordCompletionKeepsScopeResolutionSilentAcrossReads(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	for _, chunk := range []string{"::", "Widget", ":", ":", "Widget", "()", "  \t"} {
@@ -110,7 +110,7 @@ func TestWordCompletionKeepsScopeResolutionSilentAcrossReads(t *testing.T) {
 
 func TestWordCompletionAtStandaloneColon(t *testing.T) {
 	for _, next := range []byte{' ', '\t', 'v'} {
-		input := NewInput(true)
+		input := NewInputWithMapping(true, DefaultMapping())
 		var got []Event
 		emit := func(e Event) { got = append(got, e) }
 		input.Observe([]byte{':'}, emit)
@@ -127,7 +127,7 @@ func TestWordCompletionAtStandaloneColon(t *testing.T) {
 func TestWordCompletionAtSeparatedScopeOperator(t *testing.T) {
 	for _, prefix := range []string{"", " ", "\t"} {
 		for _, next := range []byte{' ', '\t'} {
-			input := NewInput(true)
+			input := NewInputWithMapping(true, DefaultMapping())
 			var got []Event
 			emit := func(e Event) { got = append(got, e) }
 			for _, chunk := range []string{prefix, ":", ":"} {
@@ -146,7 +146,7 @@ func TestWordCompletionAtSeparatedScopeOperator(t *testing.T) {
 
 func TestWordCompletionIgnoresAttachedScopeOperators(t *testing.T) {
 	for _, keys := range []string{"Widget:: ", " ::Widget", " ::: "} {
-		input := NewInput(true)
+		input := NewInputWithMapping(true, DefaultMapping())
 		var got []Event
 		input.Observe([]byte(keys), func(e Event) { got = append(got, e) })
 		if len(got) != 0 {
@@ -158,7 +158,7 @@ func TestWordCompletionIgnoresAttachedScopeOperators(t *testing.T) {
 func TestWordCompletionCancelsColonOnEditingAndNavigation(t *testing.T) {
 	for _, keys := range []string{":\x7f ", ":\b ", ":\x01 ", ":\x1b[A ", ":\x1b[200~pasted() : \x1b[201~ "} {
 		t.Run(keys, func(t *testing.T) {
-			input := NewInput(true)
+			input := NewInputWithMapping(true, DefaultMapping())
 			var got []Event
 			input.Observe([]byte(keys), func(e Event) { got = append(got, e) })
 			if len(got) != 0 {
@@ -169,7 +169,7 @@ func TestWordCompletionCancelsColonOnEditingAndNavigation(t *testing.T) {
 }
 
 func TestWordCompletionSuppressesEmptyLinesAndShortWords(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	// Spaces on an empty line, after a newline, and after one letter are quiet.
@@ -182,7 +182,7 @@ func TestWordCompletionSuppressesEmptyLinesAndShortWords(t *testing.T) {
 }
 
 func TestWordCompletionResetsOnPunctuationAndBackspace(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	// A word followed by punctuation is not a finished word. A backspace also
@@ -195,7 +195,7 @@ func TestWordCompletionResetsOnPunctuationAndBackspace(t *testing.T) {
 }
 
 func TestWordCompletionIgnoresPasteAndEscapeSequences(t *testing.T) {
-	input := NewInput(true)
+	input := NewInputWithMapping(true, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	input.Observe([]byte("\x1b[200~pasted vect2& call() : \x1b[201~"), emit)
@@ -245,7 +245,7 @@ func TestMappedPunctuationDoesNotDuplicateWordCompletion(t *testing.T) {
 }
 
 func TestWordCompletionOffEmitsOnlyMappedKeys(t *testing.T) {
-	input := NewInput(false)
+	input := NewInputWithMapping(false, DefaultMapping())
 	var got []Event
 	emit := func(e Event) { got = append(got, e) }
 	input.Observe([]byte("word \tvect2& vect2*\tWidget::Widget() : {;}\r"), emit)

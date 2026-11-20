@@ -123,11 +123,6 @@ func (m *MainModel) helpItemAt(x, y int) (tea.KeyMsg, string, bool) {
 	return tea.KeyMsg{}, "", false
 }
 
-func (m *MainModel) helpKeyAt(x, y int) (tea.KeyMsg, bool) {
-	key, _, ok := m.helpItemAt(x, y)
-	return key, ok
-}
-
 func helpItemKey(item string, x int) (tea.KeyMsg, bool) {
 	end := strings.IndexByte(item, ']')
 	if !strings.HasPrefix(item, "[") || end < 0 {

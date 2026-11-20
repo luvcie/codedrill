@@ -68,7 +68,7 @@ func TestViewerVisibilityUsesIndependentSnapshotOptions(t *testing.T) {
 		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 		t.Setenv("VIEWER_ARGS", log)
 		t.Setenv("ZELLIJ", "1")
-		if err := mode.Save("life", mode.Exam()); err != nil {
+		if err := mode.SavePreferences("life", mode.Preferences{Options: mode.Exam()}); err != nil {
 			t.Fatal(err)
 		}
 		code, out, errOut := runCLI(t, "reference-view", "--session", path, "--open")

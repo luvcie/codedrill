@@ -102,7 +102,7 @@ func TestPostSubmissionDiffSnapshotAndCleanup(t *testing.T) {
 	_, evaluate := m.Update(sprintFinishedMsg{})
 	assertNoReferenceDiff(t, m)
 	// Neither mutable preferences nor a later UI selection can change this run.
-	if err := mode.Save(m.activeDrill.ID, mode.Exam()); err != nil {
+	if err := mode.SavePreferences(m.activeDrill.ID, mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	m.briefingMode = mode.Exam()

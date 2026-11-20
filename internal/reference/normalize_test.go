@@ -34,7 +34,7 @@ func TestNormalizeReturnExpressions(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := Compare(tc.ref, tc.student)
+			res, err := CompareLanguage("c", tc.ref, tc.student)
 			if err != nil {
 				t.Fatalf("compare: %v", err)
 			}
@@ -55,7 +55,7 @@ func TestNormalizeKeepsStructuralParentheses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := Compare(tc.ref, tc.student)
+			res, err := CompareLanguage("c", tc.ref, tc.student)
 			if err != nil {
 				t.Fatalf("compare: %v", err)
 			}

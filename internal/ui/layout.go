@@ -182,8 +182,7 @@ type menuRow struct {
 	add   bool
 }
 
-func (m *MainModel) menuRows(category string) []menuRow {
-	blocks := m.menuBlocks(category)
+func (m *MainModel) menuRows(category string, blocks []menuBlock) []menuRow {
 	var favorites, rows []menuRow
 	for bi, block := range blocks {
 		if block.isGroup() {
@@ -215,8 +214,8 @@ func (m *MainModel) menuRows(category string) []menuRow {
 	return append(rows, menuRow{block: len(blocks), child: -1, add: true})
 }
 
-func (m *MainModel) menuRowForIndex(index int) (menuRow, bool) {
-	rows := m.menuRows(m.categoryFilter)
+func (m *MainModel) menuRowForIndex(index int, blocks []menuBlock) (menuRow, bool) {
+	rows := m.menuRows(m.categoryFilter, blocks)
 	if index < 0 || index >= len(rows) {
 		return menuRow{}, false
 	}

@@ -45,7 +45,7 @@ func TestMissingPreferencesStartStudy(t *testing.T) {
 
 func TestMissingDrillEntryStartsStudy(t *testing.T) {
 	m := newPrefsErrorTestModel(t)
-	if err := mode.Save("another_drill", mode.Copy()); err != nil {
+	if err := mode.SavePreferences("another_drill", mode.Preferences{Options: mode.Copy()}); err != nil {
 		t.Fatal(err)
 	}
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})

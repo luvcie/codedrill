@@ -31,7 +31,7 @@ func resetTestModel(t *testing.T) (*MainModel, string) {
 	if err := storage.SaveConfig(storage.Config{Theme: "nord", Shell: "zsh"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := mode.Save("rank05-vect2", mode.Copy()); err != nil {
+	if err := mode.SavePreferences("rank05-vect2", mode.Preferences{Options: mode.Copy()}); err != nil {
 		t.Fatal(err)
 	}
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -117,12 +117,12 @@ func TestFactoryResetSuccessRestoresFreshInterface(t *testing.T) {
 		t.Fatal("hidden presets were not restored:", err)
 	}
 	for _, d := range drill.Filter(m.drills, "42/rank 5") {
-		source, err := solutions.Resolve(d.ID, d.Dir)
+		source, err := solutions.ResolveVariant(d.ID, d.Dir, solutions.HeaderOnly)
 		if err != nil || source == nil || source.Local {
 			t.Fatalf("bundled reference unavailable for %s: %v", d.ID, err)
 		}
 	}
-	if options, err := mode.Load("rank05-vect2"); err != nil || options != mode.Study() {
+	if options, err := mode.LoadPreferences("rank05-vect2"); err != nil || options.Options != mode.Study() {
 		t.Fatalf("saved practice preferences survived: %+v, %v", options, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config.json")); !os.IsNotExist(err) {

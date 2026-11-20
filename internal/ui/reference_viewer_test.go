@@ -14,7 +14,7 @@ func TestViewerUsesRunModeSnapshot(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
 	m.runMode = mode.Copy()
 	m.briefingMode = mode.Exam()
-	if err := mode.Save("ft_strlen", mode.Exam()); err != nil {
+	if err := mode.SavePreferences("ft_strlen", mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	m.launchSprintSession()

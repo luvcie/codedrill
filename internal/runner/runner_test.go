@@ -14,6 +14,10 @@ import (
 	"github.com/luvcie/codedrill/internal/typingsound"
 )
 
+func NewSession(d drill.Drill, pb time.Duration) (*Session, error) {
+	return NewSessionWithOptions(d, pb, "", Options{})
+}
+
 func TestNewSessionAndWorkspace(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	sess, err := NewSession(drill.Drill{

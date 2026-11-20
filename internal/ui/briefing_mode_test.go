@@ -74,8 +74,8 @@ func TestBriefingPresetsSaveSelection(t *testing.T) {
 			if m.briefingMode != tc.want {
 				t.Fatalf("preset %s selected %+v, want %+v", tc.key, m.briefingMode, tc.want)
 			}
-			saved, err := mode.Load("ft_strlen")
-			if err != nil || saved != tc.want {
+			saved, err := mode.LoadPreferences("ft_strlen")
+			if err != nil || saved.Options != tc.want {
 				t.Fatalf("preset %s saved %+v, error %v", tc.key, saved, err)
 			}
 			if view := ansi.Strip(m.View()); !strings.Contains(view, fmt.Sprintf("< %s >", tc.name)) {
@@ -134,8 +134,8 @@ func TestBriefingCheckboxFocusWrapsAndToggles(t *testing.T) {
 	if view := ansi.Strip(m.View()); !strings.Contains(view, "< Custom >") {
 		t.Fatalf("changed combination is not labelled custom:\n%s", view)
 	}
-	saved, err := mode.Load("ft_strlen")
-	if err != nil || saved != want {
+	saved, err := mode.LoadPreferences("ft_strlen")
+	if err != nil || saved.Options != want {
 		t.Fatalf("toggle saved %+v, error %v", saved, err)
 	}
 
@@ -273,7 +273,7 @@ func TestBriefingModePersistenceAcrossNavigation(t *testing.T) {
 	if next == nil {
 		t.Skip("no next drill")
 	}
-	if err := mode.Save(next.ID, mode.Exam()); err != nil {
+	if err := mode.SavePreferences(next.ID, mode.Preferences{Options: mode.Exam()}); err != nil {
 		t.Fatal(err)
 	}
 	m.Update(runeKey("n"))
@@ -299,7 +299,7 @@ func TestResultsPreserveBriefingSelections(t *testing.T) {
 	}
 
 	// Retrying keeps the run's selections even if the saved file changes.
-	if err := mode.Save(d.ID, mode.Study()); err != nil {
+	if err := mode.SavePreferences(d.ID, mode.Preferences{Options: mode.Study()}); err != nil {
 		t.Fatal(err)
 	}
 	m.state = StateResults
@@ -471,8 +471,8 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		if m.briefingMode != step.want {
 			t.Fatalf("Right arrow gave %+v, want %s (%+v)", m.briefingMode, step.name, step.want)
 		}
-		saved, err := mode.Load("ft_strlen")
-		if err != nil || saved != step.want {
+		saved, err := mode.LoadPreferences("ft_strlen")
+		if err != nil || saved.Options != step.want {
 			t.Fatalf("preset %s not persisted on disk: %+v, err %v", step.name, saved, err)
 		}
 		view := ansi.Strip(m.View())
@@ -495,8 +495,8 @@ func TestBriefingModeNavigationLeftRightCycling(t *testing.T) {
 		if m.briefingMode != step.want {
 			t.Fatalf("Left arrow gave %+v, want %s (%+v)", m.briefingMode, step.name, step.want)
 		}
-		saved, err := mode.Load("ft_strlen")
-		if err != nil || saved != step.want {
+		saved, err := mode.LoadPreferences("ft_strlen")
+		if err != nil || saved.Options != step.want {
 			t.Fatalf("preset %s not persisted on disk: %+v, err %v", step.name, saved, err)
 		}
 		view := ansi.Strip(m.View())

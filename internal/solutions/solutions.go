@@ -70,16 +70,9 @@ func OverlayDir(drillID string) (string, error) {
 	return filepath.Join(base, "solutions", drillID), nil
 }
 
-// Resolve finds the reference solution for a drill. drillDir is the custom
-// drill's directory and is empty for a built-in drill. When the local overlay
-// holds at least one supported file it wins outright; the drill's own
-// solution directory (or embedded reference) is used when the overlay has none. A missing
-// solution is (nil, nil), not an error.
-func Resolve(drillID, drillDir string) (*Source, error) {
-	return ResolveVariant(drillID, drillDir, HeaderOnly)
-}
-
-// ResolveVariant selects a built-in vect2 reference; local overlays still win.
+// ResolveVariant finds the selected reference for a drill. A local overlay
+// with supported files takes precedence over the custom or embedded solution.
+// A missing reference returns (nil, nil).
 func ResolveVariant(drillID, drillDir string, variant Variant) (*Source, error) {
 	overlay, err := OverlayDir(drillID)
 	if err != nil {
@@ -132,16 +125,6 @@ func ResolveVariant(drillID, drillDir string, variant Variant) (*Source, error) 
 		return nil, nil
 	}
 	return bundled, nil
-}
-
-// List returns the supported reference files under dir, sorted by relative
-// path. A missing directory is empty, not an error.
-func List(dir string) ([]File, error) {
-	src, err := sourceFor(dir)
-	if err != nil {
-		return nil, err
-	}
-	return src.Files, nil
 }
 
 // sourceFor reads the supported files under dir. Symbolic links are skipped,

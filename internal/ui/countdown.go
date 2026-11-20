@@ -97,10 +97,6 @@ func renderBlockNumber(n int) string {
 
 const goArt = "  ████   ████ \n ██     ██  ██\n ██ ███ ██  ██\n ██  ██ ██  ██\n  ████   ████ "
 
-func renderCountdown(count int, width, height int) string {
-	return renderCountdownPressed(count, width, height, "")
-}
-
 func renderCountdownPressed(count int, width, height int, pressed string) string {
 	color, art := ColorSecondary, renderBlockNumber(count)
 	if count <= 0 {

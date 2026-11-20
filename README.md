@@ -1,58 +1,60 @@
 # codedrill
 
-codedrill is a terminal app for timed coding practice. Pick a drill, solve it in your editor, and run its tests.
+codedrill is a terminal app for timed coding practice. Pick a drill, solve it in your editor, and beat your personal best.
 
 ![codedrill terminal demo](docs/images/codedrill.gif)
 
 ## Install
 
-You need bash, an editor, and the tools your drills use, such as a C compiler or Python. With [Zellij](https://zellij.dev/), codedrill opens your editor beside a terminal for tests and drill commands.
+You need Bash, an editor, and the tools your drills use, such as GCC, G++, or Python 3. Install Zellij to open the editor beside a terminal for drill commands. [Zellij](https://zellij.dev/)
 
-With Nix and flakes enabled:
+**Nix with flakes**
 
-```bash
+```sh
 nix profile add github:luvcie/codedrill
 codedrill
 ```
 
-Or build from source with Go 1.26.5 or newer:
+**Release binaries**
 
-```bash
+Download the binary for Linux (x86-64 or ARM64) or Android (ARM64, run it in Termux). Rename it to `codedrill`, run `chmod +x codedrill`, then run `./codedrill`. [GitHub releases](https://github.com/luvcie/codedrill/releases)
+
+**Build from source with Go 1.26.5 or newer**
+
+```sh
 git clone https://github.com/luvcie/codedrill.git
 cd codedrill
 go build -o codedrill ./cmd/codedrill
 ./codedrill
 ```
 
-## Quick start
+## Start a drill
 
-1. Choose a drill and open its briefing.
-2. Select **Study** (`1`) or **Exam** (`2`), then press Enter.
-3. Write your solution. In Zellij, run `r` to test and `s` to submit. Without Zellij, close the editor to submit.
+1. Select a drill and press Enter to open its briefing. To open a specific briefing from the shell, run `codedrill start ft_strlen`.
+2. Press `1` for Study or `2` for Exam, then Enter to start. Study shows the reference when available and grades by tests. Select **Copy reference exactly** to practice matching the reference on supported C and C++ drills. Exam grades by tests with the reference hidden. Codedrill remembers your selection per drill.
+3. Write your solution. In the Zellij terminal pane, run `r` to test and `s` to submit. Without Zellij, close the editor to submit.
+4. After evaluation, press `e` to resume editing or Enter to save a passing run.
 
-Study lets you use a reference while practicing. Pass the tests, or enable **Copy reference exactly** to pass by matching the reference. Exam hides the reference and grades by tests. Your selection is saved per drill.
+## Controls
 
-For C and C++ drills with a reference, use `m -v` to peek or `m -p` to pin it beside the editor in Study.
+| Where | Controls |
+| --- | --- |
+| Drill menu | `/` search, `*` toggle a persistent favorite, `o` settings, `w` Free Work |
+| Drill terminal | `i` problem, `p` pace, `d` diff, `back` return to the briefing without saving |
+| Drill terminal in Study | `m -v` peek at the reference, `m -p` toggle the reference pane, `m -d` view the normalized diff |
+| Drill mixer | Run `v` in the drill terminal. Select a volume row and use Left or Right to adjust it. Press `f` to cycle All, Calm only, and Battle only. |
 
-Use `back` in the Zellij terminal to discard the run and return to the same briefing with your mode and reference selected. After submission, you can resume editing or finish the run.
+Free Work opens one to four Zellij terminals in a directory you choose. Leave the directory blank for home. Music and typing sounds use your saved settings.
 
-For built-in C++ drills, `r` and submission evaluation move workspace `.gch` files and directories aside with a `.disabled` suffix before compiling. GCC can otherwise load a stale precompiled header instead of your edited source. Codedrill prints a notice when it moves one, preserves existing backups, and stops before compiling if the safeguard fails. Custom drills keep their precompiled headers.
+In Settings, use Tab to reach Music or Typing Sounds. Run `codedrill config` to see settings and paths, `codedrill list` for drill IDs, or `codedrill --help` for all commands.
 
-## Common commands
+## Troubleshooting
 
-```sh
-codedrill list                 # list drills
-codedrill start ft_strlen      # open a drill's briefing
-codedrill daily                # open today's drill
-codedrill random               # choose a drill at random
-codedrill new                  # create a custom drill
-codedrill import drill.json    # import a drill
-codedrill solution <id> <path>  # attach a reference solution
-codedrill --help               # all commands
-```
+- **Editor or shell missing.** Check that the command runs on its own. Set the editor with `codedrill config editor nvim` or set the pane shell with `codedrill config shell bash`.
+- **Compiler rejected.** Built-in 42 exam and Rank 5 drills require GCC or G++ on `PATH`. On macOS, the default `gcc` can be Clang.
+- **Stale C++ headers.** Before compiling a built-in C++ drill, codedrill moves workspace `.gch` files and directories aside with a `.disabled` suffix. Existing backups are preserved. Custom drills manage their own precompiled headers.
+- **No music or typing sounds.** Enable each in Settings and select tracks or a sound pack. Download catalog tracks before playing them. Playback needs a PulseAudio-compatible server, such as PipeWire with its PulseAudio service. Typing sounds are off by default.
 
-## Settings
+## Credits
 
-Press `o` in the menu to change your editor, theme, music, and typing sounds. Run `codedrill config` to see settings and paths.
-
-In a Zellij drill terminal, `v` opens the music and typing-sound mixer. Left/Right adjusts volume by one percentage point. Typing sounds are off by default and need a PulseAudio-compatible server such as PipeWire.
+Calm and Battle tracks come from HURT RECORD. Dr Ocelot composed the TETR.IO Holidays 2023 tracks. Community typing sound packs come from the TETR.IO PLUS database. [HURT RECORD](https://www.hurtrecord.com/) · [TETR.IO PLUS database](https://you.have.fail/tetrioplus/)

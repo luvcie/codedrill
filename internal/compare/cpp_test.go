@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/luvcie/codedrill/internal/drill"
+	"github.com/luvcie/codedrill/internal/solutions"
 )
 
 func TestCPPMultiFileOwnershipAndWeighting(t *testing.T) {
@@ -28,7 +29,7 @@ func TestCPPMultiFileOwnershipAndWeighting(t *testing.T) {
 		"vect2.hpp": files["vect2.hpp"], "extra.hpp": "",
 		"main.cpp": "different provided harness", "stray.cpp": "not source @",
 	})
-	result, err := Compare(d, workspace)
+	result, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || !result.Exact || result.Percent() != 100 {
 		t.Fatalf("comparison: %+v, %v", result, err)
 	}
@@ -36,7 +37,7 @@ func TestCPPMultiFileOwnershipAndWeighting(t *testing.T) {
 		t.Fatalf("file order/ownership: %v", fileRels(result))
 	}
 	writeTree(t, workspace, map[string]string{"vect2.hpp": "struct vect2 { int y; int get() const; };"})
-	partial, err := Compare(d, workspace)
+	partial, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || partial.Exact || partial.Matched != result.Matched-1 {
 		t.Fatalf("partial comparison: %+v, %v", partial, err)
 	}
@@ -48,14 +49,14 @@ func TestCPPMultiFileOwnershipAndWeighting(t *testing.T) {
 	if err := os.Remove(filepath.Join(workspace, "extra.hpp")); err != nil {
 		t.Fatal(err)
 	}
-	missing, err := Compare(d, workspace)
+	missing, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || missing.Exact || !missing.Files[1].Missing {
 		t.Fatalf("optional counterpart: %+v, %v", missing, err)
 	}
 	if err := os.Remove(filepath.Join(workspace, "vect2.hpp")); err != nil {
 		t.Fatal(err)
 	}
-	missing, err = Compare(d, workspace)
+	missing, err = CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || missing.Exact || !missing.Files[2].Missing || missing.Percent() >= 100 {
 		t.Fatalf("required counterpart: %+v, %v", missing, err)
 	}
@@ -76,17 +77,17 @@ func TestCPPLegacyResourcesAndOverlaySelection(t *testing.T) {
 	writeTree(t, d.Dir, bundled)
 	workspace := t.TempDir()
 	writeTree(t, workspace, files)
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || !res.Exact || !slices.Equal(fileRels(res), []string{"entry.cpp", "impl.hpp"}) {
 		t.Fatalf("bundled files: %+v, %v", res, err)
 	}
 	attachReference(t, d.ID, map[string]string{"entry.cpp": "int f() { return 2; }"})
-	res, err = Compare(d, workspace)
+	res, err = CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || res.Exact || len(res.Files) != 1 {
 		t.Fatalf("overlay must win without merging alternatives: %+v, %v", res, err)
 	}
 	writeTree(t, workspace, map[string]string{"entry.cpp": "int f() { return 2; }"})
-	res, err = Compare(d, workspace)
+	res, err = CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err != nil || !res.Exact {
 		t.Fatalf("selected alternative: %+v, %v", res, err)
 	}
@@ -98,7 +99,7 @@ func TestCPPIncompleteReferenceFailsClosed(t *testing.T) {
 	attachReference(t, d.ID, map[string]string{"solution.cpp": "int f();", "main.cpp": "provided"})
 	workspace := t.TempDir()
 	writeTree(t, workspace, map[string]string{"solution.cpp": "int f();"})
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err == nil || res.Exact || !strings.Contains(err.Error(), "missing required student file solution.hpp") {
 		t.Fatalf("incomplete reference passed: %+v, %v", res, err)
 	}
@@ -109,7 +110,7 @@ func TestReferenceCannotComeFromWorkspace(t *testing.T) {
 	d := drill.Drill{ID: "unsafe", Language: "cpp", EntryFile: "solution.cpp", Dir: t.TempDir()}
 	writeTree(t, d.Dir, map[string]string{"solution/solution.cpp": "int f();"})
 	workspace := filepath.Join(d.Dir, "solution")
-	res, err := Compare(d, workspace)
+	res, err := CompareVariant(d, workspace, solutions.HeaderOnly)
 	if err == nil || res.Exact || !strings.Contains(err.Error(), "outside the workspace") {
 		t.Fatalf("workspace reference passed: %+v, %v", res, err)
 	}

@@ -63,14 +63,6 @@ var helperFiles = []string{
 
 const defaultLogoRGB = "127;160;90"
 
-func NewSession(d drill.Drill, pb time.Duration) (*Session, error) {
-	return NewSessionWithLogo(d, pb, "")
-}
-
-func NewSessionWithLogo(d drill.Drill, pb time.Duration, logoRGB string) (*Session, error) {
-	return NewSessionWithOptions(d, pb, logoRGB, Options{})
-}
-
 func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts Options) (_ *Session, err error) {
 	required, optional, err := d.StudentPaths()
 	if err != nil {
@@ -336,8 +328,7 @@ else
 fi
 `
 
-// The shell pane puts "." first in PATH so "d" runs this script, which means
-// a bare "diff" here would call itself. find_bin skips workspace copies.
+// The workspace is on PATH, so a bare "diff" would call this script again.
 const diffBody = `STARTER=.starter_code
 
 find_bin() {
@@ -480,17 +471,18 @@ var executablePath = func() string {
 	return exe
 }
 
-const shellNotFound = `echo -e "\033[1;31mShell '$SHELL_CMD' not found in PATH.\033[0m"
-echo "Set one with: codedrill config shell bash."
-exec bash
-`
-
-const editorBody = `export CODEDRILL_TYPING_PACK
-exec_shell() {
+const shellFunction = `exec_shell() {
   if command -v "$SHELL_CMD" >/dev/null 2>&1; then
     exec "$SHELL_CMD"
   fi
-  ` + shellNotFound + `}
+  echo -e "\033[1;31mShell '$SHELL_CMD' not found in PATH.\033[0m"
+  echo "Set one with: codedrill config shell bash."
+  exec bash
+}
+`
+
+const editorBody = `export CODEDRILL_TYPING_PACK
+` + shellFunction + `
 
 if ! command -v "${EDITOR_CMD%% *}" >/dev/null 2>&1; then
   echo -e "\033[1;31mEditor '$EDITOR_CMD' not found in PATH.\033[0m"
@@ -516,11 +508,7 @@ const terminalBody = `export PATH=".:$PATH"
 if [ -d .codedrill-editor ]; then
   export PATH="$PWD/.codedrill-editor:$PATH"
 fi
-exec_shell() {
-  if command -v "$SHELL_CMD" >/dev/null 2>&1; then
-    exec "$SHELL_CMD"
-  fi
-  ` + shellNotFound + `}
+` + shellFunction + `
 
 clear
 columns=$(tput cols 2>/dev/null || echo 40)
@@ -596,6 +584,22 @@ func (s *Session) writeHelpers() error {
 	}
 
 	typingSounds := typingSoundsFlag(s.typingPack)
+	layout := fmt.Sprintf(`layout {
+    pane split_direction="vertical" {
+        pane command="bash" {
+            args %s
+            size "60%%"
+        }
+        pane command="bash" {
+            args %s
+            size "40%%"
+        }
+    }
+}
+`, strconv.Quote(filepath.Join(ws, "start-editor.sh")), strconv.Quote(filepath.Join(ws, "start-terminal.sh")))
+	if s.referencePolicy != "" {
+		layout += s.referenceKeybind()
+	}
 	files := []helperFile{
 		{".sprint_start", []byte(strconv.FormatInt(s.StartTime.UnixMilli(), 10)), 0644},
 		{".starter_code", nil, 0644},
@@ -609,26 +613,7 @@ func (s *Session) writeHelpers() error {
 exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s.MusicSocket()), 0755},
 		{"start-editor.sh", script(editorBody, "CODEDRILL", executablePath(), "EDITOR_CMD", editor, "ENTRY", d.InitialFile(), "AUTO_SUBMIT", autoSubmit, "SHELL_CMD", shell, "TYPING_SOUNDS", typingSounds, "CODEDRILL_TYPING_PACK", s.typingPack), 0755},
 		{"start-terminal.sh", script(terminalBody, "LOGO_RGB", logo, "CROC", CrocArt, "TITLE", title, "PB", pb, "PB_LABEL", pbLabel, "HINT", hint, "SHELL_CMD", shell, "REFERENCE_HELP", referenceHelp), 0755},
-		{"layout.kdl", []byte(fmt.Sprintf(`layout {
-    pane split_direction="vertical" {
-        pane command="bash" {
-            args %s
-            size "60%%"
-        }
-        pane command="bash" {
-            args %s
-            size "40%%"
-        }
-    }
-}
-`, strconv.Quote(filepath.Join(ws, "start-editor.sh")), strconv.Quote(filepath.Join(ws, "start-terminal.sh")))), 0644},
-	}
-	if s.referencePolicy != "" {
-		for i := range files {
-			if files[i].name == "layout.kdl" {
-				files[i].data = append(files[i].data, []byte(s.referenceKeybind())...)
-			}
-		}
+		{"layout.kdl", []byte(layout), 0644},
 	}
 	if d.Description != "" {
 		category := d.Category

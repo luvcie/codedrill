@@ -20,8 +20,6 @@ type ModeStats struct {
 	TotalRuns     int
 	Successful    int
 	CurrentStreak int
-	BestStreak    int
-	LastAttempt   time.Time
 }
 
 func (s *HistoryStore) indexModes() {
@@ -42,11 +40,9 @@ func (s *HistoryStore) indexModes() {
 			s.modeStats[att.DrillID][att.Mode] = st
 		}
 		st.TotalRuns++
-		st.LastAttempt = att.Timestamp
 		if att.Passed {
 			st.Successful++
 			st.CurrentStreak++
-			st.BestStreak = max(st.BestStreak, st.CurrentStreak)
 			if st.PersonalBest == 0 || att.Duration < st.PersonalBest {
 				st.PersonalBest = att.Duration
 			}
