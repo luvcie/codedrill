@@ -148,10 +148,7 @@ func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts
 			return nil, fmt.Errorf("write reference session policy: %w", err)
 		}
 	}
-	cfg, _ := storage.LoadConfig()
-	if cfg.TypingSoundsOn() && cfg.Typing.RandomPackPerDrill {
-		sess.typingPack = typingsound.Catalog[rand.IntN(len(typingsound.Catalog))].ID
-	}
+	sess.typingPack = sessionTypingPack()
 	if err := sess.writeHelpers(); err != nil {
 		return nil, fmt.Errorf("write workspace helpers: %w", err)
 	}
@@ -653,7 +650,7 @@ exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s
 		}
 	}
 	if typingSounds == "1" {
-		if err := s.writeEditorShim(editor, executablePath()); err != nil {
+		if err := writeEditorShim(s.Workspace, editor, executablePath(), s.typingPack); err != nil {
 			return err
 		}
 	}
@@ -671,7 +668,7 @@ exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s
 // shells put this directory on PATH, so a later "hx other.cpp" typed after the
 // editor exits still runs through __typing-sound-editor. The shell itself is
 // not observed, so its own keystrokes stay silent.
-func (s *Session) writeEditorShim(editor, codedrill string) error {
+func writeEditorShim(workspace, editor, codedrill, pack string) error {
 	fields := strings.Fields(editor)
 	if len(fields) == 0 {
 		return nil
@@ -686,13 +683,13 @@ func (s *Session) writeEditorShim(editor, codedrill string) error {
 			return nil
 		}
 	}
-	dir := filepath.Join(s.Workspace, editorShimDir)
+	dir := filepath.Join(workspace, editorShimDir)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	var b strings.Builder
 	b.WriteString(bashShebang())
-	b.WriteString("export CODEDRILL_TYPING_PACK=" + shellQuote(s.typingPack) + "\n")
+	b.WriteString("export CODEDRILL_TYPING_PACK=" + shellQuote(pack) + "\n")
 	b.WriteString("exec ")
 	b.WriteString(shellQuote(codedrill))
 	b.WriteString(" __typing-sound-editor ")
@@ -760,6 +757,20 @@ func DetectEditor() string {
 	return "vim"
 }
 
+func sessionTypingPack() string {
+	cfg, _ := storage.LoadConfig()
+	if cfg.TypingSoundsOn() && cfg.Typing.RandomPackPerDrill {
+		return typingsound.Catalog[rand.IntN(len(typingsound.Catalog))].ID
+	}
+	return ""
+}
+
+func zellijCmd(name, layout, directory string) *exec.Cmd {
+	cmd := exec.Command("zellij", "attach", "-c", name, "options", "--default-layout", layout)
+	cmd.Dir = directory
+	return cmd
+}
+
 // typingSoundsFlag says whether the editor session should run through the
 // typing-sound wrapper. The prototype environment variable wins, so the
 // diagnostic mode keeps working when the saved pack is silent.
@@ -785,10 +796,7 @@ func typingSoundsFlag(pack string) string {
 
 func (s *Session) GetSprintCmd() *exec.Cmd {
 	if _, err := exec.LookPath("zellij"); err == nil {
-		layoutPath := filepath.Join(s.Workspace, "layout.kdl")
-		cmd := exec.Command("zellij", "attach", "-c", s.SessionName, "options", "--default-layout", layoutPath)
-		cmd.Dir = s.Workspace
-		return cmd
+		return zellijCmd(s.SessionName, filepath.Join(s.Workspace, "layout.kdl"), s.Workspace)
 	}
 
 	args := strings.Fields(DetectEditor())

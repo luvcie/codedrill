@@ -377,6 +377,8 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 			m.openLeaderboard(StateMenu)
 		}
 		return nil
+	case "w":
+		return m.openFreeWork()
 	case "o":
 		m.openSettings()
 		return nil

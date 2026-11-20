@@ -23,6 +23,11 @@ func (m *MainModel) contentView() string {
 		w, _ := m.screenSize()
 		help := m.renderHelpNow(formHelp, w)
 		return m.screenHeader("edit drill") + "\n\n" + m.form.View() + "\n\n" + help
+	case StateFreeWorkSetup:
+		w, _ := m.screenSize()
+		return m.screenHeader("Free Work") + "\n\n" + m.form.View() + "\n\n" + m.renderHelpNow(formHelp, w)
+	case StateFreeWorking:
+		return m.screenHeader("Free Work") + "\n\n" + indentLines("Session running...")
 	case StateStats:
 		header := m.screenHeader("profile · " + storage.GetLevelInfo(m.history.GetTotalXP()).Title)
 		return header + "\n" + RenderStatsDashboard(m.history, m.drills, m.width)

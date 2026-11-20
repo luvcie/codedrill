@@ -65,7 +65,7 @@ func (m *MainModel) helpText() string {
 			return deleteHelp
 		}
 		return m.menuKeys()
-	case StateAddDrill:
+	case StateAddDrill, StateFreeWorkSetup:
 		return formHelp
 	case StateEditDrill:
 		return formHelp

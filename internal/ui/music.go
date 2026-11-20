@@ -364,7 +364,9 @@ func (m *MainModel) startMusic() {
 	cfg, _ := storage.LoadConfig()
 	if cfg.Music != nil && cfg.Music.Enabled {
 		socket := ""
-		if m.session != nil {
+		if m.freeWork != nil {
+			socket = m.freeWork.MusicSocket()
+		} else if m.session != nil {
 			socket = m.session.MusicSocket()
 		}
 		m.musicPlayer = music.Start(music.SelectedSongs(cfg.Music.Tracks, cfg.Music.Folder), cfg.MusicVolume(), cfg.Music.Shuffle, socket)

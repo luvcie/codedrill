@@ -35,6 +35,8 @@ const (
 	StateSettings
 	StateTypingSounds
 	StateMusic
+	StateFreeWorkSetup
+	StateFreeWorking
 )
 
 type countdownTickMsg struct{ id uint64 }
@@ -65,6 +67,7 @@ type MainModel struct {
 	drills          []drill.Drill
 	activeDrill     *drill.Drill
 	session         *runner.Session
+	freeWork        *runner.FreeWorkSession
 	categoryFilter  string
 	categories      []string
 	categoryIndex   int
@@ -276,6 +279,10 @@ func (m *MainModel) Init() tea.Cmd {
 
 func (m *MainModel) Cleanup() {
 	m.stopMusic()
+	if m.freeWork != nil {
+		m.freeWork.Cleanup()
+		m.freeWork = nil
+	}
 	if m.download != nil {
 		m.download.cancel()
 	}
@@ -399,6 +406,9 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		key := m.helpPress.key
 		m.helpPress = nil
 		return m.Update(key)
+	case freeWorkFinishedMsg:
+		m.onFreeWorkFinished(msg)
+		return m, m.mouseCmd()
 	case sprintFinishedMsg:
 		if cmd := m.onSprintFinished(msg); cmd != nil {
 			return m, cmd
@@ -418,6 +428,8 @@ func (m *MainModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateAddDrill(msg)
 	case StateEditDrill:
 		return m, m.updateEditDrill(msg)
+	case StateFreeWorkSetup:
+		return m, m.updateFreeWork(msg)
 	}
 
 	key, ok := msg.(tea.KeyMsg)
