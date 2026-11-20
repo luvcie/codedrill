@@ -11,14 +11,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/luvcie/codedrill/internal/drill"
 	"github.com/luvcie/codedrill/internal/storage"
 )
 
 type drillItem struct {
-	drill drill.Drill
-	pb    time.Duration
-	isAdd bool
+	drill    drill.Drill
+	pb       time.Duration
+	isAdd    bool
+	favorite bool
 
 	// A group row is the header of a collapsible subcategory. It has no
 	// drill of its own.
@@ -38,6 +40,19 @@ func langTag(d drill.Drill) string {
 	return fmt.Sprintf("[%s] ", lang)
 }
 
+const favoriteMarker = "🟊"
+
+var favoriteGutterWidth = ansi.StringWidth(favoriteMarker) + 2
+
+func (i drillItem) favoriteGutter() string {
+	marker := ""
+	if i.favorite {
+		marker = favoriteMarker
+	}
+	padding := favoriteGutterWidth - ansi.StringWidth(marker)
+	return strings.Repeat(" ", padding/2) + marker + strings.Repeat(" ", padding-padding/2)
+}
+
 func (i drillItem) Title() string {
 	if i.isAdd {
 		return "+ Add a drill"
@@ -49,7 +64,7 @@ func (i drillItem) Title() string {
 		}
 		return arrow + " " + strings.ToUpper(i.group)
 	}
-	title := langTag(i.drill) + i.drill.Title
+	title := i.favoriteGutter() + langTag(i.drill) + i.drill.Title
 	if grade, _ := CalculateGrade(i.pb, i.drill); grade != "" {
 		title += fmt.Sprintf("  [%s-RANK]", grade)
 	}
@@ -75,7 +90,7 @@ func (i drillItem) Description() string {
 		pb = fmt.Sprintf("Exam PB %s (%s)", storage.FormatDuration(i.pb), grade)
 	}
 	desc := fmt.Sprintf("[%s • %s] • %s • %s", drill.CategoryOf(i.drill), difficulty, pb, CleanSummary(i.drill.Description))
-	return desc
+	return strings.Repeat(" ", favoriteGutterWidth) + desc
 }
 
 func (i drillItem) FilterValue() string {
@@ -153,44 +168,51 @@ func (m *MainModel) menuDrills(category string) []drill.Drill {
 			return 0
 		})
 	}
+	slices.SortStableFunc(drills, func(a, b drill.Drill) int {
+		if m.isFavorite(a.ID) == m.isFavorite(b.ID) {
+			return 0
+		}
+		if m.isFavorite(a.ID) {
+			return -1
+		}
+		return 1
+	})
 	return drills
 }
 
 // menuItemsFor builds the rows of one category. A parent category with
-// subcategories puts a header row before each group. Blocks follow the saved
-// arrangement; anything new is appended in the old default order. The add row
+// subcategories puts a header row before each group. Favorites come first;
+// other rows follow the saved arrangement. The add row
 // is always last. Other views of the menu, like search, use this so their row
 // numbers match the list.
 func (m *MainModel) menuItemsFor(category string) []list.Item {
 	var items []list.Item
 	if !m.reorderableCategory(category) {
 		for _, d := range m.menuDrills(category) {
-			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode)})
+			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode), favorite: m.isFavorite(d.ID)})
 		}
 		return append(items, drillItem{isAdd: true})
 	}
 
-	for _, block := range m.menuBlocks(category) {
-		if !block.isGroup() {
-			items = append(items, drillItem{drill: block.drill, pb: m.history.GetPB(block.drill.ID, storage.ExamMode)})
+	blocks := m.menuBlocks(category)
+	for _, row := range m.menuRows(category) {
+		if row.add {
+			items = append(items, drillItem{isAdd: true})
 			continue
 		}
-		key := groupKey(category, block.group)
-		collapsed := m.groupCollapsed(key)
-		items = append(items, drillItem{
-			group:     block.group,
-			groupKey:  key,
-			count:     len(block.drills),
-			collapsed: collapsed,
-		})
-		if collapsed {
+		block := blocks[row.block]
+		if row.group && row.child < 0 {
+			key := groupKey(category, block.group)
+			items = append(items, drillItem{group: block.group, groupKey: key, count: len(block.drills), collapsed: m.groupCollapsed(key)})
 			continue
 		}
-		for _, d := range block.drills {
-			items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode)})
+		d := block.drill
+		if row.child >= 0 {
+			d = block.drills[row.child]
 		}
+		items = append(items, drillItem{drill: d, pb: m.history.GetPB(d.ID, storage.ExamMode), favorite: m.isFavorite(d.ID)})
 	}
-	return append(items, drillItem{isAdd: true})
+	return items
 }
 
 // toggleGroup folds or unfolds a subcategory and keeps the cursor on its
@@ -327,6 +349,9 @@ func (m *MainModel) updateMenu(msg tea.Msg) tea.Cmd {
 	}
 
 	switch k.String() {
+	case "*":
+		m.toggleFavorite()
+		return nil
 	case "/":
 		m.openSearch()
 		return nil

@@ -184,20 +184,34 @@ type menuRow struct {
 
 func (m *MainModel) menuRows(category string) []menuRow {
 	blocks := m.menuBlocks(category)
-	var rows []menuRow
+	var favorites, rows []menuRow
 	for bi, block := range blocks {
 		if block.isGroup() {
-			rows = append(rows, menuRow{block: bi, child: -1, group: true})
-			if m.groupCollapsed(groupKey(category, block.group)) {
-				continue
+			var children []menuRow
+			for ci, d := range block.drills {
+				row := menuRow{block: bi, child: ci, group: true}
+				if m.isFavorite(d.ID) {
+					favorites = append(favorites, row)
+				} else {
+					children = append(children, row)
+				}
 			}
-			for ci := range block.drills {
-				rows = append(rows, menuRow{block: bi, child: ci, group: true})
+			if len(children) > 0 {
+				rows = append(rows, menuRow{block: bi, child: -1, group: true})
+				if !m.groupCollapsed(groupKey(category, block.group)) {
+					rows = append(rows, children...)
+				}
 			}
 			continue
 		}
-		rows = append(rows, menuRow{block: bi, child: -1})
+		row := menuRow{block: bi, child: -1}
+		if m.isFavorite(block.drill.ID) {
+			favorites = append(favorites, row)
+		} else {
+			rows = append(rows, row)
+		}
 	}
+	rows = append(favorites, rows...)
 	return append(rows, menuRow{block: len(blocks), child: -1, add: true})
 }
 

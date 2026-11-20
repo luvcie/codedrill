@@ -72,6 +72,7 @@ type MainModel struct {
 	categories      []string
 	categoryIndex   int
 	collapsedGroups map[string]bool
+	favorites       []string
 	layout          storage.MenuLayout
 	press           *menuPress
 	search          menuSearch
@@ -194,6 +195,7 @@ func NewMainModel() (*MainModel, error) {
 		mouseOff:       !cfg.MouseOn(),
 		shell:          cfg.ShellName(),
 		layout:         layout,
+		favorites:      cfg.Favorites,
 		briefingMode:   mode.Default(),
 		runMode:        mode.Default(),
 	}

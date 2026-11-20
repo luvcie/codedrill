@@ -11,6 +11,7 @@ import (
 )
 
 type Config struct {
+	Favorites []string        `json:"favorites,omitempty"`
 	Editor    string          `json:"editor"`
 	Sound     *bool           `json:"sound,omitempty"`
 	Countdown *int            `json:"countdown,omitempty"`

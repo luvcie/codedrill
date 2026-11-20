@@ -7,7 +7,15 @@ import (
 )
 
 func TestVect2RankBoundaries(t *testing.T) {
-	d := Drill{ID: "rank05-vect2", Difficulty: "hard", IsPreset: true}
+	builtins, err := LoadBuiltins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	builtin := Find(builtins, "rank05-vect2")
+	if builtin == nil || builtin.Difficulty != "medium" {
+		t.Fatalf("unexpected built-in drill: %+v", builtin)
+	}
+	d := *builtin
 	boundaries := []struct {
 		rank string
 		time time.Duration

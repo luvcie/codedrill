@@ -450,9 +450,10 @@ func TestTitleMatchesIgnoreLanguageTag(t *testing.T) {
 	if got := titleMatches(it, "code"); len(got) != 0 {
 		t.Fatalf("language tag matched: %v", got)
 	}
-	// "[CODE] " is 7 runes, "Valid " is 6 more.
-	if got := titleMatches(it, "pal"); len(got) != 3 || got[0] != 13 {
-		t.Fatalf("pal matched at %v, want 13..15", got)
+	// The blank gutter contains spaces, "[CODE] " is 7 runes, and "Valid " is 6 more.
+	want := favoriteGutterWidth + 13
+	if got := titleMatches(it, "pal"); len(got) != 3 || got[0] != want {
+		t.Fatalf("pal matched at %v, want %d..%d", got, want, want+2)
 	}
 }
 

@@ -230,7 +230,7 @@ func titleMatches(it drillItem, highlight string) []int {
 	if it.isAdd {
 		return nil
 	}
-	offset := utf8.RuneCountInString(langTag(it.drill))
+	offset := utf8.RuneCountInString(it.favoriteGutter() + langTag(it.drill))
 	idx := matchRunes(it.drill.Title, highlight)
 	for i := range idx {
 		idx[i] += offset

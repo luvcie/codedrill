@@ -3,7 +3,7 @@
   "title": "vect2",
   "category": "42/rank 5",
   "language": "cpp",
-  "difficulty": "hard",
+  "difficulty": "medium",
   "entry_file": "vect2.cpp",
   "student_files": [
     "vect2.cpp",
