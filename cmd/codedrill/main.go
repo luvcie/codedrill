@@ -22,7 +22,7 @@ import (
 	"github.com/luvcie/codedrill/internal/ui"
 )
 
-const Version = "0.6.1"
+const Version = "0.7.0"
 
 const helpText = `codedrill - terminal speedrun drill tool for code & algorithms
 
