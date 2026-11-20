@@ -1,6 +1,8 @@
 // Package music provides optional, locally cached drill music. No audio is bundled.
 package music
 
+import "slices"
+
 const (
 	SprintZen   = "sprint-zen"
 	TetraLeague = "tetra-league"
@@ -74,4 +76,14 @@ func Tracks(source string) []Track {
 		return HolidayTracks
 	}
 	return nil
+}
+
+func TrackLabel(id string) string {
+	if slices.ContainsFunc(Calm, func(t Track) bool { return t.ID == id }) {
+		return "Calm"
+	}
+	if slices.ContainsFunc(Battle, func(t Track) bool { return t.ID == id }) {
+		return "Battle"
+	}
+	return ""
 }

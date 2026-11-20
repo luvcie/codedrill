@@ -12,11 +12,13 @@ import (
 type Command string
 
 const (
-	GetStatus     Command = "status"
-	Previous      Command = "previous"
-	Next          Command = "next"
-	ToggleLoop    Command = "loop"
-	ToggleShuffle Command = "shuffle"
+	GetStatus      Command = "status"
+	Previous       Command = "previous"
+	Next           Command = "next"
+	ToggleLoop     Command = "loop"
+	ToggleShuffle  Command = "shuffle"
+	NextFilter     Command = "filter-next"
+	PreviousFilter Command = "filter-previous"
 )
 
 var ErrNoPlayer = errors.New("no music is playing")

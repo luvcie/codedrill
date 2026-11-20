@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,14 +20,17 @@ type playingTrack struct {
 	cancelled chan struct{}
 }
 
-func startTestPlaylist(t *testing.T, shuffle bool) (string, <-chan playingTrack, context.CancelFunc, <-chan error) {
+func startTestPlaylist(t *testing.T, shuffle bool, songs ...Song) (string, <-chan playingTrack, context.CancelFunc, <-chan error) {
 	t.Helper()
+	if len(songs) == 0 {
+		songs = testSongs
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	socket := filepath.Join(t.TempDir(), "music.sock")
 	started := make(chan playingTrack, 16)
 	done := make(chan error, 1)
 	go func() {
-		done <- runPlaylist(ctx, testSongs, shuffle, socket, func(ctx context.Context, path string) error {
+		done <- runPlaylist(ctx, songs, shuffle, socket, func(ctx context.Context, path string) error {
 			track := playingTrack{path: path, finish: make(chan error, 1), cancelled: make(chan struct{})}
 			defer close(track.cancelled)
 			started <- track
@@ -194,7 +198,7 @@ func TestPlaybackCancelledBeforeStart(t *testing.T) {
 }
 
 func TestPlaybackSkipsBrokenSongsEvenWhenLooping(t *testing.T) {
-	socket, started, _, done := startTestPlaylist(t, false)
+	socket, started, _, _ := startTestPlaylist(t, false)
 	track := takeTrack(t, started, "first.mp3")
 	if _, err := Control(socket, ToggleLoop); err != nil {
 		t.Fatal(err)
@@ -205,12 +209,164 @@ func TestPlaybackSkipsBrokenSongsEvenWhenLooping(t *testing.T) {
 	track.finish <- failure
 	track = takeTrack(t, started, "third.mp3")
 	track.finish <- failure
-	select {
-	case err := <-done:
-		if !errors.Is(err, failure) {
-			t.Fatalf("lost playback error: %v", err)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		state, err := Control(socket, GetStatus)
+		if err != nil {
+			t.Fatal(err)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("broken playlist kept retrying")
+		if state.Title == "" && state.Message != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("broken playlist did not stop playback")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	select {
+	case track := <-started:
+		t.Fatalf("broken song retried: %s", track.path)
+	default:
+	}
+}
+
+func TestPlaybackFiltersDuringSong(t *testing.T) {
+	songs := []Song{
+		{Title: "Calm one", Path: "calm1", Label: "Calm"},
+		{Title: "Calm two", Path: "calm2", Label: "Calm"},
+		{Title: "Battle one", Path: "battle1", Label: "Battle"},
+		{Title: "Battle two", Path: "battle2", Label: "Battle"},
+		{Title: "Local", Path: "local"},
+	}
+	socket, started, _, _ := startTestPlaylist(t, false, songs...)
+	current := takeTrack(t, started, "calm1")
+	control := func(command Command, filter Filter) PlaybackState {
+		t.Helper()
+		state, err := Control(socket, command)
+		if err != nil || state.Filter != filter || state.Message != "" {
+			t.Fatalf("%s: %+v, %v", command, state, err)
+		}
+		return state
+	}
+	control(GetStatus, All)
+	control(NextFilter, CalmOnly)
+	select {
+	case <-current.cancelled:
+		t.Fatal("matching song was interrupted")
+	default:
+	}
+	current.finish <- nil
+	current = takeTrack(t, started, "calm2")
+	control(ToggleLoop, CalmOnly)
+	control(NextFilter, BattleOnly)
+	select {
+	case <-current.cancelled:
+	default:
+		t.Fatal("excluded song was not stopped before changing filter")
+	}
+	current = takeTrack(t, started, "battle1")
+	current.finish <- nil
+	takeTrack(t, started, "battle1")
+	for _, command := range []Command{Next, Previous, ToggleShuffle, Next, Previous, Next, Next} {
+		state := control(command, BattleOnly)
+		if !strings.HasPrefix(state.Title, "Battle") || !state.Loop {
+			t.Fatalf("control escaped active filter or lost looping: %+v", state)
+		}
+		if command != ToggleShuffle {
+			takeTrack(t, started, "")
+		}
+	}
+	control(PreviousFilter, CalmOnly)
+	current = takeTrack(t, started, "")
+	if !strings.HasPrefix(current.path, "calm") {
+		t.Fatalf("Calm filter played %s", current.path)
+	}
+	state := control(PreviousFilter, All)
+	if !state.Shuffle || !state.Loop {
+		t.Fatal("filter changed shuffle or loop")
+	}
+	select {
+	case <-current.cancelled:
+		t.Fatal("All interrupted a matching song")
+	default:
+	}
+	seen := map[string]bool{}
+	for range len(songs) {
+		state := control(Next, All)
+		if seen[state.Title] {
+			t.Fatalf("shuffle repeated before covering restored selection: %+v", state)
+		}
+		seen[state.Title] = true
+		takeTrack(t, started, "")
+	}
+	if !seen["Local"] {
+		t.Fatal("All did not restore local tracks")
+	}
+}
+
+func TestEmptyFilterCanResumeAll(t *testing.T) {
+	socket, started, _, _ := startTestPlaylist(t, false, Song{Title: "Calm", Path: "calm", Label: "Calm"})
+	current := takeTrack(t, started, "calm")
+	for range 2 {
+		if _, err := Control(socket, NextFilter); err != nil {
+			t.Fatal(err)
+		}
+	}
+	select {
+	case <-current.cancelled:
+	default:
+		t.Fatal("empty filter did not stop the song")
+	}
+	for _, command := range []Command{GetStatus, Next, Previous, ToggleLoop, ToggleShuffle} {
+		state, err := Control(socket, command)
+		if err != nil || state.Filter != BattleOnly || state.Title != "" || state.Message == "" {
+			t.Fatalf("empty filter: %+v, %v", state, err)
+		}
+	}
+	select {
+	case <-started:
+		t.Fatal("empty filter started a song")
+	default:
+	}
+	state, err := Control(socket, NextFilter)
+	if err != nil || state.Filter != All || state.Title != "Calm" || !state.Shuffle || !state.Loop || state.Message != "" {
+		t.Fatalf("All did not resume: %+v, %v", state, err)
+	}
+	takeTrack(t, started, "calm")
+}
+
+func TestFilterWithOnlyUnplayableTracks(t *testing.T) {
+	socket, started, _, _ := startTestPlaylist(t, false,
+		Song{Title: "Calm", Path: "calm", Label: "Calm"},
+		Song{Title: "Broken Battle", Path: "broken", Label: "Battle"})
+	takeTrack(t, started, "calm")
+	if _, err := Control(socket, PreviousFilter); err != nil {
+		t.Fatal(err)
+	}
+	broken := takeTrack(t, started, "broken")
+	broken.finish <- errors.New("invalid MP3")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		state, err := Control(socket, GetStatus)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.Message != "" && state.Title == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("broken filter did not stop")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if _, err := Control(socket, NextFilter); err != nil {
+		t.Fatal(err)
+	}
+	takeTrack(t, started, "calm")
+	for range 2 {
+		if _, err := Control(socket, Next); err != nil {
+			t.Fatal(err)
+		}
+		takeTrack(t, started, "calm")
 	}
 }

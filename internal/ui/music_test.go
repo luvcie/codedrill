@@ -25,6 +25,41 @@ func openMusicTestModel(t *testing.T) *MainModel {
 	return m
 }
 
+func TestMusicTrackLabelsFollowPlaylistMembership(t *testing.T) {
+	m := openMusicTestModel(t)
+	for _, tc := range []struct {
+		source string
+		tracks []music.Track
+		label  string
+	}{
+		{music.SprintZen, music.Calm, "Calm"},
+		{music.TetraLeague, music.Battle, "Battle"},
+	} {
+		m.openMusicSource(tc.source)
+		for i, track := range tc.tracks {
+			want := track.Name + " — " + track.Artist + " · " + tc.label + " · "
+			if row := m.musicRowLabel(m.musicTrackBase() + i); !strings.Contains(row, want) || strings.Contains(row, "cached") {
+				t.Fatalf("label is missing or out of order: %s", row)
+			}
+		}
+		track := tc.tracks[0]
+		if err := os.MkdirAll(filepath.Dir(music.Path(track)), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(music.Path(track), []byte("cached"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if row := m.musicRowLabel(m.musicTrackBase()); !strings.HasSuffix(row, " · "+tc.label+" · cached") {
+			t.Fatalf("cached label is out of order: %s", row)
+		}
+	}
+	for _, id := range []string{music.HolidayTracks[0].ID, "/tmp/local.mp3"} {
+		if label := music.TrackLabel(id); label != "" {
+			t.Fatalf("unrelated track acquired label %q", label)
+		}
+	}
+}
+
 func TestMusicSelectionDoesNotDownloadOrEnable(t *testing.T) {
 	m := openMusicTestModel(t)
 	if m.musicPrefs.Enabled || m.musicVolume != 35 {

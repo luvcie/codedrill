@@ -88,8 +88,8 @@ func TestBattleCatalogAndCachedPlayback(t *testing.T) {
 	}
 	songs := SelectedSongs([]string{"kvx-016", "kmk-033", "kmk-024", "christmas-city"}, "")
 	wantSongs := []Song{
-		{Title: Calm[0].Name, Path: filepath.Join(root, "codedrill", "music", "kvx-016.mp3")},
-		{Title: Battle[0].Name, Path: filepath.Join(root, "codedrill", "music", "kmk-033.mp3")},
+		{Title: "Piercing Wind — KVK · Calm", Path: filepath.Join(root, "codedrill", "music", "kvx-016.mp3"), Label: "Calm"},
+		{Title: "Backwater — Kamoking · Battle", Path: filepath.Join(root, "codedrill", "music", "kmk-033.mp3"), Label: "Battle"},
 		{Title: HolidayTracks[0].Name, Path: filepath.Join(root, "codedrill", "music", "christmas-city.mp3")},
 	}
 	if !reflect.DeepEqual(songs, wantSongs) {

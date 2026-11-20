@@ -86,12 +86,22 @@ func (m *MixerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "esc", "enter", "ctrl+c":
 			return m, tea.Quit
-		case "up", "k", "down", "j", "tab", "shift+tab":
-			m.cursor = 1 - m.cursor
+		case "up", "k", "shift+tab":
+			m.cursor = (m.cursor + 2) % 3
+		case "down", "j", "tab":
+			m.cursor = (m.cursor + 1) % 3
 		case "left", "h":
+			if m.cursor == 2 {
+				return m, m.requestPlayback(music.PreviousFilter)
+			}
 			m.changeVolume(-1)
 		case "right", "l":
+			if m.cursor == 2 {
+				return m, m.requestPlayback(music.NextFilter)
+			}
 			m.changeVolume(1)
+		case "f":
+			return m, m.requestPlayback(music.NextFilter)
 		case "p":
 			return m, m.requestPlayback(music.Previous)
 		case "n":
@@ -139,7 +149,7 @@ func (m *MixerModel) View() string {
 	if title == "" {
 		title = "No music playing"
 	}
-	lines = append(lines, "  Song: "+title)
+	lines = append(lines, "  Currently playing: "+title)
 	for _, setting := range []struct {
 		label string
 		on    bool
@@ -159,12 +169,16 @@ func (m *MixerModel) View() string {
 		line := fmt.Sprintf("%-5s %s%s", name, renderProgressBar(float64(m.volumes[i])/100, max(1, min(32, w-18-len(status)))), status)
 		lines = append(lines, cursorRow(i == m.cursor, w, line))
 	}
+	lines = append(lines, cursorRow(m.cursor == 2, w, "Music filter: "+m.playback.Filter.String()))
+	if m.playback.Message != "" {
+		lines = append(lines, "  "+m.playback.Message)
+	}
 	if m.err != nil {
 		lines = append(lines, "  "+DangerStyle.Render("Could not save: "+m.err.Error()))
 	}
 	if m.playbackErr != nil && !errors.Is(m.playbackErr, music.ErrNoPlayer) {
 		lines = append(lines, "  "+DangerStyle.Render("Playback controls unavailable."))
 	}
-	lines = append(lines, "", renderHelp("[p] previous  [n] next  [r] loop current song  [s] shuffle\n[↑/↓] choose  [←/→] volume  [q/Esc/Enter] return", w, ""))
+	lines = append(lines, "", renderHelp("[p] previous  [n] next  [r] loop current song  [s] shuffle  [f] music filter\n[↑/↓] choose  [←/→] adjust  [q/Esc/Enter] return", w, ""))
 	return truncateBlock(strings.Join(lines, "\n"), w)
 }

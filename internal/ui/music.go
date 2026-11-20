@@ -162,6 +162,9 @@ func (m *MainModel) musicRowLabel(row int) string {
 	if track.Artist != "" {
 		label += " — " + track.Artist
 	}
+	if mood := music.TrackLabel(track.ID); mood != "" {
+		label += " · " + mood
+	}
 	if m.musicSource == music.Local {
 		return label
 	}

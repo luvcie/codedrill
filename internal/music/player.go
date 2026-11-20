@@ -27,7 +27,12 @@ func SelectedSongs(ids []string, folder string) []Song {
 	for _, source := range []string{SprintZen, TetraLeague, Holidays} {
 		for _, track := range Tracks(source) {
 			if slices.Contains(ids, track.ID) && Cached(track) {
-				songs = append(songs, Song{Title: track.Name, Path: Path(track)})
+				label := TrackLabel(track.ID)
+				title := track.Name
+				if label != "" {
+					title += " — " + track.Artist + " · " + label
+				}
+				songs = append(songs, Song{Title: title, Path: Path(track), Label: label})
 			}
 		}
 	}

@@ -124,6 +124,10 @@ func TestMixerPlaybackControls(t *testing.T) {
 					state.Title = "First song"
 				case music.ToggleLoop:
 					state.Loop = !state.Loop
+				case music.NextFilter:
+					state.Filter = (state.Filter + 1) % 3
+				case music.PreviousFilter:
+					state.Filter = (state.Filter + 2) % 3
 				case music.ToggleShuffle:
 					state.Shuffle = !state.Shuffle
 				}
@@ -144,7 +148,7 @@ func TestMixerPlaybackControls(t *testing.T) {
 		t.Fatalf("mixer did not request the current song: %s", command)
 	}
 	view := ansi.Strip(m.View())
-	for _, label := range []string{"Song: First song", "Loop current song: off", "Shuffle: off", "[p] previous", "[n] next", "[r] loop current song", "[s] shuffle", "[←/→] volume"} {
+	for _, label := range []string{"Currently playing: First song", "Loop current song: off", "Shuffle: off", "[p] previous", "[n] next", "[r] loop current song", "[s] shuffle", "[←/→] adjust"} {
 		if !strings.Contains(view, label) {
 			t.Fatalf("mixer is missing %q:\n%s", label, view)
 		}
@@ -190,6 +194,47 @@ func TestMixerPlaybackControls(t *testing.T) {
 	cfg, err := storage.LoadConfig()
 	if err != nil || cfg.Music.Shuffle || cfg.MusicVolume() != .36 {
 		t.Fatalf("session Shuffle changed the next drill's default: %+v, %v", cfg.Music, err)
+	}
+	path, _ := storage.GetConfigPath()
+	before, _ := os.ReadFile(path)
+	m.cursor = 2
+	for _, step := range []struct {
+		key     string
+		command music.Command
+		filter  music.Filter
+	}{
+		{"right", music.NextFilter, music.CalmOnly},
+		{"f", music.NextFilter, music.BattleOnly},
+		{"f", music.NextFilter, music.All},
+		{"left", music.PreviousFilter, music.BattleOnly},
+	} {
+		key := runeKey(step.key)
+		if step.key == "left" {
+			key = tea.KeyMsg{Type: tea.KeyLeft}
+		}
+		if step.key == "right" {
+			key = tea.KeyMsg{Type: tea.KeyRight}
+		}
+		_, cmd := m.Update(key)
+		m.Update(cmd())
+		if <-commands != step.command || m.playback.Filter != step.filter || !strings.Contains(ansi.Strip(m.View()), "Music filter: "+step.filter.String()) {
+			t.Fatalf("wrong filter for %s: %+v", step.key, m.playback)
+		}
+	}
+	after, _ := os.ReadFile(path)
+	if string(before) != string(after) {
+		t.Fatal("filter changed saved music selections or shuffle")
+	}
+	for _, title := range []string{"Piercing Wind — KVK · Calm", "Backwater — Kamoking · Battle", "Local MP3"} {
+		m.playback.Title = title
+		if !strings.Contains(ansi.Strip(m.View()), "Currently playing: "+title) {
+			t.Fatalf("mixer lost label: %s", m.View())
+		}
+	}
+	m.playback.Title = ""
+	m.playback.Message = "No playable tracks match this filter."
+	if !strings.Contains(ansi.Strip(m.View()), m.playback.Message) {
+		t.Fatal("empty filter message missing")
 	}
 	for _, width := range []int{30, 50, 80} {
 		m.Update(tea.WindowSizeMsg{Width: width})
