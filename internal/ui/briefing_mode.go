@@ -12,7 +12,7 @@ import (
 	"github.com/luvcie/codedrill/internal/solutions"
 )
 
-const briefingOptionCount = 4
+const briefingOptionCount = 5
 
 func modePresetName(opts mode.Options) string {
 	switch opts {
@@ -44,6 +44,7 @@ func (m *MainModel) loadBriefingOptions(d *drill.Drill) bool {
 	}
 	m.prefsErr = nil
 	m.briefingReference = prefs.ReferenceVariant
+	m.briefingNoLint = prefs.NoLint
 	m.setBriefingOptions(d, prefs.Options)
 	return true
 }
@@ -154,6 +155,8 @@ func (m *MainModel) toggleBriefingOption() {
 		}
 	case 3:
 		m.briefingMode.RequireTests = !m.briefingMode.RequireTests
+	case 4:
+		m.briefingNoLint = !m.briefingNoLint
 	case briefingOptionCount:
 		if !m.hasReferenceChoice() {
 			return
@@ -217,7 +220,7 @@ func (m *MainModel) saveBriefingMode() {
 		return
 	}
 	m.briefingSaveErr = mode.SavePreferences(m.activeDrill.ID, mode.Preferences{
-		Options: m.briefingMode, ReferenceVariant: m.briefingReference,
+		Options: m.briefingMode, ReferenceVariant: m.briefingReference, NoLint: m.briefingNoLint,
 	})
 }
 
@@ -242,15 +245,33 @@ func padCell(s string, width int) string {
 	return s + strings.Repeat(" ", width-ansi.StringWidth(s))
 }
 
+type briefingCheckbox struct {
+	label   string
+	checked bool
+}
+
+func briefingCheckboxText(opt briefingCheckbox) string {
+	if opt.checked {
+		return "[x] " + opt.label
+	}
+	return "[ ] " + opt.label
+}
+
+func briefingCheckboxCell(opt briefingCheckbox, focused bool) string {
+	text := briefingCheckboxText(opt)
+	if focused {
+		return AccentStyle.Render(text)
+	}
+	return text
+}
+
 func (m *MainModel) briefingModePanel() string {
-	options := []struct {
-		label   string
-		checked bool
-	}{
+	options := []briefingCheckbox{
 		{"Reference check", m.briefingMode.CheckReference},
 		{"Show reference", m.briefingMode.ShowReference},
 		{"Copy reference exactly", m.briefingMode.RequireExact},
 		{"Require tests", m.briefingMode.RequireTests},
+		{"Linter off (Helix)", m.briefingNoLint},
 	}
 
 	lines := make([]string, 0, 8)
@@ -262,28 +283,15 @@ func (m *MainModel) briefingModePanel() string {
 	if gap < 0 {
 		// Vertical fallback for narrow terminals.
 		for i, opt := range options {
-			box := "[ ]"
-			if opt.checked {
-				box = "[x]"
-			}
-			line := box + " " + opt.label
-			if i == m.modeFocus {
-				line = AccentStyle.Render(line)
-			}
-			lines = append(lines, line)
+			lines = append(lines, briefingCheckboxCell(opt, i == m.modeFocus))
 		}
 	} else {
-		// Two columns: row 0 holds options 0 and 1, row 1 holds options 2 and 3.
+		// Two columns: row 0 holds options 0 and 1, row 1 holds options 2 and 3; option 4 has its own row.
 		for row := 0; row < 2; row++ {
 			var cells []string
 			for col := 0; col < 2; col++ {
 				i := row*2 + col
-				opt := options[i]
-				box := "[ ]"
-				if opt.checked {
-					box = "[x]"
-				}
-				cell := padCell(box+" "+opt.label, colWidth)
+				cell := padCell(briefingCheckboxText(options[i]), colWidth)
 				if i == m.modeFocus {
 					cell = AccentStyle.Render(cell)
 				}
@@ -291,6 +299,7 @@ func (m *MainModel) briefingModePanel() string {
 			}
 			lines = append(lines, strings.Join(cells, strings.Repeat(" ", gap)))
 		}
+		lines = append(lines, briefingCheckboxCell(options[4], m.modeFocus == 4))
 	}
 
 	if m.hasReferenceChoice() {

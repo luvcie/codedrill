@@ -301,9 +301,9 @@ func TestBriefingMouseWrappedContent(t *testing.T) {
 						size.Width, size.Height, label, y, idx, ok, i)
 				}
 				// Verify clicking toggles it.
-				before := m.briefingMode
+				before, beforeNoLint := m.briefingMode, m.briefingNoLint
 				m.Update(leftClick(x, y))
-				if m.briefingMode == before {
+				if m.briefingMode == before && m.briefingNoLint == beforeNoLint {
 					t.Fatalf("%dx%d: clicking option %d (%s) at row %d did not change mode",
 						size.Width, size.Height, i, label, y)
 				}

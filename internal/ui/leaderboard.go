@@ -125,6 +125,9 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 				gradeStyle = SubtextStyle
 			}
 		}
+		if att.NoLint {
+			timeCell += " " + AccentStyle.Render("no lint")
+		}
 		if gradeText == "" {
 			gradeText = "-"
 		}

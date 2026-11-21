@@ -18,6 +18,7 @@ type Attempt struct {
 	Passed    bool          `json:"passed"`
 	Attempts  int           `json:"attempts"`
 	IsDaily   bool          `json:"is_daily,omitempty"`
+	NoLint    bool          `json:"no_lint,omitempty"`
 }
 
 type DrillStats struct {
@@ -133,6 +134,12 @@ func (s *HistoryStore) recomputeStreaks() {
 // RecordAttempt saves a finished sprint. isDaily marks the first clear of the
 // day's daily drill, which earns bonus XP.
 func (s *HistoryStore) RecordAttempt(drillID string, category RecordMode, duration time.Duration, passed bool, submitCount int, isDaily bool) (isPB bool, delta time.Duration, err error) {
+	return s.RecordAttemptNoLint(drillID, category, duration, passed, submitCount, isDaily, false)
+}
+
+// RecordAttemptNoLint is RecordAttempt for a run that tells whether the Helix
+// linter was off. The run still counts in the same records.
+func (s *HistoryStore) RecordAttemptNoLint(drillID string, category RecordMode, duration time.Duration, passed bool, submitCount int, isDaily, noLint bool) (isPB bool, delta time.Duration, err error) {
 	if category == "" {
 		return false, 0, fmt.Errorf("new runs must specify their practice mode")
 	}
@@ -152,6 +159,7 @@ func (s *HistoryStore) RecordAttempt(drillID string, category RecordMode, durati
 		Passed:    passed,
 		Attempts:  submitCount,
 		IsDaily:   isDaily,
+		NoLint:    noLint,
 	}
 	s.Attempts = append(s.Attempts, att)
 

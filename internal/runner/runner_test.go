@@ -712,3 +712,22 @@ func TestDrillFileClashingWithHelperIsRejected(t *testing.T) {
 		t.Fatalf("expected a clash error, got %v", err)
 	}
 }
+
+func TestNoLintWritesHelixLanguageConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	d := drill.Drill{ID: "nolint", Title: "t", Language: "c", EntryFile: "a.c", TestCommand: "true"}
+	for _, noLint := range []bool{false, true} {
+		sess, err := NewSessionWithOptions(d, 0, "", Options{NoLint: noLint})
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(sess.Workspace, ".helix", "languages.toml"))
+		if noLint != (err == nil) {
+			t.Fatalf("noLint=%v: read error %v", noLint, err)
+		}
+		if noLint && !strings.Contains(string(data), "name = \"c\"\nlanguage-servers = []") {
+			t.Fatalf("config missing c entry:\n%s", data)
+		}
+		sess.Cleanup()
+	}
+}

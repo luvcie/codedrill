@@ -35,10 +35,12 @@ func (m *MainModel) triggerSprintStart() tea.Cmd {
 	m.prefsErr = nil
 	if m.briefingModeID != m.activeDrill.ID {
 		m.briefingReference = prefs.ReferenceVariant
+		m.briefingNoLint = prefs.NoLint
 		m.setBriefingOptions(m.activeDrill, prefs.Options)
 	}
 	m.runMode = m.briefingMode.Normalize()
 	m.runReference = m.briefingReference
+	m.runNoLint = m.briefingNoLint
 	cfg, _ := storage.LoadConfig()
 	count := cfg.GetCountdown()
 	if count <= 0 {
@@ -80,6 +82,7 @@ func (m *MainModel) launchSprintSession() tea.Cmd {
 	sess, err := runner.NewSessionWithOptions(*m.activeDrill, m.history.GetPB(m.activeDrill.ID, m.runMode.RecordMode()), logoRGB(ColorCroc), runner.Options{
 		ReferenceOptions: &m.runMode,
 		ReferenceVariant: m.runReference,
+		NoLint:           m.runNoLint,
 	})
 	if err != nil {
 		m.setupErr = err
@@ -271,7 +274,7 @@ func (m *MainModel) recordPass() tea.Cmd {
 	oldLevel := storage.GetLevelInfo(m.history.GetTotalXP()).Level
 	oldBestStreak := m.history.BestStreak
 
-	isPB, delta, err := m.history.RecordAttempt(d.ID, m.runMode.RecordMode(), m.accumulatedTime, true, submits, firstDailyClear)
+	isPB, delta, err := m.history.RecordAttemptNoLint(d.ID, m.runMode.RecordMode(), m.accumulatedTime, true, submits, firstDailyClear, m.runNoLint)
 	if err != nil {
 		m.saveErr = err
 		return nil
@@ -301,7 +304,7 @@ func (m *MainModel) recordPass() tea.Cmd {
 func (m *MainModel) recordForfeit() {
 	m.evalReview = nil
 	m.resultReview = nil
-	_, _, err := m.history.RecordAttempt(m.activeDrill.ID, m.runMode.RecordMode(), m.accumulatedTime, false, m.submits(), false)
+	_, _, err := m.history.RecordAttemptNoLint(m.activeDrill.ID, m.runMode.RecordMode(), m.accumulatedTime, false, m.submits(), false, m.runNoLint)
 	if err != nil {
 		m.saveErr = err
 		return

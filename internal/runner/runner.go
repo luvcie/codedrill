@@ -36,12 +36,15 @@ type Session struct {
 	referenceDir    string
 	referencePolicy string
 	typingPack      string
+	noLint          bool
 }
 
 // Options carries the sprint's reference policy. An absent policy denies source access.
 type Options struct {
 	ReferenceOptions *mode.Options
 	ReferenceVariant solutions.Variant
+	// NoLint turns off Helix language servers in the workspace.
+	NoLint bool
 }
 
 const CrocArt = ":==8-;;;;;;;;,,,    ,\n" +
@@ -55,10 +58,18 @@ const editorShimDir = ".codedrill-editor"
 
 const backMarker = ".codedrill-back"
 
+// helixDir is the workspace-local Helix config. With NoLint it holds a
+// languages.toml that gives each drill language an empty language-servers list.
+const helixDir = ".helix"
+
+// shortcut: only the languages the built-in drills use, add a name here when a
+// drill needs another language.
+var noLintLanguages = []string{"c", "cpp", "go", "python"}
+
 var helperFiles = []string{
 	"pace", "p", "run", "t", "submit", "s", "back", "info", "i", "diff", "d", "match", "m", "volume", "v",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
-	".sprint_start", ".starter_code", editorShimDir, ".codedrill-music.sock", backMarker,
+	".sprint_start", ".starter_code", editorShimDir, helixDir, ".codedrill-music.sock", backMarker,
 }
 
 const defaultLogoRGB = "127;160;90"
@@ -128,6 +139,7 @@ func NewSessionWithOptions(d drill.Drill, pb time.Duration, logoRGB string, opts
 		drill:       d,
 		pb:          pb,
 		logoRGB:     logoRGB,
+		noLint:      opts.NoLint,
 	}
 	defer func() {
 		if err != nil && sess.referenceDir != "" {
@@ -634,6 +646,11 @@ exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s
 			return err
 		}
 	}
+	if s.noLint {
+		if err := writeNoLintConfig(ws); err != nil {
+			return err
+		}
+	}
 	if typingSounds == "1" {
 		if err := writeEditorShim(s.Workspace, editor, executablePath(), s.typingPack); err != nil {
 			return err
@@ -647,6 +664,18 @@ exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s
 		}
 	}
 	return nil
+}
+
+func writeNoLintConfig(workspace string) error {
+	var b strings.Builder
+	for _, name := range noLintLanguages {
+		b.WriteString("[[language]]\nname = " + strconv.Quote(name) + "\nlanguage-servers = []\n\n")
+	}
+	dir := filepath.Join(workspace, helixDir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "languages.toml"), []byte(b.String()), 0644)
 }
 
 // writeEditorShim creates a shim named after the editor command. The pane

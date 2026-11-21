@@ -92,12 +92,14 @@ type MainModel struct {
 	briefingMode      mode.Options
 	briefingModeID    string
 	briefingReference solutions.Variant
+	briefingNoLint    bool
 	modeFocus         int
 	briefingRefOK     bool
 	briefingRefErr    error
 	briefingSaveErr   error
 	runMode           mode.Options
 	runReference      solutions.Variant
+	runNoLint         bool
 	evalOutput        string
 	evalPassed        bool
 	evalRef           *compare.Result

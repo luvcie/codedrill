@@ -337,10 +337,11 @@ var briefingOptionLabels = [briefingOptionCount]string{
 	"Show reference",
 	"Copy reference exactly",
 	"Require tests",
+	"Linter off (Helix)",
 }
 
 // briefingCheckboxAt returns the option index under cell (x, y): checkboxes
-// are 0..3 and the vect2 reference choice is 4. The four checkboxes
+// are 0..4 and the vect2 reference choice is 5. The four checkboxes
 // are arranged two per row (options 0 and 1 on row 0, options 2 and 3 on row 1)
 // when the terminal is wide enough; otherwise they fall back to a vertical
 // layout. x must land on the checkbox box itself ([x] or [ ]), not on the label

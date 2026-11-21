@@ -323,3 +323,14 @@ func TestHallOfFameOnlyTopRankIsStyled(t *testing.T) {
 		t.Fatalf("rank #2 is cyan: %q", second)
 	}
 }
+
+func TestHallOfFameBadgesNoLintRuns(t *testing.T) {
+	d, hist := hallOfFameHist()
+	if view := ansi.Strip(RenderLeaderboardView(d, hist, false, storage.ExamMode, 100)); strings.Contains(view, "no lint") {
+		t.Fatalf("badge shown without a no-lint run:\n%s", view)
+	}
+	hist.Attempts[0].NoLint = true
+	if view := ansi.Strip(RenderLeaderboardView(d, hist, false, storage.ExamMode, 100)); !strings.Contains(view, "no lint") {
+		t.Fatalf("badge missing for a no-lint run:\n%s", view)
+	}
+}

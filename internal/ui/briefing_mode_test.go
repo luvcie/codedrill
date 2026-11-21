@@ -118,8 +118,8 @@ func TestBriefingSavedRecallOpensStudyAndKeepsHistory(t *testing.T) {
 func TestBriefingCheckboxFocusWrapsAndToggles(t *testing.T) {
 	m := newBriefingModeModel(t, "ft_strlen")
 	m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	if m.modeFocus != 3 {
-		t.Fatalf("shift+tab focused option %d, want 3", m.modeFocus)
+	if m.modeFocus != briefingOptionCount-1 {
+		t.Fatalf("shift+tab focused option %d, want %d", m.modeFocus, briefingOptionCount-1)
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if m.modeFocus != 0 {
@@ -557,5 +557,21 @@ func TestBriefingModeLabelAboveCheckboxes(t *testing.T) {
 	}
 	if modeLine >= checkboxLine {
 		t.Fatalf("Mode label (line %d) must be ABOVE checkboxes (line %d)", modeLine, checkboxLine)
+	}
+}
+
+func TestBriefingLinterOffToggleSavesAndStaysOutOfMode(t *testing.T) {
+	m := newBriefingModeModel(t, "ft_strlen")
+	before := m.briefingMode
+	m.modeFocus = 4
+	m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if !m.briefingNoLint || m.briefingMode != before {
+		t.Fatalf("toggle gave noLint %v, mode %+v (was %+v)", m.briefingNoLint, m.briefingMode, before)
+	}
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "[x] Linter off (Helix)") {
+		t.Fatalf("checked box missing:\n%s", view)
+	}
+	if saved, err := mode.LoadPreferences("ft_strlen"); err != nil || !saved.NoLint {
+		t.Fatalf("saved %+v, error %v", saved, err)
 	}
 }

@@ -15,6 +15,9 @@ import (
 type Preferences struct {
 	Options
 	ReferenceVariant solutions.Variant `json:"reference_variant,omitempty"`
+	// NoLint turns off Helix language servers. It is not part of Options, so
+	// it does not change presets or records.
+	NoLint bool `json:"no_lint,omitempty"`
 }
 
 // prefsFile maps drill IDs to their preferences. Preset names are not stored.
