@@ -80,7 +80,6 @@ func hallStats(hist *storage.HistoryStore, d drill.Drill, category storage.Recor
 	}
 	items := []string{
 		labelValue("runs", strconv.Itoa(stats.TotalRuns), hallValueStyle),
-		labelValue("passed", fmt.Sprintf("%d (%d%%)", stats.Successful, stats.Successful*100/stats.TotalRuns), hallValueStyle),
 	}
 	best := labelValue("best", storage.FormatDuration(stats.PersonalBest), hallValueStyle)
 	if grade, _ := CalculateGrade(stats.PersonalBest, d); grade != "" {
