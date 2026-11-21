@@ -29,7 +29,7 @@ func TestBuiltinCppStalePrecompiledHeader(t *testing.T) {
 	if err != nil || source == nil {
 		t.Fatalf("vect2 reference unavailable: %v", err)
 	}
-	for _, path := range []string{"r", "submission"} {
+	for _, path := range []string{"t", "submission"} {
 		t.Run(path, func(t *testing.T) {
 			s, err := NewSession(*d, 0)
 			if err != nil {
@@ -116,7 +116,7 @@ func TestCppPrecompiledHeaderPolicy(t *testing.T) {
 		{"custom C++ override", "cpp", "answer.hpp.gch", false, false},
 		{"built-in C", "c", "answer.h.gch", true, false},
 	} {
-		for _, path := range []string{"r", "submission"} {
+		for _, path := range []string{"t", "submission"} {
 			t.Run(tc.name+"/"+path, func(t *testing.T) {
 				s, err := NewSession(drill.Drill{ID: "rank05-vect2", Language: tc.language, IsPreset: tc.preset,
 					EntryFile: "answer.cpp", TestCommand: "echo TEST_RAN"}, 0)
@@ -181,7 +181,7 @@ func TestBuiltinCppPrecompiledHeaderFailureStopsTests(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("ZELLIJ_SESSION_NAME", "")
 	for _, failingTool := range []string{"find", "mv"} {
-		for _, path := range []string{"r", "submission"} {
+		for _, path := range []string{"t", "submission"} {
 			t.Run(failingTool+"/"+path, func(t *testing.T) {
 				s, err := NewSession(drill.Drill{ID: "test", Language: "cpp", IsPreset: true,
 					EntryFile: "answer.cpp", TestCommand: "echo TEST_RAN"}, 0)
@@ -213,7 +213,7 @@ func TestBuiltinCppPrecompiledHeaderFailureStopsTests(t *testing.T) {
 
 func runCppHeaderCheck(t *testing.T, s *Session, path string) (bool, string) {
 	t.Helper()
-	cmd := exec.Command("bash", "./r")
+	cmd := exec.Command("bash", "./t")
 	cmd.Dir = s.Workspace
 	if path == "r" {
 		output, err := cmd.CombinedOutput()

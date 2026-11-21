@@ -56,7 +56,7 @@ const editorShimDir = ".codedrill-editor"
 const backMarker = ".codedrill-back"
 
 var helperFiles = []string{
-	"pace", "p", "run", "r", "submit", "s", "back", "info", "i", "diff", "d", "match", "m", "volume", "v",
+	"pace", "p", "run", "t", "submit", "s", "back", "info", "i", "diff", "d", "match", "m", "volume", "v",
 	"start-editor.sh", "start-terminal.sh", "layout.kdl",
 	".sprint_start", ".starter_code", editorShimDir, ".codedrill-music.sock", backMarker,
 }
@@ -517,7 +517,7 @@ printf '\033[38;2;%sm%s\n\033[1mcodedrill\033[0m\n' "$LOGO_RGB" "$CROC"
 echo "$TITLE"
 echo -e "\033[0;37m$PB_LABEL: $PB\033[0m"
 echo
-echo -e "\033[1;32mr  run tests\033[0m"
+echo -e "\033[1;32mt  run tests\033[0m"
 echo 'p  pace   p -w watch'
 echo 'd  diff   d -r reset'
 echo 'm  match  m -w watch'
@@ -639,7 +639,7 @@ exec "$CODEDRILL" volume "$@"`, "CODEDRILL", executablePath(), "MUSIC_SOCKET", s
 			return err
 		}
 	}
-	for short, long := range map[string]string{"p": "pace", "r": "run", "s": "submit", "i": "info", "d": "diff", "m": "match", "v": "volume"} {
+	for short, long := range map[string]string{"p": "pace", "t": "run", "s": "submit", "i": "info", "d": "diff", "m": "match", "v": "volume"} {
 		if err := os.Symlink(long, filepath.Join(ws, short)); err != nil {
 			if err := os.WriteFile(filepath.Join(ws, short), []byte(bashShebang()+"exec \"$(dirname \"$0\")/"+long+"\" \"$@\"\n"), 0755); err != nil {
 				return err

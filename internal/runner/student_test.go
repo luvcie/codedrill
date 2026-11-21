@@ -204,7 +204,7 @@ func TestEmptyFallbackNeverPasses(t *testing.T) {
 				if passed, out := s.RunTests(); passed || !strings.Contains(out, "Write your implementation") {
 					t.Fatalf("empty fallback evaluation: %v %q", passed, out)
 				}
-				out, err := exec.Command(filepath.Join(s.Workspace, "r")).CombinedOutput()
+				out, err := exec.Command(filepath.Join(s.Workspace, "t")).CombinedOutput()
 				if err == nil || !strings.Contains(string(out), "Write your implementation") || !strings.Contains(string(out), "FAIL") || strings.Contains(string(out), "PASS") {
 					t.Fatalf("empty fallback helper: %v %q", err, out)
 				}

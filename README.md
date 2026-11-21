@@ -32,7 +32,7 @@ go build -o codedrill ./cmd/codedrill
 
 1. Select a drill and press Enter to open its briefing. To open a specific briefing from the shell, run `codedrill start ft_strlen`.
 2. Press `1` for Study, then Enter to start. Study shows the reference when available. Select **Copy reference exactly** to practice matching it on supported C and C++ drills.
-3. Write your solution. In the Zellij terminal pane, run `r` to test and `s` to submit. Without Zellij, close the editor to submit.
+3. Write your solution. In the Zellij terminal pane, run `t` to test and `s` to submit. Without Zellij, close the editor to submit.
 4. After evaluation, press `e` to resume editing or Enter to save a passing run.
 
 ## Controls

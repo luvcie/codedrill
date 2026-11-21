@@ -93,7 +93,7 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 	cmd.Dir = sess.Workspace
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("executing ./run failed: %v, output: %s", err, string(out))
+		t.Fatalf("executing ./tun failed: %v, output: %s", err, string(out))
 	}
 
 	outStr := string(out)
@@ -107,7 +107,7 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 		t.Errorf("expected submission command in pass output, got: %s", outStr)
 	}
 
-	rScript := filepath.Join(sess.Workspace, "r")
+	rScript := filepath.Join(sess.Workspace, "t")
 	if _, err := os.Stat(rScript); os.IsNotExist(err) {
 		t.Errorf("r shortcut missing")
 	}
@@ -130,14 +130,14 @@ func TestNewSessionAndWorkspace(t *testing.T) {
 		t.Errorf("expected pace against the PB in ./p output, got: %s", string(pOut))
 	}
 
-	rCmd := exec.Command("./r")
+	rCmd := exec.Command("./t")
 	rCmd.Dir = sess.Workspace
 	rOut, err := rCmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("executing ./r failed: %v, output: %s", err, string(rOut))
+		t.Fatalf("executing ./t failed: %v, output: %s", err, string(rOut))
 	}
 	if !strings.Contains(string(rOut), "PASS") {
-		t.Errorf("expected PASS in ./r output, got: %s", string(rOut))
+		t.Errorf("expected PASS in ./t output, got: %s", string(rOut))
 	}
 
 	diffScript := filepath.Join(sess.Workspace, "diff")
@@ -331,7 +331,7 @@ func TestAllPresetsWorkspaceSetup(t *testing.T) {
 				t.Errorf("PROBLEM.md missing for drill %s", d.ID)
 			}
 
-			for _, helper := range []string{"r", "p", "s", "i", "d", "m", "run", "pace", "submit", "info", "diff", "match"} {
+			for _, helper := range []string{"t", "p", "s", "i", "d", "m", "run", "pace", "submit", "info", "diff", "match"} {
 				if _, err := os.Stat(filepath.Join(sess.Workspace, helper)); os.IsNotExist(err) {
 					t.Errorf("expected helper %s to exist for drill %s", helper, d.ID)
 				}
