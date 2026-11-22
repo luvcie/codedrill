@@ -1,37 +1,35 @@
 # vect2
 
-## Original subject
-
-```text
-================================================================================
-Assignment name  : vect2
-Expected files   : vect2.hpp, vect2.cpp
-Allowed functions: n/a
-================================================================================
+- **Assignment name:** `vect2`
+- **Expected files:** `vect2.hpp`, `vect2.cpp`
+- **Allowed functions:** n/a
 
 Create a class vect2 representing a mathematical vector of dimension 2
 containing ints.
 
 It must support addition, subtraction and multiplication by a scalar (such that
-the expression (vect2(2, 2) * 2 == vect2(4, 4)) is true).
+the expression `vect2(2, 2) * 2 == vect2(4, 4)` is true).
 
-The operator [] can be used to access the components of your vector (with 0 and
+The operator `[]` can be used to access the components of your vector (with 0 and
 1). No bound checking is required.
 
-Your class must be printable with the << operator, such that:
+Your class must be printable with the `<<` operator, such that:
 
-        std::cout << v << std::endl;
+```cpp
+std::cout << v << std::endl;
+```
 
 produces the same output as:
 
-        std::cout << "{" << v[0] << ", " << v[1] << "}" << std::endl;
+```cpp
+std::cout << "{" << v[0] << ", " << v[1] << "}" << std::endl;
+```
 
 You will find a main in this directory that must work with your class.
 
---------------------------------------------------------------------------------
-[ provided main ]
---------------------------------------------------------------------------------
+### Provided main
 
+```cpp
 #include "vect2.hpp"
 #include <iostream>
 
@@ -74,16 +72,15 @@ int main()
 
     return (0);
 }
-
---------------------------------------------------------------------------------
-[ notes ]
---------------------------------------------------------------------------------
-- Operators exercised: default ctor, ctor(int,int), copy ctor, [] (const for
-  reading and non-const returning a reference so v[1] = 12 works), + - and the
-  scalar *, += -= *=, unary -, pre/post ++ and --, == and !=, and <<.
-- Multiplication is by a SCALAR only (both v * k and k * v). There is no
-  vector * vector. The non-member operator*(int, const vect2&) handles 3 * v.
 ```
+
+### Notes
+
+- Operators exercised: default ctor, `ctor(int,int)`, copy ctor, `[]` (const for
+  reading and non-const returning a reference so `v[1] = 12` works), `+` `-` and the
+  scalar `*`, `+=` `-=` `*=`, unary `-`, pre/post `++` and `--`, `==` and `!=`, and `<<`.
+- Multiplication is by a SCALAR only (both `v * k` and `k * v`). There is no
+  `vector * vector`. The non-member `operator*(int, const vect2&)` handles `3 * v`.
 
 ## Codedrill clarifications
 

@@ -70,6 +70,7 @@ func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent
 			lines = append(lines, "  "+SubtextStyle.Render("No runs yet."))
 		}
 	}
+	lines = append(lines, "", RenderPaceHints(d, width))
 	return strings.Join(lines, "\n")
 }
 

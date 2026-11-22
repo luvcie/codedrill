@@ -223,8 +223,12 @@ func TestBriefingShowsTitleOnceInHeader(t *testing.T) {
 			t.Fatalf("the description heading repeats the title: %q", line)
 		}
 	}
-	if !strings.Contains(view, "Write a function that returns the length") {
+	subject := strings.Index(view, "Write a function that returns the length")
+	if subject < 0 {
 		t.Fatal("description body is missing")
+	}
+	if paces := strings.Index(view, "X < 12s"); paces < 0 || paces >= subject {
+		t.Fatalf("drill paces should appear above the subject:\n%s", view)
 	}
 }
 

@@ -102,7 +102,7 @@ func TestRenderPaceHints(t *testing.T) {
 		"medium": {"S ≤ 12s", "A ≤ 25s", "B ≤ 50s"},
 		"hard":   {"S ≤ 25s", "A ≤ 50s", "B ≤ 90s"},
 	} {
-		hints := RenderPaceHints(drill.Drill{Difficulty: difficulty})
+		hints := RenderPaceHints(drill.Drill{Difficulty: difficulty}, 80)
 		plain := ansi.Strip(hints)
 		if !strings.HasPrefix(plain, "  paces  ") {
 			t.Errorf("%s pace hints %q do not start with the label at column 2", difficulty, plain)
@@ -120,7 +120,13 @@ func TestRenderPaceHints(t *testing.T) {
 
 func TestVect2PaceHintsHideSecretRank(t *testing.T) {
 	d := drill.Drill{ID: "rank05-vect2", Difficulty: "hard", IsPreset: true}
-	hints := ansi.Strip(RenderPaceHints(d))
+	const width = 30
+	hints := ansi.Strip(RenderPaceHints(d, width))
+	for _, line := range strings.Split(hints, "\n") {
+		if ansi.StringWidth(line) > width {
+			t.Fatalf("pace hints overflow %d columns: %q", width, line)
+		}
+	}
 	if strings.Contains(hints, "X+") || strings.Contains(settingsPreview(), "X+") {
 		t.Fatal("rank previews reveal the hidden rank")
 	}
@@ -170,7 +176,7 @@ func TestBuiltinPaceHintsHideSecretRank(t *testing.T) {
 	}
 	for _, d := range drills {
 		t.Run(d.ID, func(t *testing.T) {
-			hints := ansi.Strip(RenderPaceHints(d))
+			hints := ansi.Strip(RenderPaceHints(d, 80))
 			if strings.Contains(hints, "X+") {
 				t.Fatal("pace hints reveal hidden rank")
 			}

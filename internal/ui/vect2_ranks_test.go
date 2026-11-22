@@ -112,7 +112,7 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 						}
 					}
 				}
-				if strings.Contains(RenderPaceHints(d), "X+") {
+				if strings.Contains(RenderPaceHints(d, 100), "X+") {
 					t.Fatal("pace hints reveal hidden rank after earning it")
 				}
 			}

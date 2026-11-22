@@ -89,7 +89,7 @@ func RenderGradeBanner(g Grade, title string) string {
 	return lipgloss.NewStyle().Bold(true).Foreground(gradeColor(g)).Render(text)
 }
 
-func RenderPaceHints(d drill.Drill) string {
+func RenderPaceHints(d drill.Drill, width int) string {
 	targets := drill.RankTargets(d)
 	if targets[0].Rank == "C" {
 		targets = targets[1:]
@@ -112,12 +112,24 @@ func RenderPaceHints(d drill.Drill) string {
 		}
 		paces = append(paces, letter+SubtextStyle.Render(text))
 	}
+	const gap = "   "
+	heading := "  " + SubtextStyle.Render("paces")
 	if len(paces) == 3 {
-		return "  " + SubtextStyle.Render("paces") + "  " + strings.Join(paces, "   ")
+		inline := heading + "  " + strings.Join(paces, gap)
+		if lipgloss.Width(inline) <= width {
+			return inline
+		}
 	}
-	var rows []string
-	for i := 0; i < len(paces); i += 4 {
-		rows = append(rows, "  "+strings.Join(paces[i:min(i+4, len(paces))], "   "))
+	rows := []string{heading}
+	for start := 0; start < len(paces); {
+		end := min(start+4, len(paces))
+		row := "  " + strings.Join(paces[start:end], gap)
+		for end > start+1 && lipgloss.Width(row) > width {
+			end--
+			row = "  " + strings.Join(paces[start:end], gap)
+		}
+		rows = append(rows, row)
+		start = end
 	}
-	return "  " + SubtextStyle.Render("paces") + "\n" + strings.Join(rows, "\n")
+	return strings.Join(rows, "\n")
 }

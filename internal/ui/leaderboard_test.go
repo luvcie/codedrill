@@ -29,6 +29,9 @@ func TestAllHistoryShowsEachCategoryPB(t *testing.T) {
 	hist.Attempts = append(hist.Attempts, storage.Attempt{DrillID: d.ID, Mode: storage.StudyMode, Duration: 500 * time.Millisecond})
 	for _, recent := range []bool{false, true} {
 		view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.RecordMode("all"), 80))
+		if strings.Count(view, "\n  paces") != 1 || strings.LastIndex(view, "\n  paces") < strings.LastIndex(view, "5.000s") {
+			t.Fatalf("recent=%v: expected one paces section below all categories:\n%s", recent, view)
+		}
 		for _, want := range []string{"All", "Exam", "20.000s", "Study", "0.001s", "Custom (tests, exact match, reference visible)", "5.000s"} {
 			if !strings.Contains(view, want) {
 				t.Fatalf("recent=%v: All hides %q:\n%s", recent, want, view)
@@ -59,7 +62,7 @@ func TestAllHistoryEmptyAndNarrowLayouts(t *testing.T) {
 		}
 	}
 	view := ansi.Strip(RenderLeaderboardView(d, &storage.HistoryStore{}, false, storage.RecordMode("all"), 80))
-	for _, want := range []string{"All", "Exam", "Study", "No runs yet."} {
+	for _, want := range []string{"All", "Exam", "Study", "No runs yet.", "paces", "X < 12s"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("empty All view hides %q:\n%s", want, view)
 		}
@@ -224,7 +227,11 @@ func TestHallOfFameRowsDoNotWrap(t *testing.T) {
 	for _, width := range []int{60, 72, 80} {
 		for _, recent := range []bool{false, true} {
 			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.ExamMode, width))
-			lines := strings.Split(view, "\n")
+			history, paces, ok := strings.Cut(view, "\n\n  paces")
+			if !ok || !strings.Contains(paces, "X < 12s") {
+				t.Fatalf("width %d recent=%v: missing paces below the table:\n%s", width, recent, view)
+			}
+			lines := strings.Split(history, "\n")
 			divider := -1
 			for i, line := range lines {
 				if strings.Contains(line, "──") {
@@ -252,12 +259,13 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 	for _, width := range []int{30, 40, 60, 80} {
 		for _, recent := range []bool{false, true} {
 			view := ansi.Strip(RenderLeaderboardView(d, hist, recent, storage.ExamMode, width))
-			lines := strings.Split(view, "\n")
-			for _, line := range lines {
+			for _, line := range strings.Split(view, "\n") {
 				if w := lipgloss.Width(line); w > width {
 					t.Fatalf("recent=%v width %d: line is %d columns: %q", recent, width, w, line)
 				}
 			}
+			history, _, _ := strings.Cut(view, "\n\n  paces")
+			lines := strings.Split(history, "\n")
 			divider := -1
 			for i, line := range lines {
 				if strings.Contains(line, "──") {

@@ -131,7 +131,8 @@ func (m *MainModel) viewBriefing() string {
 		m.briefingKey, m.briefingCache = key, RenderMarkdown(desc, width)
 	}
 
-	return m.screenHeader(joinContext(context...)) + "\n\n" + indentLines(m.briefingModePanel()) + "\n\n" + m.briefingCache + "\n\n" + RenderPaceHints(*d)
+	w, _ := m.screenSize()
+	return m.screenHeader(joinContext(context...)) + "\n\n" + indentLines(m.briefingModePanel()) + "\n\n" + RenderPaceHints(*d, w) + "\n\n" + m.briefingCache
 }
 
 func (m *MainModel) viewEvaluating() string {
