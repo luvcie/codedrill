@@ -102,7 +102,7 @@ func hallStats(hist *storage.HistoryStore, d drill.Drill, category storage.Recor
 }
 
 func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width int) []string {
-	head := []string{"rank", "time", "grade", "submits", "date"}
+	head := []string{"rank", "time", "grade", "date"}
 	if showRecent {
 		head[0] = "status"
 	}
@@ -135,7 +135,6 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 			rank,
 			timeCell,
 			gradeStyle.Render("[" + gradeText + "]"),
-			strconv.Itoa(att.Attempts),
 			SubtextStyle.Render(att.Timestamp.Format("2006-01-02 15:04")),
 		})
 	}
@@ -150,14 +149,14 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 		}
 	}
 	if width < 72 {
-		content[4] = 0
+		content[3] = 0
 	}
 
 	avail := math.MaxInt
 	if width > 0 {
 		avail = width - len("  ")
 	}
-	widths := fitTable(content, 0, content[0], hallGap, avail, []int{3, 2})
+	widths := fitTable(content, 0, content[0], hallGap, avail, []int{2})
 
 	dim := make([]string, len(head))
 	for i, h := range head {

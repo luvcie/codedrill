@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -277,6 +276,9 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 				t.Fatalf("recent=%v width %d: expected %d rows, got %d:\n%s", recent, width, len(attempts), len(rows), view)
 			}
 			header := lines[divider-1]
+			if strings.Contains(header, "submits") {
+				t.Errorf("recent=%v width %d: unexpected submits column: %q", recent, width, header)
+			}
 			for i, att := range attempts {
 				grade, _ := CalculateGrade(att.Duration, d)
 				gradeCell := "[" + string(grade) + "]"
@@ -284,10 +286,9 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 					gradeCell = "[-]"
 				}
 				checkCellsKept(t, header, rows[i], map[string]string{
-					"time":    storage.FormatDuration(att.Duration),
-					"grade":   gradeCell,
-					"submits": fmt.Sprint(att.Attempts),
-					"date":    att.Timestamp.Format("2006-01-02 15:04"),
+					"time":  storage.FormatDuration(att.Duration),
+					"grade": gradeCell,
+					"date":  att.Timestamp.Format("2006-01-02 15:04"),
 				})
 			}
 		}
