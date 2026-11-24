@@ -3,7 +3,7 @@
   "title": "life",
   "category": "42/rank 5",
   "language": "c",
-  "difficulty": "hard",
+  "difficulty": "medium",
   "entry_file": "life.c",
   "student_files": [
     "life.c"
