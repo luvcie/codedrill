@@ -414,38 +414,32 @@ func (c *cli) runs(idOrTitle string, recent bool) error {
 			continue
 		}
 		c.printf("\n%s\n", mode.RecordLabel(category))
-		if st != nil && st.TotalRuns > 0 {
-			c.printf("Runs: %d · Passed: %d (%d%%) · PB: %s\n", st.TotalRuns, st.Successful,
-				st.Successful*100/st.TotalRuns, pbText(hist, *d, category))
+		if st != nil && st.Successful > 0 {
+			c.printf("Runs: %d · PB: %s\n", st.Successful, pbText(hist, *d, category))
 		}
-		attempts := hist.GetTopAttempts(d.ID, category, 10)
+		var attempts []storage.Attempt
 		if recent {
-			attempts = hist.GetRecentAttempts(d.ID, category, 10)
+			attempts = hist.GetRecentPasses(d.ID, category, 10)
+		} else {
+			attempts = hist.GetTopAttempts(d.ID, category, 10)
 		}
 		if len(attempts) == 0 {
 			c.println("  No runs yet.")
 			continue
 		}
-		first := "RANK"
-		if recent {
-			first = "STATUS"
+		rankHeading := ""
+		if !recent {
+			rankHeading = fmt.Sprintf("%-8s ", "RANK")
 		}
-		c.printf("  %-8s %-16s %-8s %-10s %s\n", first, "TIME", "GRADE", "SUBMITS", "DATE")
+		c.printf("  %s%-16s %-8s %-10s %s\n", rankHeading, "TIME", "GRADE", "SUBMITS", "DATE")
 		for i, att := range attempts {
-			label := "#" + strconv.Itoa(i+1)
-			grade := "-"
-			if att.Passed {
-				g, _ := ui.CalculateGrade(att.Duration, *d)
-				grade = "[" + string(g) + "]"
+			rank := ""
+			if !recent {
+				rank = fmt.Sprintf("%-8s ", "#"+strconv.Itoa(i+1))
 			}
-			if recent {
-				label = "PASS"
-				if !att.Passed {
-					label = "FAIL"
-				}
-			}
-			c.printf("  %-8s %-16s %-8s %-10d %s\n",
-				label, storage.FormatDuration(att.Duration), grade, att.Attempts, att.Timestamp.Format("2006-01-02 15:04"))
+			grade, _ := ui.CalculateGrade(att.Duration, *d)
+			c.printf("  %s%-16s %-8s %-10d %s\n",
+				rank, storage.FormatDuration(att.Duration), "["+string(grade)+"]", att.Attempts, att.Timestamp.Format("2006-01-02 15:04"))
 		}
 	}
 	c.println(rule)

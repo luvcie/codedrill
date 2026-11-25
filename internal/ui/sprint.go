@@ -245,15 +245,9 @@ func (m *MainModel) updateEvaluating(key tea.KeyMsg) tea.Cmd {
 		m.state = StateBriefing
 	case finish && verdict.Passed:
 		return m.recordPass()
-	case finish && m.saveErr != nil:
-		// Retry saving the failed run.
-		m.recordForfeit()
 	case finish:
 		return m.startOrResumeSprint()
-	case (k == "q" || k == "esc") && !verdict.Passed && m.saveErr == nil:
-		m.recordForfeit()
 	case k == "q" || k == "esc":
-		// Leaving a pass, or a run that could not be saved, records nothing.
 		m.endSession()
 		m.state = StateMenu
 	}
@@ -297,20 +291,6 @@ func (m *MainModel) recordPass() tea.Cmd {
 	m.endSession()
 	m.state = StateResults
 	return m.refreshPB(d)
-}
-
-// recordForfeit saves a failed run and returns to the menu. On a save error
-// the evaluation screen stays up so the user can retry or discard.
-func (m *MainModel) recordForfeit() {
-	m.evalReview = nil
-	m.resultReview = nil
-	_, _, err := m.history.RecordAttemptNoLint(m.activeDrill.ID, m.runMode.RecordMode(), m.accumulatedTime, false, m.submits(), false, m.runNoLint)
-	if err != nil {
-		m.saveErr = err
-		return
-	}
-	m.endSession()
-	m.state = StateMenu
 }
 
 func (m *MainModel) updateResults(key tea.KeyMsg) tea.Cmd {

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -16,32 +15,44 @@ import (
 var hallValueStyle = lipgloss.NewStyle().Bold(true)
 
 const hallGap = 3
+const hallRunLimit = 8
 
-// All is a history view, never a saved practice mode.
-const allHistoryCategory storage.RecordMode = "all"
+const (
+	allHistoryCategory     storage.RecordMode = "all"
+	trueAllHistoryCategory storage.RecordMode = "true-all"
+)
 
 func (m *MainModel) leaderboardCategories() []storage.RecordMode {
-	return append([]storage.RecordMode{allHistoryCategory}, m.history.RecordModes(m.activeDrill.ID)...)
+	categories := append([]storage.RecordMode{allHistoryCategory}, m.history.RecordModes(m.activeDrill.ID)...)
+	return append(categories, trueAllHistoryCategory)
 }
 
 func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent bool, category storage.RecordMode, width int) string {
 	if width <= 0 {
 		width = 80
 	}
-	all := category == allHistoryCategory
+	all := category == allHistoryCategory || category == trueAllHistoryCategory
 	categories := []storage.RecordMode{category}
 	label := mode.RecordLabel(category)
+	limit := hallRunLimit
+	fastest := fmt.Sprintf("fastest %d runs  [Tab] recent", limit)
+	recent := "recent runs  [Tab] fastest"
 	if all {
 		categories = hist.RecordModes(d.ID)
 		label = "All"
 	}
-
-	viewMode := "fastest runs   [Tab] recent"
+	if category == trueAllHistoryCategory {
+		label = "True All"
+		limit = 0
+		fastest = "all runs by time  [Tab] recent"
+		recent = "all recent runs  [Tab] fastest"
+	}
+	viewMode := fastest
 	if showRecent {
-		viewMode = "recent runs   [Tab] fastest"
+		viewMode = recent
 	}
 	categoryLine := label + "   [←/→] category"
-	lines := []string{"", "  " + ansi.Truncate(categoryLine, max(0, width-2), ""), "  " + styleHelpRow(viewMode, ""), ""}
+	lines := []string{"", "  " + ansi.Truncate(categoryLine, max(0, width-2), ""), renderHelp(viewMode, width, ""), ""}
 
 	for i, category := range categories {
 		if i > 0 {
@@ -57,9 +68,9 @@ func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent
 
 		var attempts []storage.Attempt
 		if showRecent {
-			attempts = hist.GetRecentAttempts(d.ID, category, 8)
+			attempts = hist.GetRecentPasses(d.ID, category, limit)
 		} else {
-			attempts = hist.GetTopAttempts(d.ID, category, 8)
+			attempts = hist.GetTopAttempts(d.ID, category, limit)
 		}
 		if len(attempts) > 0 || !all {
 			for _, line := range hallTable(d, attempts, showRecent, width) {
@@ -76,11 +87,11 @@ func RenderLeaderboardView(d drill.Drill, hist *storage.HistoryStore, showRecent
 
 func hallStats(hist *storage.HistoryStore, d drill.Drill, category storage.RecordMode, width int) []string {
 	stats := hist.GetModeStats(d.ID, category)
-	if stats == nil || stats.TotalRuns == 0 {
+	if stats == nil || stats.Successful == 0 {
 		return nil
 	}
 	items := []string{
-		labelValue("runs", strconv.Itoa(stats.TotalRuns), hallValueStyle),
+		labelValue("runs", strconv.Itoa(stats.Successful), hallValueStyle),
 	}
 	best := labelValue("best", storage.FormatDuration(stats.PersonalBest), hallValueStyle)
 	if grade, _ := CalculateGrade(stats.PersonalBest, d); grade != "" {
@@ -104,28 +115,24 @@ func hallStats(hist *storage.HistoryStore, d drill.Drill, category storage.Recor
 
 func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width int) []string {
 	head := []string{"rank", "time", "grade", "date"}
+	flex := 0
 	if showRecent {
-		head[0] = "status"
+		head[0] = ""
+		flex = 1
 	}
 	rows := [][]string{}
 	for i, att := range attempts {
 		grade, _ := CalculateGrade(att.Duration, d)
 		gradeText := string(grade)
-		rank := fmt.Sprintf("#%d", i+1)
-		if i == 0 {
-			rank = AccentStyle.Render("★ #1")
+		rank := ""
+		if !showRecent {
+			rank = fmt.Sprintf("#%d", i+1)
+			if i == 0 {
+				rank = AccentStyle.Render("★ #1")
+			}
 		}
 		timeCell := storage.FormatDuration(att.Duration)
 		gradeStyle := lipgloss.NewStyle().Bold(true).Foreground(gradeColor(grade))
-		if showRecent {
-			rank = SuccessStyle.Render("PASS")
-			if !att.Passed {
-				rank = DangerStyle.Render("FAIL")
-				timeCell = DangerStyle.Render(timeCell)
-				gradeText = ""
-				gradeStyle = SubtextStyle
-			}
-		}
 		if att.NoLint {
 			timeCell += " " + AccentStyle.Render("no lint")
 		}
@@ -142,7 +149,8 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 
 	content := make([]int, len(head))
 	for i, h := range head {
-		content[i] = lipgloss.Width(SubtextStyle.Render(h))
+		content[i] = lipgloss.Width(h)
+		head[i] = SubtextStyle.Render(h)
 	}
 	for _, row := range rows {
 		for i, cell := range row {
@@ -153,18 +161,10 @@ func hallTable(d drill.Drill, attempts []storage.Attempt, showRecent bool, width
 		content[3] = 0
 	}
 
-	avail := math.MaxInt
-	if width > 0 {
-		avail = width - len("  ")
-	}
-	widths := fitTable(content, 0, content[0], hallGap, avail, []int{2})
+	widths := fitTable(content, flex, content[flex], hallGap, width-2, []int{2})
 
-	dim := make([]string, len(head))
-	for i, h := range head {
-		dim[i] = SubtextStyle.Render(h)
-	}
 	lines := []string{
-		tableRow(dim, widths, hallGap),
+		tableRow(head, widths, hallGap),
 		lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", tableRowWidth(widths, hallGap))),
 	}
 	for _, row := range rows {

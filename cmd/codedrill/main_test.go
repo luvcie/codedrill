@@ -46,7 +46,7 @@ func TestCommands(t *testing.T) {
 		{[]string{"search", "palindrome"}, []string{"palindrome"}},
 		{[]string{"info", "FT_STRLEN"}, []string{"Drill:", "ft_strlen", "S < 30s"}},
 		{[]string{"top", "ft_strlen"}, []string{"Hall of fame", "#1", "3.200s"}},
-		{[]string{"recent", "ft_strlen"}, []string{"FAIL", "PASS"}},
+		{[]string{"recent", "ft_strlen"}, []string{"Recent runs", "3.200s"}},
 		{[]string{"daily", "info"}, []string{"Drill:"}},
 		{[]string{"stats"}, []string{"Total Sprints:     2", "ft_strlen"}},
 		{[]string{"config"}, []string{"Configuration:", "Shell:"}},
@@ -65,6 +65,9 @@ func TestCommands(t *testing.T) {
 			if !strings.Contains(out, w) {
 				t.Errorf("%v: output lacks %q:\n%s", tc.args, w, out)
 			}
+		}
+		if tc.args[0] == "recent" && (strings.Contains(out, "STATUS") || strings.Contains(out, "5.500s") || !strings.Contains(out, "Runs: 1")) {
+			t.Errorf("unexpected recent runs output:\n%s", out)
 		}
 	}
 

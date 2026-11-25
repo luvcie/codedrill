@@ -12,6 +12,7 @@ import (
 	"github.com/luvcie/codedrill/internal/compare"
 	"github.com/luvcie/codedrill/internal/mode"
 	"github.com/luvcie/codedrill/internal/solutions"
+	"github.com/luvcie/codedrill/internal/storage"
 )
 
 const testReference = "int ft_strlen(char *s)\n{\n\treturn 0;\n}\n"
@@ -220,6 +221,7 @@ func TestExamSkipsReferenceComparison(t *testing.T) {
 	writeTestReference(t, "ft_strlen", testReference)
 	writeTestWorkspace(t, m, otherSource)
 	m.runMode = mode.Exam()
+	m.runNoLint = true
 	m.session.TestCommand = "printf 'ok'"
 
 	msg := runEvaluation(t, m)
@@ -232,6 +234,18 @@ func TestExamSkipsReferenceComparison(t *testing.T) {
 	view := ansi.Strip(m.View())
 	if !strings.Contains(view, "Reference: not checked") || !strings.Contains(view, "Overall: passed") {
 		t.Fatalf("exam does not report skipped reference:\n%s", view)
+	}
+
+	duration := m.accumulatedTime
+	m.evalReadyTime = time.Now().Add(-time.Hour)
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	saved, err := storage.LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempts := saved.GetRecentPasses(m.activeDrill.ID, storage.ExamMode, 8)
+	if m.state != StateResults || len(attempts) != 1 || !attempts[0].Passed || !attempts[0].NoLint || attempts[0].Duration != duration {
+		t.Fatalf("saving an hour after evaluation changed or lost the run: %v, %+v", m.state, attempts)
 	}
 }
 

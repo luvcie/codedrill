@@ -534,6 +534,7 @@ func (m *MainModel) updateLeaderboard(key tea.KeyMsg) tea.Cmd {
 			delta = -1
 		}
 		m.leaderboardMode = (m.leaderboardMode + delta + len(categories)) % len(categories)
+		m.scrollOffset = 0
 	case "enter", " ", "s":
 		return m.triggerSprintStart()
 	case "n", "p":
@@ -548,6 +549,7 @@ func (m *MainModel) updateLeaderboard(key tea.KeyMsg) tea.Cmd {
 		}
 	case "tab", "t":
 		m.leaderboardRecent = !m.leaderboardRecent
+		m.scrollOffset = 0
 	case "esc", "q", "b":
 		m.leaderboardRecent = false
 		m.leaderboardMode = 0

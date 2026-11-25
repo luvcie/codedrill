@@ -45,6 +45,45 @@ func TestHistoryCategorySelectorIncludesAll(t *testing.T) {
 	}
 }
 
+func TestTrueAllShowsEveryCompletedRun(t *testing.T) {
+	m := newBriefingModeModel(t, "ft_strlen")
+	id := m.activeDrill.ID
+	for seconds := 21; seconds <= 30; seconds++ {
+		m.history.Attempts = append(m.history.Attempts, storage.Attempt{
+			DrillID: id, Mode: storage.ExamMode, Duration: time.Duration(seconds) * time.Second, Passed: true,
+		})
+	}
+	m.history.Attempts = append(m.history.Attempts,
+		storage.Attempt{DrillID: id, Mode: storage.ExamMode, Duration: 567 * time.Millisecond},
+		storage.Attempt{DrillID: id, Mode: storage.StudyMode, Duration: 40 * time.Second, Passed: true},
+	)
+	m.openLeaderboard(StateBriefing)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
+	if view := ansi.Strip(m.contentView()); strings.Contains(view, "30.000s") {
+		t.Fatalf("All should still limit its tables to eight runs:\n%s", view)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	assertRuns := func(first, last string) {
+		t.Helper()
+		view := ansi.Strip(m.contentView())
+		_, rows, ok := strings.Cut(view, "──")
+		if !ok || !strings.Contains(view, "True All") || !strings.Contains(view, "runs 10") ||
+			!strings.Contains(rows, "40.000s") || strings.Contains(rows, "0.567s") {
+			t.Fatalf("True All should show completed runs from both modes:\n%s", view)
+		}
+		if start, end := strings.Index(rows, first), strings.Index(rows, last); start < 0 || end <= start {
+			t.Fatalf("expected %q before %q:\n%s", first, last, view)
+		}
+	}
+	assertRuns("21.000s", "30.000s")
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "30.000s") {
+		t.Fatalf("could not scroll to slower runs:\n%s", view)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	assertRuns("30.000s", "21.000s")
+}
+
 func TestFinishedRunSavesItsMode(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -164,18 +203,23 @@ func TestCustomConfigurationsHaveSeparatePBs(t *testing.T) {
 	}
 }
 
-func TestForfeitKeepsTheRunsCapturedMode(t *testing.T) {
+func TestDiscardUnfinishedRunLeavesHistoryAndStreak(t *testing.T) {
 	m := newEvaluationTestModel(t)
-	m.runMode = mode.Copy()
-	if err := mode.SavePreferences(m.activeDrill.ID, mode.Preferences{Options: mode.Exam()}); err != nil {
+	id := m.activeDrill.ID
+	if _, _, err := m.history.RecordAttempt(id, storage.ExamMode, time.Second, true, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	m.accumulatedTime = 10 * time.Second
-	m.recordForfeit()
-	if len(m.history.Attempts) != 1 || m.history.Attempts[0].Mode != storage.StudyMode || m.history.Attempts[0].Passed {
-		t.Fatalf("forfeit lost the run's mode: %+v", m.history.Attempts)
+	m.runMode = mode.Exam()
+	m.state = StateEvaluating
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != StateMenu || m.session != nil || len(m.history.Attempts) != 1 {
+		t.Fatalf("discard did not clean up the session or changed history: state %v, attempts %+v", m.state, m.history.Attempts)
 	}
-	if m.history.GetPB(m.activeDrill.ID, storage.StudyMode) != 0 || m.history.GetModeStats(m.activeDrill.ID, storage.ExamMode) != nil {
-		t.Fatal("failed run changed a PB or used the newly saved preferences")
+	history, err := storage.LoadHistory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Attempts) != 1 || history.CurrentStreak != 1 || history.GetPB(id, storage.ExamMode) != time.Second {
+		t.Fatalf("discard changed saved progress: %+v", history)
 	}
 }

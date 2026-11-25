@@ -104,7 +104,7 @@ func TestSavedRecallRunsJoinStudyRecords(t *testing.T) {
 	if history.GetPB("drill", StudyMode) != 5*time.Second || history.GetPB("drill", ExamMode) != 20*time.Second {
 		t.Fatal("practice records did not join Study or changed Exam")
 	}
-	if len(history.GetTopAttempts("drill", StudyMode, 10)) != 2 || len(history.GetRecentAttempts("drill", StudyMode, 10)) != 3 {
+	if len(history.GetTopAttempts("drill", StudyMode, 10)) != 2 || len(history.GetRecentPasses("drill", StudyMode, 10)) != 2 {
 		t.Fatal("saved passing or failed practice runs disappeared")
 	}
 	if history.GetTotalRuns() != 4 || history.GetTotalPracticeTime() != 38*time.Second || history.GetStats("drill").Successful != 3 {

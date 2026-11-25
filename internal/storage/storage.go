@@ -245,20 +245,23 @@ func (s *HistoryStore) GetTopAttempts(drillID string, category RecordMode, limit
 
 	slices.SortStableFunc(passed, func(a, b Attempt) int { return int(a.Duration - b.Duration) })
 
-	if len(passed) > limit {
+	if limit > 0 && len(passed) > limit {
 		return passed[:limit]
 	}
 	return passed
 }
 
-func (s *HistoryStore) GetRecentAttempts(drillID string, category RecordMode, limit int) []Attempt {
+// GetRecentPasses returns completed runs, newest first. A nonpositive limit returns all passes.
+func (s *HistoryStore) GetRecentPasses(drillID string, category RecordMode, limit int) []Attempt {
 	var list []Attempt
 	for i := len(s.Attempts) - 1; i >= 0; i-- {
-		if s.Attempts[i].DrillID == drillID && s.Attempts[i].Mode == category {
-			list = append(list, s.Attempts[i])
-			if len(list) >= limit {
-				break
-			}
+		attempt := s.Attempts[i]
+		if !attempt.Passed || attempt.DrillID != drillID || attempt.Mode != category {
+			continue
+		}
+		list = append(list, attempt)
+		if limit > 0 && len(list) == limit {
+			break
 		}
 	}
 	return list

@@ -47,9 +47,9 @@ func (m *MainModel) screenKeys() string {
 		case m.saveErr != nil:
 			return "[Enter] retry save  [e] editor  [q/Esc] discard this run"
 		case m.passVerdict().Passed:
-			return "[Enter] finish  [e] editor  [q/Esc] quit without saving"
+			return "[Enter] save run  [e] editor  [q/Esc] quit without saving"
 		}
-		return "[Enter/e] editor  [q/Esc] forfeit"
+		return "[Enter/e] editor  [q/Esc] discard run"
 	case StateResults:
 		return "[Enter/q] menu  [r] retry  [n/p] next/prev\n[b] briefing  [l] history"
 	case StateLeaderboard:

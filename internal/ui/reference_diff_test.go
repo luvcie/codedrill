@@ -397,8 +397,8 @@ func TestPostSubmissionDiffUnavailableAfterForfeitOrSprintError(t *testing.T) {
 				runEvaluation(t, m)
 				if kind == "forfeit" {
 					m.Update(runeKey("q"))
-					if len(m.history.Attempts) != 1 || m.history.Attempts[0].Passed {
-						t.Fatal("forfeit recording changed")
+					if len(m.history.Attempts) != 0 {
+						t.Fatal("discarding an unfinished run recorded an attempt")
 					}
 				} else {
 					m.Update(runeKey("e"))
@@ -410,53 +410,36 @@ func TestPostSubmissionDiffUnavailableAfterForfeitOrSprintError(t *testing.T) {
 }
 
 func TestPostSubmissionDiffSaveErrorRecovery(t *testing.T) {
-	for _, forfeit := range []bool{false, true} {
-		t.Run(fmt.Sprintf("forfeit=%v", forfeit), func(t *testing.T) {
-			m := newReferenceReviewModel(t, mode.Study(), reviewStudent)
-			if forfeit {
-				m.session.TestCommand = "exit 1"
-			}
-			runEvaluation(t, m)
-			path, err := storage.GetHistoryPath()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Mkdir(path, 0755); err != nil {
-				t.Fatal(err)
-			}
-			if forfeit {
-				m.Update(runeKey("q"))
-			} else {
-				pressFinish(t, m)
-			}
-			if m.saveErr == nil || m.state != StateEvaluating || len(m.history.Attempts) != 0 {
-				t.Fatal("failed save changed evaluation or history")
-			}
-			if forfeit {
-				assertNoReferenceDiff(t, m)
-			} else {
-				clickHelp(t, m, "[v] Reference diff", 0)
-				if m.referenceDiff == nil {
-					t.Fatal("failed pass save lost its reference diff")
-				}
-				m.Update(runeKey("q"))
-				if m.saveErr == nil {
-					t.Fatal("closing diff cleared the save error")
-				}
-			}
-			if err := os.Remove(path); err != nil {
-				t.Fatal(err)
-			}
-			m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			if len(m.history.Attempts) != 1 {
-				t.Fatal("retry save did not record exactly once")
-			}
-			if forfeit {
-				assertNoReferenceDiff(t, m)
-			} else if m.resultReview == nil || m.state != StateResults {
-				t.Fatal("retry save lost the completed diff")
-			}
-		})
+	m := newReferenceReviewModel(t, mode.Study(), reviewStudent)
+	runEvaluation(t, m)
+	path, err := storage.GetHistoryPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+	pressFinish(t, m)
+	if m.saveErr == nil || m.state != StateEvaluating || len(m.history.Attempts) != 0 {
+		t.Fatal("failed save changed evaluation or history")
+	}
+	clickHelp(t, m, "[v] Reference diff", 0)
+	if m.referenceDiff == nil {
+		t.Fatal("failed pass save lost its reference diff")
+	}
+	m.Update(runeKey("q"))
+	if m.saveErr == nil {
+		t.Fatal("closing diff cleared the save error")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if len(m.history.Attempts) != 1 {
+		t.Fatal("retry save did not record exactly once")
+	}
+	if m.resultReview == nil || m.state != StateResults {
+		t.Fatal("retry save lost the completed diff")
 	}
 }
 

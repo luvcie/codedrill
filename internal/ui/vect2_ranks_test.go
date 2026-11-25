@@ -65,7 +65,8 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 						t.Fatal("result reveals an unearned hidden rank")
 					}
 				} else {
-					m.recordForfeit()
+					m.state = StateEvaluating
+					m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 				}
 				if m.saveErr != nil {
 					t.Fatal(m.saveErr)
@@ -103,13 +104,6 @@ func TestBuiltinRanksFollowSavedPersonalBest(t *testing.T) {
 					}
 					if tc.pbRank != "X+" && strings.Contains(view, "X+") {
 						t.Errorf("%s reveals unearned X+: %s", name, view)
-					}
-					if name == "recent" {
-						for _, line := range strings.Split(ansi.Strip(view), "\n") {
-							if strings.Contains(line, "FAIL") && !strings.Contains(line, "[-]") {
-								t.Errorf("failed attempt displays a rank: %s", line)
-							}
-						}
 					}
 				}
 				if strings.Contains(RenderPaceHints(d, 100), "X+") {

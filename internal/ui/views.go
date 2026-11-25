@@ -154,12 +154,8 @@ func (m *MainModel) viewEvaluating() string {
 
 	verdict := m.passVerdict()
 	body := evaluationStatus(verdict, m.evalPassed, m.runMode, m.evalRef, m.evalRefErr) + "  " + elapsed
-	if verdict.Passed {
-		if m.history.CurrentStreak > 0 {
-			body += "\n\n" + labelValue("streak", strconv.Itoa(m.history.CurrentStreak), lipgloss.NewStyle())
-		}
-	} else if m.history.CurrentStreak > 0 {
-		body += "\n\n" + DangerStyle.Render(fmt.Sprintf("Forfeiting ends your %d-win streak.", m.history.CurrentStreak))
+	if verdict.Passed && m.history.CurrentStreak > 0 {
+		body += "\n\n" + labelValue("overall streak", strconv.Itoa(m.history.CurrentStreak), lipgloss.NewStyle())
 	}
 	if m.musicPlaybackErr != nil {
 		body += "\nMusic unavailable: " + m.musicPlaybackErr.Error()
@@ -171,7 +167,9 @@ func evaluationStatus(verdict mode.Verdict, testsPassed bool, opts mode.Options,
 	lines := []string{"Tests: " + passedValue(testsPassed)}
 	lines = append(lines, referenceStatus(opts, ref, refErr))
 	overall := "Overall: " + passedValue(verdict.Passed)
-	if !verdict.Passed && verdict.Reason != "" {
+	if verdict.Passed {
+		overall += " " + SubtextStyle.Render("(not saved yet)")
+	} else if verdict.Reason != "" {
 		overall += " (" + verdict.Reason + ")"
 	}
 	return strings.Join(append(lines, overall), "\n")

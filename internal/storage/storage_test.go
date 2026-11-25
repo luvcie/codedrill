@@ -158,12 +158,9 @@ func TestStorageMetricsAndStats(t *testing.T) {
 		t.Errorf("expected top attempt duration 2s, got %v", top[0].Duration)
 	}
 
-	recent := store.GetRecentAttempts("d1", ExamMode, 5)
-	if len(recent) != 2 {
-		t.Fatalf("expected 2 attempts for d1, got %d", len(recent))
-	}
-	if recent[0].Passed != false {
-		t.Errorf("expected most recent attempt to be the failed one")
+	recent := store.GetRecentPasses("d1", ExamMode, 5)
+	if len(recent) != 1 || recent[0].Duration != 2*time.Second {
+		t.Fatalf("expected only the passed attempt for d1, got %+v", recent)
 	}
 
 	if err := store.ResetDrillStats("d1"); err != nil {

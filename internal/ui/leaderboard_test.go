@@ -40,7 +40,7 @@ func TestAllHistoryShowsEachCategoryPB(t *testing.T) {
 		if strings.Contains(view, "Recall") {
 			t.Fatalf("removed category is still visible:\n%s", view)
 		}
-		if strings.Contains(view, "0.125s") || strings.Contains(view, "0.500s") != recent {
+		if strings.Contains(view, "0.125s") || strings.Contains(view, "0.500s") {
 			t.Fatalf("recent=%v: All includes the wrong runs:\n%s", recent, view)
 		}
 		if hist.GetPB(d.ID, storage.ExamMode) != 20*time.Second || hist.GetPB(d.ID, storage.StudyMode) != time.Millisecond {
@@ -80,7 +80,7 @@ func TestRenderLeaderboardView(t *testing.T) {
 	}
 
 	view := RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 80)
-	if !strings.Contains(view, "fastest runs") {
+	if !strings.Contains(view, "fastest 8 runs") {
 		t.Errorf("expected fastest runs mode indicator, got: %s", view)
 	}
 	if !strings.Contains(view, "No runs yet") {
@@ -121,18 +121,15 @@ func TestRenderLeaderboardView(t *testing.T) {
 	if !strings.Contains(viewPop, "[X+]") {
 		t.Errorf("expected earned X+ grade badge, got: %s", viewPop)
 	}
-	if !strings.Contains(viewPop, "runs 2") {
+	if !strings.Contains(viewPop, "runs 1") {
 		t.Errorf("expected stats summary box, got: %s", viewPop)
 	}
 	viewPopRecent := RenderLeaderboardView(strlen, hist, true, storage.ExamMode, 80)
-	if !strings.Contains(viewPopRecent, "status") {
-		t.Errorf("expected STATUS column header, got: %s", viewPopRecent)
+	if !strings.Contains(viewPopRecent, "1.500s") || strings.Contains(viewPopRecent, "status") || strings.Contains(viewPopRecent, "PASS") {
+		t.Errorf("expected completed runs without a status column: %s", viewPopRecent)
 	}
-	if !strings.Contains(viewPopRecent, "PASS") {
-		t.Errorf("expected PASS badge in recent runs, got: %s", viewPopRecent)
-	}
-	if !strings.Contains(viewPopRecent, "FAIL") {
-		t.Errorf("expected FAIL badge in recent runs, got: %s", viewPopRecent)
+	if strings.Contains(viewPopRecent, "FAIL") || strings.Contains(viewPopRecent, "3.500s") {
+		t.Errorf("unfinished run appeared in recent runs: %s", viewPopRecent)
 	}
 
 	viewNarrow := RenderLeaderboardView(strlen, hist, false, storage.ExamMode, 55)
@@ -244,7 +241,7 @@ func TestHallOfFameRowsDoNotWrap(t *testing.T) {
 			// One line per run after the divider. A wrapped cell would add a line.
 			want := len(hist.GetTopAttempts(d.ID, storage.ExamMode, 8))
 			if recent {
-				want = len(hist.GetRecentAttempts(d.ID, storage.ExamMode, 8))
+				want = len(hist.GetRecentPasses(d.ID, storage.ExamMode, 8))
 			}
 			rows := lines[divider+1:]
 			if len(rows) != want {
@@ -277,7 +274,7 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 			}
 			attempts := hist.GetTopAttempts(d.ID, storage.ExamMode, 8)
 			if recent {
-				attempts = hist.GetRecentAttempts(d.ID, storage.ExamMode, 8)
+				attempts = hist.GetRecentPasses(d.ID, storage.ExamMode, 8)
 			}
 			rows := lines[divider+1:]
 			if len(rows) != len(attempts) {
@@ -290,9 +287,6 @@ func TestHallOfFameNarrowWidths(t *testing.T) {
 			for i, att := range attempts {
 				grade, _ := CalculateGrade(att.Duration, d)
 				gradeCell := "[" + string(grade) + "]"
-				if recent && !att.Passed {
-					gradeCell = "[-]"
-				}
 				checkCellsKept(t, header, rows[i], map[string]string{
 					"time":  storage.FormatDuration(att.Duration),
 					"grade": gradeCell,

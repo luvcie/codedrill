@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// 1. Allocate a blank board that is empty by default using calloc
+// 1. Allocate a blank board that is empty by default
 char** makeNewBoard(int width, int height) {
     char **board = calloc(height, sizeof *board);
     for (int row = 0; row < height; ++row) {
@@ -23,18 +23,18 @@ char** initFirstBoard(int width, int height) {
     char cmd;
 
     while (read(0, &cmd, 1) == 1) {
-        // Move cursor, WSAD controls
+        // Move cursor, WASD controls
         if (cmd == 'w' && row > 0) {
-            row--;
-        }
-        if (cmd == 's' && row < height - 1) {
-            row++;
+            --row;
         }
         if (cmd == 'a' && col > 0) {
-            col--;
+            --col;
+        }
+        if (cmd == 's' && row < height - 1) {
+            ++row;
         }
         if (cmd == 'd' && col < width - 1) {
-            col++;
+            ++col;
         }
         // Toggle drawing if desired
         if (cmd == 'x') {
@@ -45,65 +45,68 @@ char** initFirstBoard(int width, int height) {
             board[row][col] = 'O';
         }
     }
-
     return board;
 }
 
-// 3. Perform the next step of the game of life and generate the next board state
+// 3. Count how many tiles surround the given cell.
+int countNeighbors(char **board, int width, int height, int row, int col) {
+
+    int neighbors = 0;
+    for (int drow = -1; drow <= 1; ++drow) {
+        for (int dcol = -1; dcol <= 1; ++dcol) {
+            if (drow == 0 && dcol == 0) {
+                continue;
+            }
+
+            int neighborRow = row + drow;
+            int neighborCol = col + dcol;
+
+            if (neighborRow < 0 || neighborRow >= height) {
+                continue;
+            }
+            if (neighborCol < 0 || neighborCol >= width) {
+                continue;
+            }
+            if (board[neighborRow][neighborCol] == 'O') {
+                ++neighbors;
+            }
+        }
+    }
+    return neighbors;
+}
+
+// 4. Perform the next step of the game of life and generate the next board state
 char** generateNextBoard(char **board, int width, int height) {
     char **nextBoard = makeNewBoard(width, height);
 
-    for (int row = 0; row < height; row++) {
-        for (int col = 0; col < width; col++) {
+    for (int row = 0; row < height; ++row) {
+        for (int col = 0; col < width; ++col) {
             // Count live neighbors around this cell.
-            int neighbors = 0;
+            int neighbors = countNeighbors(board, width, height, row, col);
 
-            for (int drow = -1; drow <= 1; drow++) {
-                for (int dcol = -1; dcol <= 1; dcol++) {
-                    if (drow == 0 && dcol == 0) {
-                        continue;
-                    }
-
-                    int neighbor_row = row + drow;
-                    int neighbor_col = col + dcol;
-
-                    if (neighbor_row < 0 || neighbor_row >= height) {
-                        continue;
-                    }
-                    if (neighbor_col < 0 || neighbor_col >= width) {
-                        continue;
-                    }
-                    if (board[neighbor_row][neighbor_col] == 'O') {
-                        neighbors++;
-                    }
-                }
-            }
-
-            // Three neighbours gives life. Two keeps a live cell alive.
+            // Three neighbors gives life. Two keeps a live cell alive.
             if (neighbors == 3 || (neighbors == 2 && board[row][col] == 'O')) {
                 nextBoard[row][col] = 'O';
             }
         }
     }
-
     return nextBoard;
 }
 
-// 4. Print the board
+// 5. Print the board
 void printBoard(char **board, int width, int height) {
-    for (int row = 0; row < height; row++) {
-        for (int col = 0; col < width; col++) {
+    for (int row = 0; row < height; ++row) {
+        for (int col = 0; col < width; ++col) {
             putchar(board[row][col] == 'O' ? 'O' : ' ');
         }
         putchar('\n');
     }
 }
 
-// 5. Final main - read arguments, initialise board
+// 6. Final main - read arguments, initialise board
 // play the game of life, and print
 int main(int argc, char **argv)
 {
-    // Read arguments
     if (argc != 4) {
         return 1;
     }
@@ -111,15 +114,12 @@ int main(int argc, char **argv)
     int height = atoi(argv[2]);
     int steps = atoi(argv[3]);
 
-    // Initialise board
     char **board = initFirstBoard(width, height);
 
-    // Generate the board for each step of the game of life
     for (int step = 0; step < steps; ++step) {
         board = generateNextBoard(board, width, height);
     }
 
-    // Print the final board
     printBoard(board, width, height);
 
     return 0;
